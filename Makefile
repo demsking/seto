@@ -1,4 +1,5 @@
 STACK_NAME := "test"
+APP_VERSION := $(shell python metadata.py version)
 
 .PHONY: env
 

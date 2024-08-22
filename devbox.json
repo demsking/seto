@@ -1,0 +1,31 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.10.5/.schema/devbox.schema.json",
+  "packages": [
+    "python@3.11",
+    "poetry@latest",
+    "tmux@latest",
+    "gitmux@latest",
+    "git-secret@latest",
+    "tmuxinator@latest",
+    "gnumake@latest",
+    "nodePackages.dotenv-cli@latest",
+    "pre-commit@latest",
+    "editorconfig-checker@latest",
+    "python311Packages.autopep8@latest",
+    "python311Packages.bandit@latest",
+    "python311Packages.pylint@latest",
+    "hadolint@latest",
+    "ruff@latest"
+  ],
+  "env": {
+    "PYTHONPATH": ".venv/lib/python3.11/site-packages:$PYTHONPATH"
+  },
+  "shell": {
+    "init_hook": [
+      "poetry shell",
+      "source config.sh",
+      "pre-commit install -f"
+    ],
+    "scripts": {}
+  }
+}

@@ -1,0 +1,55 @@
+#cloud-config for debian
+
+# Option 1 - Full installation using cURL
+package_update: true
+package_upgrade: true
+
+groups:
+  - docker
+
+system_info:
+  default_user:
+    name: demsking
+    groups: [ docker ]
+
+#cloud-config
+# ssh_authorized_keys:
+#   - <ADD-YOUR-SSH-PUB-KEY-HERE>
+
+packages:
+  - git
+  - tmux
+  - direnv
+  - nfs-kernel-server
+  - unattended-upgrades
+
+runcmd:
+  # Add Docker's official GPG key:
+  - sudo apt-get update
+  - sudo apt-get install ca-certificates curl
+  - sudo install -m 0755 -d /etc/apt/keyrings
+  - sudo curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+  - sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+  # Add docker repository to Apt sources:
+  - echo \
+    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian \
+    $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+    sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+  - sudo apt-get update
+
+  # Install the Docker packages.
+  - sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  - sudo usermod -aG docker demsking
+
+  # Install Nix
+  - curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sudo sh -s -- install linux --no-confirm
+  - . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
+
+  # Configure Direnv
+  - echo 'eval "$(direnv hook bash)"' >> /home/demsking/.profile
+
+  # Setup Tmux
+  - echo 'set-option -g prefix C-e' >> /home/demsking/.tmux.conf
+
+final_message: "The system is finally up, after $UPTIME seconds"

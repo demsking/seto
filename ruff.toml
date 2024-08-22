@@ -1,0 +1,18 @@
+fix = true
+target-version = "py311"
+indent-width = 2
+line-length = 128
+
+[lint]
+ignore = [
+  "E501",   # ignore line too long
+  "D100",   # ignore missing docstrings in public module
+  "D104",   # ignore missing docstrings in public package
+  "D105",   # ignore missing docstrings in magic methods
+  "RUF005", # admittedly an optimization of code rather than a fail
+]
+select = ["E", "F", "W", "RUF"]
+
+[lint.flake8-quotes]
+docstring-quotes = "double"
+inline-quotes = "double"

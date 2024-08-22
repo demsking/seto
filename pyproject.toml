@@ -1,0 +1,40 @@
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "seto"
+version = "1.0.0"
+description = "A Docker Swarm Deployment Manager"
+keywords = ["docker", "swarm", "manager"]
+authors = ["Sébastien Demanou <demsking@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+
+include = []
+exclude = []
+
+packages = [
+  { include = "seto" },
+]
+
+[tool.poetry.scripts]
+oremi-seto = "seto.__main__:main"
+
+[tool.poetry.urls]
+"Say Thanks!" = "https://www.buymeacoffee.com/demsking"
+"Source" = "https://gitlab.com/demsking/seto"
+"Tracker" = "https://gitlab.com/demsking/seto/-/issues"
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.12"
+paramiko = "^3.4.0"
+pyyaml = "^6.0.1"
+docker = "^7.1.0"
+
+[tool.poetry.group.dev.dependencies]
+python-lsp-server = {extras = ["flake8", "pydocstyle", "pylint", "rope", "toml"], version = "^1.11.0"}
+
+[tool.pytest.ini_options]
+# Function starting with the following pattern are considered for test cases.
+python_functions = "test_"

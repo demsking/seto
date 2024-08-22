@@ -24,6 +24,7 @@ from ..core.docker import DockerCompose
 from ..core.docker import DockerSwarm
 from ..core.driver import Driver
 from .config import resolve
+from .config import resolve_internal_networks
 
 # Define the regular expression pattern to match {{ .Node.Hostname }} with optional spaces
 NODE_HOSTNAME_RE = r'\{\{\s*\.Node\.Hostname\s*\}\}'
@@ -138,6 +139,17 @@ def parse_compose_config(
 
 def execute_deploy_command(args, driver: Driver) -> None:
   client = DockerClient.from_env()
+
+  # Docker Swarm
+  print('Configuring Ṣeto networks...')
+  internal_networks = resolve_internal_networks()
+  swarm = DockerSwarm(
+    stack=args.stack,
+    client=client,
+    driver=driver,
+    config=internal_networks,
+  )
+  swarm.deploy()
 
   # Docker Swarm
   print('Resolving services...')

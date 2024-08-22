@@ -32,21 +32,19 @@ def resolve(
 ) -> dict:
   config_networks = resolve_networks(args.stack)
 
+  if args.compose:
+    external_networks_keys = config_networks.keys()
+    config_networks = resolve_networks(args.stack, external_networks_keys)
+
   config_networks['cloud-public'] = {
     'name': 'seto-cloud-public',
-    'driver': 'overlay',
-    'attachable': True,
+    'external': True,
   }
 
   config_networks['cloud-edge'] = {
     'name': 'seto-cloud-edge',
-    'driver': 'overlay',
-    'attachable': True,
+    'external': True,
   }
-
-  if args.compose:
-    external_networks_keys = config_networks.keys()
-    config_networks = resolve_networks(args.stack, external_networks_keys)
 
   compose = {
     'x-placement': None,
@@ -88,6 +86,23 @@ def resolve(
   )
 
   return compose
+
+
+def resolve_internal_networks() -> dict:
+  return {
+    'networks': {
+      'cloud-public': {
+        'name': 'seto-cloud-public',
+        'driver': 'overlay',
+        'attachable': True,
+      },
+      'cloud-edge': {
+        'name': 'seto-cloud-edge',
+        'driver': 'overlay',
+        'attachable': True,
+      },
+    },
+  }
 
 
 def execute_config_command(args, driver: Driver) -> None:

@@ -61,7 +61,7 @@ def parse_traefik_docker_network(stack: str, service: Service) -> None:
         arg_name, arg_value = (argument.split('=') + [''])[0:2]
 
         if arg_name.startswith('--providers.') and arg_name.endswith('.network'):
-          if not arg_value.startswith(stack_prefix):
+          if not arg_value.startswith(stack_prefix) and not arg_value.startswith('seto-'):
             updated_arg_value = stack_prefix + arg_value
             updated_arg = f'{arg_name}={updated_arg_value}'
             updated_command.append(updated_arg)
@@ -115,7 +115,7 @@ def parse_local_volumes(service_name: str, service: Service) -> None:
       dockerfile.write(service_dockerfile)
 
 
-def parse_volumes_nfs(
+def parse_volumes(
   driver: Driver,
   service_name: str,
   service: Service,
@@ -206,7 +206,7 @@ def resolve_compose_file(
     parse_stack_values(service_deploy_labels)
     parse_local_volumes(service_name, service)
 
-    parse_volumes_nfs(
+    parse_volumes(
       driver=driver,
       service_name=service_name,
       service=service,

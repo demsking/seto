@@ -98,7 +98,7 @@ repos:
           - "--ignore-patterns=.*_test\\.py"
 
   - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.4.8
+    rev: v0.6.1
     hooks:
       - id: ruff
         name: 'Ruff Python Linter'
@@ -122,7 +122,7 @@ repos:
         description: 'Ensure the use of type annotations in Python code.'
 
   - repo: https://github.com/PyCQA/bandit
-    rev: 1.7.8
+    rev: 1.7.9
     hooks:
       - id: bandit
         name: 'Security Analysis with Bandit'
@@ -137,7 +137,7 @@ repos:
         description: 'Lint reStructuredText and Markdown documentation files using doc8.'
 
   - repo: https://github.com/asottile/pyupgrade
-    rev: v3.15.2
+    rev: v3.17.0
     hooks:
       - id: pyupgrade
         name: 'Upgrade Python Syntax with pyupgrade'

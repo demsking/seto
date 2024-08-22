@@ -141,10 +141,10 @@ def execute_deploy_command(args, driver: Driver) -> None:
   client = DockerClient.from_env()
 
   # Docker Swarm
-  print('Configuring Ṣeto networks...')
+  print('Configuring ṣeto networks...')
   internal_networks = resolve_internal_networks()
   swarm = DockerSwarm(
-    stack=args.stack,
+    stack='seto',
     client=client,
     driver=driver,
     config=internal_networks,

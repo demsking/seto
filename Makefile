@@ -1,7 +1,4 @@
 STACK_NAME := "test"
-SERVICES_FILES := $(wildcard services/*.yaml)
-NETWORKS_FILES := $(wildcard networks/*.yaml)
-SETO_FILES := $(shell find seto -name '*.py')
 
 .PHONY: env
 
@@ -69,7 +66,7 @@ resolved-compose.yaml:
 	  --debug \
 	  config
 
-config: $(SERVICES_FILES) $(NETWORKS_FILES) $(SETO_FILES)
+config:
 	@mkdir -p images/
 	@python -m \
 	  seto \
@@ -78,7 +75,7 @@ config: $(SERVICES_FILES) $(NETWORKS_FILES) $(SETO_FILES)
 	    --manager $(SETO_MANAGER) \
 	  config
 
-config--compose: $(SERVICES_FILES) $(NETWORKS_FILES) $(SETO_FILES)
+config--compose:
 	@mkdir -p images/
 	@python -m \
 	  seto \
@@ -88,7 +85,7 @@ config--compose: $(SERVICES_FILES) $(NETWORKS_FILES) $(SETO_FILES)
 	  config \
 	    --compose
 
-deploy: $(SERVICES_FILES) $(NETWORKS_FILES) $(SETO_FILES)
+deploy:
 	@mkdir -p images/
 	@pkexec echo
 	@python -m \
@@ -98,7 +95,7 @@ deploy: $(SERVICES_FILES) $(NETWORKS_FILES) $(SETO_FILES)
 	    --manager $(SETO_MANAGER) \
 	  deploy
 
-setup: $(SERVICES_FILES) $(NETWORKS_FILES) $(SETO_FILES)
+setup:
 	@pkexec echo
 	@python -m \
 	  seto \
@@ -110,7 +107,7 @@ setup: $(SERVICES_FILES) $(NETWORKS_FILES) $(SETO_FILES)
 	    --replica $(SETO_REPLICA) \
 	    --clients $(SETO_NODES)
 
-down: $(SERVICES_FILES) $(NETWORKS_FILES) $(SETO_FILES)
+down:
 	@pkexec echo
 	@python -m \
 	  seto \
@@ -119,7 +116,7 @@ down: $(SERVICES_FILES) $(NETWORKS_FILES) $(SETO_FILES)
 	    --manager $(SETO_MANAGER) \
 	  down
 
-volumes: $(SERVICES_FILES) $(NETWORKS_FILES) $(SETO_FILES)
+volumes:
 	@python -m \
 	  seto \
 	    --debug \
@@ -128,7 +125,7 @@ volumes: $(SERVICES_FILES) $(NETWORKS_FILES) $(SETO_FILES)
 	  create-volumes \
 	    --replica $(SETO_REPLICA)
 
-volumes--force: $(SERVICES_FILES) $(NETWORKS_FILES) $(SETO_FILES)
+volumes--force:
 	@python -m \
 	  seto \
 	    --debug \
@@ -138,7 +135,7 @@ volumes--force: $(SERVICES_FILES) $(NETWORKS_FILES) $(SETO_FILES)
 	    --replica $(SETO_REPLICA) \
 	    --force
 
-mount: $(SERVICES_FILES) $(NETWORKS_FILES) $(SETO_FILES)
+mount:
 	@python -m \
 	  seto \
 	    --debug \
@@ -147,7 +144,7 @@ mount: $(SERVICES_FILES) $(NETWORKS_FILES) $(SETO_FILES)
 	  mount-volumes \
 	    --clients $(SETO_MOUNT_NODES)
 
-umount: $(SERVICES_FILES) $(NETWORKS_FILES) $(SETO_FILES)
+umount:
 	@python -m \
 	  seto \
 	    --debug \

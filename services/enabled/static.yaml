@@ -1,0 +1,20 @@
+---
+services:
+  static:
+    image: nginx:alpine
+    networks:
+      - cloud-public
+    volumes-nfs:
+      - ./data/static:/usr/share/nginx/html
+    labels:
+      traefik.discovery.enable: true
+      traefik.http.routers.portal.service: portal
+      traefik.http.routers.portal.rule: Host(`$DOMAIN`)
+      traefik.http.routers.portal.entryPoints: websecure
+      traefik.http.routers.portal.tls.certresolver: letsencrypt
+      traefik.http.services.portal.loadbalancer.server.port: 80
+    deploy:
+      resources:
+        limits:
+          memory: 9M
+...

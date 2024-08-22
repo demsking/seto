@@ -11,7 +11,6 @@ services:
       traefik.http.routers.whoami.entryPoints: websecure
       traefik.http.routers.whoami.tls: true
       traefik.http.routers.whoami.tls.certresolver: letsencrypt
-      traefik.http.routers.whoami.middlewares: secured@swarm
       traefik.http.services.whoami.loadbalancer.server.port: 80
     deploy:
       resources:

@@ -24,7 +24,7 @@ package: clean
 	twine check dist/*
 
 publish: package
-	twine upload --verbose -r testpypi dist/*
+	twine upload --verbose dist/*
 
 secret:
 	@openssl rand -base64 32

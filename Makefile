@@ -1,4 +1,4 @@
-STACK_NAME := "oremi"
+STACK_NAME := "test"
 SERVICES_FILES := $(wildcard services/*.yaml)
 NETWORKS_FILES := $(wildcard networks/*.yaml)
 SETO_FILES := $(shell find seto -name '*.py')
@@ -39,48 +39,48 @@ fix:
 	ruff check . --fix
 
 help:
-	@dotenv -- poetry run oremi-seto -h
+	@poetry run seto -h
 
 help-compose:
-	@dotenv -- poetry run oremi-seto compose -h
+	@poetry run seto compose -h
 
 help-setup:
-	@dotenv -- poetry run oremi-seto setup -h
+	@poetry run seto setup -h
 
 help-create-volumes:
-	@dotenv -- poetry run oremi-seto create-volumes -h
+	@poetry run seto create-volumes -h
 
 help-mount-volumes:
-	@dotenv -- poetry run oremi-seto mount-volumes -h
+	@poetry run seto mount-volumes -h
 
 help-umount-volumes:
-	@dotenv -- poetry run oremi-seto umount-volumes -h
+	@poetry run seto umount-volumes -h
 
 help-deploy:
-	@dotenv -- poetry run oremi-seto deploy -h
+	@poetry run seto deploy -h
 
 help-down:
-	@dotenv -- poetry run oremi-seto down -h
+	@poetry run seto down -h
 
 resolved-compose.yaml:
-	@dotenv -- poetry run oremi-seto \
+	@poetry run seto \
 	  --stack $(STACK_NAME) \
 	  --manager $(SETO_MANAGER) \
 	  --debug \
 	  config
 
-config: $(SERVICES_FILES) $(NETWORKS_FILES) .env $(SETO_FILES)
+config: $(SERVICES_FILES) $(NETWORKS_FILES) $(SETO_FILES)
 	@mkdir -p images/
-	@dotenv -- python -m \
+	@python -m \
 	  seto \
 	    --debug \
 	    --stack $(STACK_NAME) \
 	    --manager $(SETO_MANAGER) \
 	  config
 
-config--compose: $(SERVICES_FILES) $(NETWORKS_FILES) .env $(SETO_FILES)
+config--compose: $(SERVICES_FILES) $(NETWORKS_FILES) $(SETO_FILES)
 	@mkdir -p images/
-	@dotenv -- python -m \
+	@python -m \
 	  seto \
 	    --debug \
 	    --stack $(STACK_NAME) \
@@ -88,19 +88,19 @@ config--compose: $(SERVICES_FILES) $(NETWORKS_FILES) .env $(SETO_FILES)
 	  config \
 	    --compose
 
-deploy: $(SERVICES_FILES) $(NETWORKS_FILES) .env $(SETO_FILES)
+deploy: $(SERVICES_FILES) $(NETWORKS_FILES) $(SETO_FILES)
 	@mkdir -p images/
 	@pkexec echo
-	@dotenv -- python -m \
+	@python -m \
 	  seto \
 	    --debug \
 	    --stack $(STACK_NAME) \
 	    --manager $(SETO_MANAGER) \
 	  deploy
 
-setup: $(SERVICES_FILES) $(NETWORKS_FILES) .env $(SETO_FILES)
+setup: $(SERVICES_FILES) $(NETWORKS_FILES) $(SETO_FILES)
 	@pkexec echo
-	@dotenv -- python -m \
+	@python -m \
 	  seto \
 	    --debug \
 	    --stack $(STACK_NAME) \
@@ -110,17 +110,17 @@ setup: $(SERVICES_FILES) $(NETWORKS_FILES) .env $(SETO_FILES)
 	    --replica $(SETO_REPLICA) \
 	    --clients $(SETO_NODES)
 
-down: $(SERVICES_FILES) $(NETWORKS_FILES) .env $(SETO_FILES)
+down: $(SERVICES_FILES) $(NETWORKS_FILES) $(SETO_FILES)
 	@pkexec echo
-	@dotenv -- python -m \
+	@python -m \
 	  seto \
 	    --debug \
 	    --stack $(STACK_NAME) \
 	    --manager $(SETO_MANAGER) \
 	  down
 
-volumes: $(SERVICES_FILES) $(NETWORKS_FILES) .env $(SETO_FILES)
-	@dotenv -- python -m \
+volumes: $(SERVICES_FILES) $(NETWORKS_FILES) $(SETO_FILES)
+	@python -m \
 	  seto \
 	    --debug \
 	    --stack $(STACK_NAME) \
@@ -128,8 +128,8 @@ volumes: $(SERVICES_FILES) $(NETWORKS_FILES) .env $(SETO_FILES)
 	  create-volumes \
 	    --replica $(SETO_REPLICA)
 
-volumes--force: $(SERVICES_FILES) $(NETWORKS_FILES) .env $(SETO_FILES)
-	@dotenv -- python -m \
+volumes--force: $(SERVICES_FILES) $(NETWORKS_FILES) $(SETO_FILES)
+	@python -m \
 	  seto \
 	    --debug \
 	    --stack $(STACK_NAME) \
@@ -138,8 +138,8 @@ volumes--force: $(SERVICES_FILES) $(NETWORKS_FILES) .env $(SETO_FILES)
 	    --replica $(SETO_REPLICA) \
 	    --force
 
-mount: $(SERVICES_FILES) $(NETWORKS_FILES) .env $(SETO_FILES)
-	@dotenv -- python -m \
+mount: $(SERVICES_FILES) $(NETWORKS_FILES) $(SETO_FILES)
+	@python -m \
 	  seto \
 	    --debug \
 	    --stack $(STACK_NAME) \
@@ -147,8 +147,8 @@ mount: $(SERVICES_FILES) $(NETWORKS_FILES) .env $(SETO_FILES)
 	  mount-volumes \
 	    --clients $(SETO_MOUNT_NODES)
 
-umount: $(SERVICES_FILES) $(NETWORKS_FILES) .env $(SETO_FILES)
-	@dotenv -- python -m \
+umount: $(SERVICES_FILES) $(NETWORKS_FILES) $(SETO_FILES)
+	@python -m \
 	  seto \
 	    --debug \
 	    --stack $(STACK_NAME) \
@@ -171,8 +171,3 @@ couchdb-authtoken:
 # Show outdated dependencies using poetry
 outdated:
 	poetry show --outdated
-
-update:
-	poetry -C python update
-	devbox update
-	pre-commit autoupdate

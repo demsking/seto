@@ -32,6 +32,18 @@ def resolve(
 ) -> dict:
   config_networks = resolve_networks(args.stack)
 
+  config_networks['cloud-public'] = {
+    'name': 'seto-cloud-public',
+    'driver': 'overlay',
+    'attachable': True,
+  }
+
+  config_networks['cloud-edge'] = {
+    'name': 'seto-cloud-edge',
+    'driver': 'overlay',
+    'attachable': True,
+  }
+
   if args.compose:
     external_networks_keys = config_networks.keys()
     config_networks = resolve_networks(args.stack, external_networks_keys)

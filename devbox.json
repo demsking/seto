@@ -19,11 +19,13 @@
     "python311Packages.twine@latest"
   ],
   "env": {
+    "PATH": ".venv/bin:$PATH",
     "PYTHONPATH": ".venv/lib/python3.11/site-packages:$PYTHONPATH"
   },
   "shell": {
     "init_hook": [
       "poetry shell",
+      "dotenv",
       "pre-commit install -f"
     ],
     "scripts": {}

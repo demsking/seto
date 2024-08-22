@@ -15,7 +15,8 @@
     "python311Packages.bandit@latest",
     "python311Packages.pylint@latest",
     "hadolint@latest",
-    "ruff@latest"
+    "ruff@latest",
+    "python311Packages.twine@latest"
   ],
   "env": {
     "PYTHONPATH": ".venv/lib/python3.11/site-packages:$PYTHONPATH"
@@ -23,7 +24,6 @@
   "shell": {
     "init_hook": [
       "poetry shell",
-      "source config.sh",
       "pre-commit install -f"
     ],
     "scripts": {}

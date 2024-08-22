@@ -1,16 +1,12 @@
 .directory
 .gitsecret/keys/random_seed
 !*.secret
-.env
-.config.sh
 .devbox/
 .direnv/
 .ropeproject/
 bridges/
 images/
+dist/
 __pycache__/
 *.kate-swp
 *.log
-config.sh
-data/monitor/stream-main.conf
-data/monitor/stream-node.conf

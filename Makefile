@@ -69,7 +69,7 @@ resolved-compose.yaml:
 	  --debug \
 	  config
 
-config: $(SERVICES_FILES) $(NETWORKS_FILES) config.sh .env $(SETO_FILES)
+config: $(SERVICES_FILES) $(NETWORKS_FILES) .env $(SETO_FILES)
 	@mkdir -p images/
 	@dotenv -- python -m \
 	  seto \
@@ -78,7 +78,7 @@ config: $(SERVICES_FILES) $(NETWORKS_FILES) config.sh .env $(SETO_FILES)
 	    --manager $(SETO_MANAGER) \
 	  config
 
-config--compose: $(SERVICES_FILES) $(NETWORKS_FILES) config.sh .env $(SETO_FILES)
+config--compose: $(SERVICES_FILES) $(NETWORKS_FILES) .env $(SETO_FILES)
 	@mkdir -p images/
 	@dotenv -- python -m \
 	  seto \
@@ -88,7 +88,7 @@ config--compose: $(SERVICES_FILES) $(NETWORKS_FILES) config.sh .env $(SETO_FILES
 	  config \
 	    --compose
 
-deploy: $(SERVICES_FILES) $(NETWORKS_FILES) config.sh .env $(SETO_FILES)
+deploy: $(SERVICES_FILES) $(NETWORKS_FILES) .env $(SETO_FILES)
 	@mkdir -p images/
 	@pkexec echo
 	@dotenv -- python -m \
@@ -98,7 +98,7 @@ deploy: $(SERVICES_FILES) $(NETWORKS_FILES) config.sh .env $(SETO_FILES)
 	    --manager $(SETO_MANAGER) \
 	  deploy
 
-setup: $(SERVICES_FILES) $(NETWORKS_FILES) config.sh .env $(SETO_FILES)
+setup: $(SERVICES_FILES) $(NETWORKS_FILES) .env $(SETO_FILES)
 	@pkexec echo
 	@dotenv -- python -m \
 	  seto \
@@ -110,7 +110,7 @@ setup: $(SERVICES_FILES) $(NETWORKS_FILES) config.sh .env $(SETO_FILES)
 	    --replica $(SETO_REPLICA) \
 	    --clients $(SETO_NODES)
 
-down: $(SERVICES_FILES) $(NETWORKS_FILES) config.sh .env $(SETO_FILES)
+down: $(SERVICES_FILES) $(NETWORKS_FILES) .env $(SETO_FILES)
 	@pkexec echo
 	@dotenv -- python -m \
 	  seto \
@@ -119,7 +119,7 @@ down: $(SERVICES_FILES) $(NETWORKS_FILES) config.sh .env $(SETO_FILES)
 	    --manager $(SETO_MANAGER) \
 	  down
 
-volumes: $(SERVICES_FILES) $(NETWORKS_FILES) config.sh .env $(SETO_FILES)
+volumes: $(SERVICES_FILES) $(NETWORKS_FILES) .env $(SETO_FILES)
 	@dotenv -- python -m \
 	  seto \
 	    --debug \
@@ -128,7 +128,7 @@ volumes: $(SERVICES_FILES) $(NETWORKS_FILES) config.sh .env $(SETO_FILES)
 	  create-volumes \
 	    --replica $(SETO_REPLICA)
 
-volumes--force: $(SERVICES_FILES) $(NETWORKS_FILES) config.sh .env $(SETO_FILES)
+volumes--force: $(SERVICES_FILES) $(NETWORKS_FILES) .env $(SETO_FILES)
 	@dotenv -- python -m \
 	  seto \
 	    --debug \
@@ -138,7 +138,7 @@ volumes--force: $(SERVICES_FILES) $(NETWORKS_FILES) config.sh .env $(SETO_FILES)
 	    --replica $(SETO_REPLICA) \
 	    --force
 
-mount: $(SERVICES_FILES) $(NETWORKS_FILES) config.sh .env $(SETO_FILES)
+mount: $(SERVICES_FILES) $(NETWORKS_FILES) .env $(SETO_FILES)
 	@dotenv -- python -m \
 	  seto \
 	    --debug \
@@ -147,7 +147,7 @@ mount: $(SERVICES_FILES) $(NETWORKS_FILES) config.sh .env $(SETO_FILES)
 	  mount-volumes \
 	    --clients $(SETO_MOUNT_NODES)
 
-umount: $(SERVICES_FILES) $(NETWORKS_FILES) config.sh .env $(SETO_FILES)
+umount: $(SERVICES_FILES) $(NETWORKS_FILES) .env $(SETO_FILES)
 	@dotenv -- python -m \
 	  seto \
 	    --debug \

@@ -8,7 +8,7 @@ version = "1.0.0"
 description = "A Docker Swarm Deployment Manager"
 keywords = ["docker", "swarm", "manager"]
 authors = ["Sébastien Demanou <demsking@gmail.com>"]
-license = "MIT"
+license = "Apache 2.0"
 readme = "README.md"
 
 include = []
@@ -19,7 +19,7 @@ packages = [
 ]
 
 [tool.poetry.scripts]
-oremi-seto = "seto.__main__:main"
+seto = "seto.__main__:main"
 
 [tool.poetry.urls]
 "Say Thanks!" = "https://www.buymeacoffee.com/demsking"

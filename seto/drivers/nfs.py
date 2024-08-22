@@ -87,7 +87,10 @@ class NFSDriver(Driver):
     self.shell.mkdir(volume_storage)
 
     if 'letsencrypt' in volume_storage:
-      self.shell.run(f'chmod 600 {volume_storage}/*', stdout=False, quiet=True)
+      try:
+        self.shell.run(f'chmod 600 {volume_storage}/*', stdout=False, quiet=True)
+      except Exception:
+        pass
 
     return exports.append(f'{volume_storage}\t*({options_str})', key=f'{volume_storage}\t')
 

@@ -87,6 +87,9 @@ class File:
       self.shell.run(f'chown {owner} {self.filename}', quiet=True)
 
   def chmod(self, mode: str):
+    if 'letsencrypt' in self.filename:
+      mode = 600
+
     self.shell.run(f'chmod {mode} {self.filename}', quiet=True)
 
 
@@ -161,6 +164,9 @@ class Shell:
     return False
 
   def mkdir(self, path: str, *, user='nobody', group='nogroup', mode: str = 'g+w') -> None:
+    if 'letsencrypt' in path:
+      mode = 600
+
     self.run(f'mkdir -p {path}', quiet=True)
     self.run(f'chown -R {user}:{group} {path}', quiet=True)
     self.run(f'chmod -R {mode} {path}', quiet=True)
@@ -192,7 +198,7 @@ class Shell:
             remote_path=remote_file_path,
           )
     else:
-      print('------------------>', local_path, remote_path)
+      print('WARN:', local_path, remote_path)
 
   def copy_volume(self, volume: Volume, dest: str) -> None:
     target = os.path.join(dest, volume.target)

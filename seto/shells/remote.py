@@ -47,7 +47,15 @@ class RemoteShell(Shell):
 
     self._fs = self.ssh.open_sftp()
 
-  def run(self, cmd: str, *, sudo=True, stdout=True, quiet=False) -> str:
+  def run(
+    self,
+    cmd: str,
+    *,
+    sudo=True,
+    stdout=True,
+    stderr=False,
+    quiet=False,
+  ) -> str:
     if sudo:
       cmd = f"sudo sh -c '{cmd}'"
 
@@ -62,6 +70,9 @@ class RemoteShell(Shell):
       print(stdout_output)
 
     if stderr_output:
+      if stderr:
+        raise Exception(stderr_output)
+
       print(stderr_output)
       sys.exit(1)
 

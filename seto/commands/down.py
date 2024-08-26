@@ -24,11 +24,11 @@ def execute_down_command(args, driver: Driver) -> None:
   client = DockerClient.from_env()
 
   # Docker Swarm
-  print('Stoping environment...')
+  print(f'Stoping {driver.stack} environment...')
   setattr(args, 'compose', False)
 
   swarm = DockerSwarm(
-    stack=args.stack,
+    stack=driver.stack,
     client=client,
     driver=driver,
     config=resolve(args, driver),
@@ -42,7 +42,7 @@ def execute_down_command(args, driver: Driver) -> None:
 
   if config['services']:
     compose = DockerCompose(
-      stack=args.stack,
+      stack=driver.stack,
       client=client,
       driver=driver,
       config=config,

@@ -74,7 +74,9 @@ def main() -> None:
   parser = argparse.ArgumentParser('seto', description='')
   subparsers = parser.add_subparsers()
 
-  parser.add_argument('--stack', required=True, help='Stack name')
+  parser.add_argument('--project', required=True, help='Project name')
+  parser.add_argument('--stack', help='Stack name')
+
   parser.add_argument(
     '--manager',
     type=manager_type,
@@ -82,7 +84,11 @@ def main() -> None:
     help=f'Storage manager URI to use. Can be {DRIVER_EXAMPLES_STR}',
   )
 
-  parser.add_argument('--key', default=os.path.expanduser('~/.ssh/id_rsa'), help='Path to the SSH private key file')
+  parser.add_argument(
+    '--key',
+    default=os.path.expanduser('~/.ssh/id_rsa'),
+    help='Path to the SSH private key file',
+  )
 
   parser.add_argument(
     '--debug',
@@ -193,7 +199,15 @@ def main() -> None:
   create_shell = LocalShell if setting.local else RemoteShell
   create_driver = GlusterDriver if driver_name == 'gluster' else NFSDriver
   shell = create_shell(setting, args.key)
-  driver = create_driver(args.stack, shell)
+  stack_name = f'{args.project}_{args.stack}' if args.stack else args.project
+  brickname = f'{args.project}/{args.stack}' if args.stack else args.project
+
+  driver = create_driver(
+    stack_name,
+    project=args.project,
+    brickname=brickname,
+    shell=shell,
+  )
 
   # Call the function associated with the selected subcommand
   if hasattr(args, 'func'):
@@ -211,6 +225,8 @@ def main() -> None:
         sys.exit(50)
   else:
     parser.print_help()
+
+  sys.exit(0)
 
 
 main()

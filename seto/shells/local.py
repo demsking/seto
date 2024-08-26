@@ -24,7 +24,15 @@ class LocalShell(Shell):
   def connect(self):
     pass
 
-  def run(self, cmd: str, *, sudo=True, stdout=True, quiet=False) -> str:
+  def run(
+    self,
+    cmd: str,
+    *,
+    sudo=True,
+    stdout=True,
+    stderr=False,
+    quiet=False,
+  ) -> str:
     if sudo:
       cmd = f"sudo sh -c '{cmd}'"
 
@@ -46,6 +54,9 @@ class LocalShell(Shell):
       print(stdout_output)
 
     if stderr_output:
+      if stderr:
+        raise Exception(stderr_output)
+
       print(stderr_output)
       sys.exit(1)
 

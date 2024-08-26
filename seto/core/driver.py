@@ -23,8 +23,17 @@ from ..shells.remote import RemoteShell
 class Driver:
   setouser = 'setouser'
 
-  def __init__(self, brick_name: str, shell: Shell) -> None:
-    self.brick_name = brick_name
+  def __init__(
+    self,
+    stack: str,
+    *,
+    project: str,
+    brickname: str,
+    shell: Shell,
+  ) -> None:
+    self.stack = stack
+    self.project = project
+    self.brickname = brickname
     self.shell = shell
 
   @property
@@ -41,11 +50,11 @@ class Driver:
 
   @property
   def brick(self) -> str:
-    return f'/data/{self.slug}/{self.brick_name}'
+    return f'/data/{self.slug}/{self.brickname}'
 
   @property
   def mount_point_prefix(self) -> str:
-    return f'/mnt/{self.slug}-{self.brick_name}'
+    return f'/mnt/{self.slug}-{self.brickname}'
 
   def mount_point(self, mount_folder: str | None = None) -> str:
     if mount_folder:

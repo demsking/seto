@@ -1,3 +1,4 @@
+from docker.api import network
 # Copyright 2024 Sébastien Demanou. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,11 +31,14 @@ def resolve(
   inject: bool = False,
   execute: Callable[[dict, str], None] | None = None,
 ) -> dict:
-  config_networks = resolve_networks(args.stack)
+  config_networks = {}
+  global_networks = resolve_networks(args.project)
 
-  if args.compose:
-    external_networks_keys = config_networks.keys()
-    config_networks = resolve_networks(args.stack, external_networks_keys)
+  for network_name, network_definition in global_networks.items():
+    config_networks[network_name] = {
+      'name': network_definition['name'],
+      'external': True,
+    }
 
   config_networks['cloud-public'] = {
     'name': 'seto-cloud-public',
@@ -79,7 +83,7 @@ def resolve(
 
   parse_services(
     driver=driver,
-    stack=args.stack,
+    stack=args.stack or args.project,
     execute=parse,
     inject=inject,
     mode=['compose'] if args.compose else ['swarm'],
@@ -88,29 +92,12 @@ def resolve(
   return compose
 
 
-def resolve_internal_networks() -> dict:
-  return {
-    'networks': {
-      'cloud-public': {
-        'name': 'seto-cloud-public',
-        'driver': 'overlay',
-        'attachable': True,
-      },
-      'cloud-edge': {
-        'name': 'seto-cloud-edge',
-        'driver': 'overlay',
-        'attachable': True,
-      },
-    },
-  }
-
-
 def execute_config_command(args, driver: Driver) -> None:
   compose = resolve(args, driver)
   compose_output = yaml.dump(compose)
 
   if args.compose:
-    command = f'docker compose -p {args.stack} -f - config'
+    command = f'docker compose -p {driver.stack} -f - config'
   else:
     command = 'docker stack config -c -'
 

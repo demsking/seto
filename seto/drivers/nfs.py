@@ -32,7 +32,7 @@ class NFSDriver(Driver):
 
   @property
   def mount_point_prefix(self) -> str:
-    return f'/mnt/{self.brick_name}'
+    return f'/mnt/{self.brickname}'
 
   def setup_manager(self, replica: list[Setting], force: bool = False) -> None:
     super().setup_manager(replica, force)
@@ -60,7 +60,7 @@ class NFSDriver(Driver):
     exports = self.shell.file('/etc/exports')
 
     self.add_exports_entry(
-      self.brick,
+      self.project,
       exports=exports,
       options=('rw', 'sync', f'fsid={uuid4()}', 'crossmnt', 'no_subtree_check'),
     )
@@ -79,7 +79,7 @@ class NFSDriver(Driver):
     volume_storage: str,
     *,
     exports: File,
-    options=('rw', 'sync', 'no_subtree_check'),
+    options=('rw', 'sync', 'no_subtree_check', 'no_root_squash'),
   ) -> bool:
     print(f'\nSetting NFS volume {volume_storage}{options}')
     options_str = ','.join(options)

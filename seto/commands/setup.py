@@ -16,6 +16,7 @@ import os
 
 from ..core.driver import Driver
 from ..core.shell import Setting
+from .deploy import deploy_seto_stack
 
 
 def execute_setup_command(args, driver: Driver) -> None:
@@ -26,6 +27,7 @@ def execute_setup_command(args, driver: Driver) -> None:
   generate_ssh_keys(args, driver)
   driver.setup_manager(replica, args.force)
   driver.setup_nodes(clients, args.force)
+  deploy_seto_stack(args, driver)
   driver.terminate()
 
 

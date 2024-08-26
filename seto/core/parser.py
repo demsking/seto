@@ -49,37 +49,18 @@ def parse_stack_values(entry: dict | list) -> None:
         entry[key] = 'true' if value else 'false'
 
 
-def parse_traefik_docker_network(stack: str, service: Service) -> None:
-  if 'command' in service:
-    service_command = service.get('command')
-
-    if isinstance(service_command, list):
-      stack_prefix = f'{stack}_'
-      updated_command: list[str] = []
-
-      for argument in service_command:
-        arg_name, arg_value = (argument.split('=') + [''])[0:2]
-
-        if arg_name.startswith('--providers.') and arg_name.endswith('.network'):
-          if not arg_value.startswith(stack_prefix) and not arg_value.startswith('seto-'):
-            updated_arg_value = stack_prefix + arg_value
-            updated_arg = f'{arg_name}={updated_arg_value}'
-            updated_command.append(updated_arg)
-            continue
-
-        updated_command.append(argument)
-
-      service_command.clear()
-      service_command.extend(updated_command)
-
-
 def parse_volume_entry(entry: str, default_mode='rw') -> tuple[str, str, str]:
   source, target, mode = (entry.split(':') + [default_mode])[0:3]
 
   return source, target, mode
 
 
-def parse_local_volumes(service_name: str, service: Service) -> None:
+def parse_local_volumes(
+  stack: str,
+  *,
+  service_name: str,
+  service: Service,
+) -> None:
   local_volumes = []
 
   if 'volumes-image' in service:
@@ -96,7 +77,7 @@ def parse_local_volumes(service_name: str, service: Service) -> None:
   if len(local_volumes) > 0:
     _, image_version = tuple((service['image'].split(':') + ['latest'])[0:2])
 
-    service_dockerfile_name = f'{service_name}.dockerfile'
+    service_dockerfile_name = f'{stack}-{service_name}.dockerfile'
     service_dockerfile_file = os.path.join('images', service_dockerfile_name)
     service_dockerfile_definition = [
       f'FROM {service["image"]}',
@@ -105,7 +86,7 @@ def parse_local_volumes(service_name: str, service: Service) -> None:
     service_dockerfile = resolve_env_vars(service_dockerfile)
     image_key = 'o'
 
-    service['image'] = f'demsking/{service_name}:{image_version}-{image_key}'
+    service['image'] = f'demsking/{stack}-{service_name}:{image_version}-{image_key}'
     service['build'] = {
       'context': '.',
       'dockerfile': service_dockerfile_file,
@@ -202,9 +183,8 @@ def resolve_compose_file(
     service_labels = service.get('labels', {})
 
     service_deploy_labels.update(service_labels)
-    parse_traefik_docker_network(stack, service)
     parse_stack_values(service_deploy_labels)
-    parse_local_volumes(service_name, service)
+    parse_local_volumes(stack, service_name=service_name, service=service)
 
     parse_volumes(
       driver=driver,
@@ -313,7 +293,7 @@ def parse_compose_file(compose_file: str, resolve_vars=False) -> tuple[dict, str
 
 
 def resolve_networks(
-  stack: str,
+  project: str,
   external_networks: list[str] | None = None,
 ) -> dict:
   networks_files = glob.glob(os.path.join('networks', '*.yaml'))
@@ -323,7 +303,7 @@ def resolve_networks(
     with open(network_file, encoding='utf-8') as file:
       network_key = os.path.splitext(os.path.basename(network_file))[0]
       network_data = yaml.safe_load(file)
-      network_name = network_data.get('name', f'{stack}_{network_key}')
+      network_name = network_data.get('name', f'{project}_{network_key}')
       merged_data[network_key] = network_data
 
       if external_networks and network_key in external_networks:
@@ -344,7 +324,7 @@ def parse_services(
   mode: list[ResolveMode] | None = None,
   inject: bool = False,
 ) -> tuple[dict, list]:
-  services_files = glob.glob(os.path.join('services/enabled', '*.yaml'))
+  services_files = glob.glob(os.path.join(stack, '*.yaml'))
   output_resolved_compose_data = []
   output_volumes = []
 

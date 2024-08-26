@@ -23,8 +23,8 @@ from ..core.dns import resolve_hostname
 from ..core.docker import DockerCompose
 from ..core.docker import DockerSwarm
 from ..core.driver import Driver
+from ..core.parser import resolve_networks
 from .config import resolve
-from .config import resolve_internal_networks
 
 # Define the regular expression pattern to match {{ .Node.Hostname }} with optional spaces
 NODE_HOSTNAME_RE = r'\{\{\s*\.Node\.Hostname\s*\}\}'
@@ -44,6 +44,7 @@ def get_label_value(labels: dict[str, Any], name: str) -> Any | None:
 
 
 def parse_compose_config(
+  stack: str,
   args,
   driver: Driver,
   client: DockerClient,
@@ -58,7 +59,7 @@ def parse_compose_config(
 ) -> None:
   if compose_config['services']:
     compose = DockerCompose(
-      stack=args.stack,
+      stack=stack,
       client=client,
       driver=driver,
       config=compose_config,
@@ -137,26 +138,56 @@ def parse_compose_config(
         }
 
 
-def execute_deploy_command(args, driver: Driver) -> None:
+def deploy_seto_stack(args, driver: Driver) -> None:
   client = DockerClient.from_env()
+  config_networks = resolve_networks(args.project)
 
-  # Docker Swarm
-  print('Configuring ṣeto networks...')
-  internal_networks = resolve_internal_networks()
+  config_networks.update({
+    'cloud-public': {
+      'name': 'seto-cloud-public',
+      'driver': 'overlay',
+      'attachable': True,
+    },
+    'cloud-edge': {
+      'name': 'seto-cloud-edge',
+      'driver': 'overlay',
+      'attachable': True,
+    },
+  })
+
+  print('Configuring ṣeto agents...')
+  internal_stack = {
+    'networks': config_networks,
+    'services': {
+      'agent': {
+        'image': 'traefik/whoami',
+        'networks': list(config_networks.keys()),
+        'deploy': {'mode': 'global'},
+      },
+    },
+  }
+
   swarm = DockerSwarm(
     stack='seto',
     client=client,
     driver=driver,
-    config=internal_networks,
+    config=internal_stack,
   )
+
+  swarm.info()
   swarm.deploy()
 
+
+def execute_deploy_command(args, driver: Driver) -> None:
+  client = DockerClient.from_env()
+
   # Docker Swarm
-  print('Resolving services...')
+  print(f'Resolving {driver.stack} services...')
   setattr(args, 'compose', False)
   swarm_config = resolve(args, driver)
+
   swarm = DockerSwarm(
-    stack=args.stack,
+    stack=driver.stack,
     client=client,
     driver=driver,
     config=swarm_config,
@@ -204,6 +235,7 @@ def execute_deploy_command(args, driver: Driver) -> None:
     driver,
     inject=True,
     execute=lambda config, placement: parse_compose_config(
+      driver.stack,
       args,
       driver,
       client,
@@ -223,27 +255,27 @@ def execute_deploy_command(args, driver: Driver) -> None:
   with open(traefik_http_provider_filename, 'w', encoding='utf-8') as file:
     file.write(json.dumps(traefik_http_provider, indent='  '))
 
-  print('Building swarm images...')
+  print(f'Building {driver.stack} swarm images...')
   # swarm.info()
   swarm.build()
   swarm.push()
 
-  print('Deploying swarm environment...')
+  print(f'Deploying {driver.stack} swarm environment...')
   swarm.deploy()
   swarm.ps()
 
   if composes_items:
-    print('Building compose images...')
+    print(f'Building {driver.stack} compose images...')
     for compose in composes_items:
       # compose.info()
       compose.build()
       compose.push()
 
-    print('Pulling compose images...')
+    print(f'Pulling {driver.stack} compose images...')
     for compose in composes_items:
       compose.pull()
 
-    print('Deploying compose environment...')
+    print(f'Deploying {driver.stack} compose environment...')
     for compose in composes_items:
       compose.deploy()
       compose.ps()

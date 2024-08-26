@@ -164,14 +164,25 @@ class Shell:
     return False
 
   def mkdir(self, path: str, *, user='nobody', group='nogroup', mode: str = 'g+w') -> None:
-    if 'letsencrypt' in path:
-      mode = 600
+    try:
+      self.run(f'ls {path}', quiet=True, stderr=True)
+    except Exception:
+      if 'letsencrypt' in path:
+        mode = 600
 
-    self.run(f'mkdir -p {path}', quiet=True)
-    self.run(f'chown -R {user}:{group} {path}', quiet=True)
-    self.run(f'chmod -R {mode} {path}', quiet=True)
+      self.run(f'mkdir -p {path}', quiet=True)
+      self.run(f'chown -R {user}:{group} {path}', quiet=True)
+      self.run(f'chmod -R {mode} {path}', quiet=True)
 
-  def run(self, cmd: str, *, sudo=True, stdout=True, quiet=False) -> str:
+  def run(
+    self,
+    cmd: str,
+    *,
+    sudo=True,
+    stdout=True,
+    stderr=False,
+    quiet=False,
+  ) -> str:
     raise NotImplementedError()
 
   def file(self, filename: str) -> File:

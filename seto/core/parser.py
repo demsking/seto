@@ -77,16 +77,16 @@ def parse_local_volumes(
   if len(local_volumes) > 0:
     _, image_version = tuple((service['image'].split(':') + ['latest'])[0:2])
 
-    service_dockerfile_name = f'{stack}-{service_name}.dockerfile'
+    image_name = f'{stack}-{service_name}'.replace('_', '-')
+    service_dockerfile_name = f'{image_name}.dockerfile'
     service_dockerfile_file = os.path.join('images', service_dockerfile_name)
     service_dockerfile_definition = [
       f'FROM {service["image"]}',
     ] + [f'COPY {source} {target}' for source, target in local_volumes] + ['']
     service_dockerfile = '\n'.join(service_dockerfile_definition)
     service_dockerfile = resolve_env_vars(service_dockerfile)
-    image_key = 'o'
 
-    service['image'] = f'demsking/{stack}-{service_name}:{image_version}-{image_key}'
+    service['image'] = f'demsking/{image_name}:{image_version}'
     service['build'] = {
       'context': '.',
       'dockerfile': service_dockerfile_file,
@@ -156,7 +156,6 @@ def parse_volumes(
 def resolve_compose_file(
   driver: Driver,
   *,
-  stack: str,
   compose_dir: str,
   compose_data: dict,
   inject: bool = False,
@@ -184,7 +183,7 @@ def resolve_compose_file(
 
     service_deploy_labels.update(service_labels)
     parse_stack_values(service_deploy_labels)
-    parse_local_volumes(stack, service_name=service_name, service=service)
+    parse_local_volumes(driver.stack, service_name=service_name, service=service)
 
     parse_volumes(
       driver=driver,
@@ -347,7 +346,6 @@ def parse_services(
     # resolve compose local volumes
     resolved_compose_data, volumes = resolve_compose_file(
       driver=driver,
-      stack=stack,
       compose_dir=compose_dir,
       compose_data=compose_data,
       inject=inject,

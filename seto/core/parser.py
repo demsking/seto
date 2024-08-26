@@ -223,6 +223,9 @@ def resolve_compose_file(
     if 'swarm' in mode_value:
       parse_stack_values(service_environment)
 
+      if 'hostname' not in service:
+        service['hostname'] = '{{.Node.Hostname}}'
+
       if 'labels' in service:
         del service['labels']
 

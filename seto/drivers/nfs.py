@@ -60,7 +60,7 @@ class NFSDriver(Driver):
     exports = self.shell.file('/etc/exports')
 
     self.add_exports_entry(
-      self.brickname,
+      f'/{self.project}',
       exports=exports,
       options=('rw', 'sync', f'fsid={uuid4()}', 'crossmnt', 'no_subtree_check'),
     )

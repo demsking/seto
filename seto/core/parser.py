@@ -132,7 +132,7 @@ def parse_volumes(
       if volume_mode == 'norename':
         volume_mode = 'rw'
       elif service_name not in volume_name:
-        volume_name = f'{volume_name}-{service_name}'
+        volume_name = f'{service_name}-{volume_name}'
 
       if device_source and os.path.isfile(device_source):
         filename = os.path.basename(target)

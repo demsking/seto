@@ -63,19 +63,13 @@ class Docker:
 
   def build(self) -> None:
     Shell.pipe_exec(
-      command=f'docker compose -f - -p {self.stack} build --quiet',
-      pipe_input=self.resolved_config,
-    )
-
-  def push(self) -> None:
-    Shell.pipe_exec(
-      command=f'docker compose -f - -p {self.stack} push --quiet',
+      command=f'docker compose -f - -p {self.stack} build --push --no-cache',
       pipe_input=self.resolved_config,
     )
 
   def pull(self) -> None:
     Shell.pipe_exec(
-      command=f'docker compose -f - -p {self.stack} pull --quiet --policy=always',
+      command=f'docker compose -f - -p {self.stack} pull--policy=always',
       pipe_input=self.resolved_config,
     )
 

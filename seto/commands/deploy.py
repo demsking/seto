@@ -258,7 +258,6 @@ def execute_deploy_command(args, driver: Driver) -> None:
   print(f'Building {driver.stack} swarm images...')
   # swarm.info()
   swarm.build()
-  swarm.push()
 
   print(f'Deploying {driver.stack} swarm environment...')
   swarm.deploy()
@@ -269,7 +268,6 @@ def execute_deploy_command(args, driver: Driver) -> None:
     for compose in composes_items:
       # compose.info()
       compose.build()
-      compose.push()
 
     print(f'Pulling {driver.stack} compose images...')
     for compose in composes_items:

@@ -69,7 +69,7 @@ class Docker:
 
   def pull(self) -> None:
     Shell.pipe_exec(
-      command=f'docker compose -f - -p {self.stack} pull--policy=always',
+      command=f'docker compose -f - -p {self.stack} pull --policy=always',
       pipe_input=self.resolved_config,
     )
 

@@ -199,15 +199,7 @@ def main() -> None:
   create_shell = LocalShell if setting.local else RemoteShell
   create_driver = GlusterDriver if driver_name == 'gluster' else NFSDriver
   shell = create_shell(setting, args.key)
-  stack_name = f'{args.project}_{args.stack}' if args.stack else args.project
-  brickname = f'{args.project}/{args.stack}' if args.stack else args.project
-
-  driver = create_driver(
-    stack_name,
-    project=args.project,
-    brickname=brickname,
-    shell=shell,
-  )
+  driver = create_driver(args.stack, project=args.project, shell=shell)
 
   # Call the function associated with the selected subcommand
   if hasattr(args, 'func'):

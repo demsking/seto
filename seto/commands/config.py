@@ -1,4 +1,3 @@
-from docker.api import network
 # Copyright 2024 Sébastien Demanou. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,8 +17,9 @@ from collections.abc import Callable
 import yaml
 
 from ..core.driver import Driver
+from ..core.network import get_global_external_networks
+from ..core.network import resolve_networks
 from ..core.parser import parse_services
-from ..core.parser import resolve_networks
 from ..core.shell import Shell
 from ..core.volume import Volume
 
@@ -31,7 +31,7 @@ def resolve(
   inject: bool = False,
   execute: Callable[[dict, str], None] | None = None,
 ) -> dict:
-  config_networks = {}
+  config_networks = get_global_external_networks()
   global_networks = resolve_networks(args.project)
 
   for network_name, network_definition in global_networks.items():
@@ -39,16 +39,6 @@ def resolve(
       'name': network_definition['name'],
       'external': True,
     }
-
-  config_networks['cloud-public'] = {
-    'name': 'seto-cloud-public',
-    'external': True,
-  }
-
-  config_networks['cloud-edge'] = {
-    'name': 'seto-cloud-edge',
-    'external': True,
-  }
 
   compose = {
     'x-placement': None,
@@ -97,7 +87,7 @@ def execute_config_command(args, driver: Driver) -> None:
   compose_output = yaml.dump(compose)
 
   if args.compose:
-    command = f'docker compose -p {driver.stack} -f - config'
+    command = f'docker compose -p {driver.stack_id} -f - config'
   else:
     command = 'docker stack config -c -'
 

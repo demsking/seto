@@ -24,10 +24,11 @@ def execute_setup_command(args, driver: Driver) -> None:
   clients: list[Setting] = [items[0] for items in args.clients]
 
   driver.connect()
+  deploy_seto_stack(args, driver, replica)
   generate_ssh_keys(args, driver)
   driver.setup_manager(replica, args.force)
   driver.setup_nodes(clients, args.force)
-  deploy_seto_stack(args, driver)
+  driver.apply_manager_changes()
   driver.terminate()
 
 

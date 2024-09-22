@@ -126,7 +126,7 @@ class Shell:
     return username in ouput
 
   @staticmethod
-  def exec(command: str, *, stdout=True, **kwargs) -> str:
+  def exec(command: str, *, stdout=True, env_vars: dict | None = None, **kwargs) -> str:
     # Run docker stack deploy with the content piped to it
     process = subprocess.Popen(
       command,
@@ -135,6 +135,7 @@ class Shell:
       stderr=subprocess.PIPE,
       text=True,
       shell=True,
+      env={**(env_vars or {}), **dict(subprocess.os.environ)},
     )
 
     standard_output, standard_error = process.communicate(**kwargs)
@@ -150,9 +151,9 @@ class Shell:
     return standard_output
 
   @staticmethod
-  def pipe_exec(command: str, *, stdout=True, pipe_input: str) -> str:
+  def pipe_exec(command: str, *, stdout=True, pipe_input: str, env_vars: dict | None = None) -> str:
     with StringIO(pipe_input) as pipe:
-      return Shell.exec(command, stdout=stdout, input=pipe.read())
+      return Shell.exec(command, stdout=stdout, env_vars=env_vars, input=pipe.read())
 
   def install(self, package_name: str, *, user='nobody', group='nogroup') -> None:
     result = self.run(f'dpkg -l | grep {package_name}', quiet=True, stdout=False)

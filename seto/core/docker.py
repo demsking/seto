@@ -26,12 +26,10 @@ from .shell import Shell
 class Docker:
   def __init__(
     self,
-    stack: str,
     config: dict,
     driver: Driver,
     client: DockerClient,
   ) -> None:
-    self.stack = stack
     self.driver = driver
     self.client = client
     self.config = config
@@ -48,7 +46,7 @@ class Docker:
   def external_networks(self) -> list[str]:
     return [
       item.attrs['Name'] for item in self.client.networks.list()
-      if item.attrs['Name'].startswith(self.stack)
+      if item.attrs['Name'].startswith(self.driver.stack_id)
     ]
 
   @staticmethod
@@ -63,13 +61,19 @@ class Docker:
 
   def build(self) -> None:
     Shell.pipe_exec(
-      command=f'docker compose -f - -p {self.stack} build --push --no-cache',
+      command=f'docker compose -f - -p {self.driver.stack_id} build --no-cache',
+      pipe_input=self.resolved_config,
+    )
+
+  def push(self) -> None:
+    Shell.pipe_exec(
+      command=f'docker compose -f - -p {self.driver.stack_id} push',
       pipe_input=self.resolved_config,
     )
 
   def pull(self) -> None:
     Shell.pipe_exec(
-      command=f'docker compose -f - -p {self.stack} pull --policy=always',
+      command=f'docker compose -f - -p {self.driver.stack_id} pull --policy=always',
       pipe_input=self.resolved_config,
     )
 
@@ -109,20 +113,20 @@ class DockerCompose(Docker):
     return None
 
   def info(self) -> None:
-    self._exec(f'docker compose -p {self.stack} -f - config')
+    self._exec(f'docker compose -p {self.driver.stack_id} -f - config')
 
   def deploy(self) -> None:
     print(f'Deploying on {self.node_hostname}...')
-    self._exec(f'docker compose -p {self.stack} -f - up -d --remove-orphans')
+    self._exec(f'docker compose -p {self.driver.stack_id} -f - up -d --remove-orphans')
 
   def ps(self) -> None:
-    self._exec(f'docker compose -p {self.stack} -f - ps')
+    self._exec(f'docker compose -p {self.driver.stack_id} -f - ps')
 
   def logs(self) -> None:
-    self._exec(f'docker compose -p {self.stack} -f - logs')
+    self._exec(f'docker compose -p {self.driver.stack_id} -f - logs')
 
   def down(self) -> None:
-    self._exec(f'docker compose -p {self.stack} -f - down')
+    self._exec(f'docker compose -p {self.driver.stack_id} -f - down')
 
   def _exec(self, command: str) -> None:
     Docker.remote_node_run(
@@ -141,17 +145,17 @@ class DockerSwarm(Docker):
 
   def deploy(self) -> None:
     Shell.pipe_exec(
-      command=f'docker stack deploy --prune --detach=true --resolve-image=always -c - {self.stack}',
+      command=f'docker stack deploy --prune --detach=true --resolve-image=always -c - {self.driver.stack_id}',
       pipe_input=self.resolved_config,
     )
 
   def ps(self) -> None:
-    # Shell.exec(f'docker stack ps --no-trunc - {self.stack}')
-    Shell.exec(f'docker stack services {self.stack}')
+    # Shell.exec(f'docker stack ps --no-trunc - {self.driver.stack_id}')
+    Shell.exec(f'docker stack services {self.driver.stack_id}')
 
   def logs(self) -> None:
-    # Shell.exec(f'docker stack service logs -f -c - {self.stack}')
+    # Shell.exec(f'docker stack service logs -f -c - {self.driver.stack_id}')
     pass
 
   def down(self) -> None:
-    Shell.exec(f'docker stack rm {self.stack}')
+    Shell.exec(f'docker stack rm {self.driver.stack_id}')

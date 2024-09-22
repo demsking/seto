@@ -70,9 +70,8 @@ def parse_local_volumes(
 
     for volume_entry in service_volumes_image:
       if isinstance(volume_entry, str):
-        if volume_entry.startswith('./'):
-          source, target, _ = parse_volume_entry(volume_entry)
-          local_volumes.append((source, target))
+        source, target, _ = parse_volume_entry(volume_entry)
+        local_volumes.append((source, target))
 
   if len(local_volumes) > 0:
     _, image_version = tuple((service['image'].split(':') + ['latest'])[0:2])
@@ -156,7 +155,6 @@ def parse_volumes(
 def resolve_compose_file(
   driver: Driver,
   *,
-  compose_dir: str,
   compose_data: dict,
   inject: bool = False,
   mode: list[ResolveMode] | None = None,
@@ -183,7 +181,7 @@ def resolve_compose_file(
 
     service_deploy_labels.update(service_labels)
     parse_stack_values(service_deploy_labels)
-    parse_local_volumes(driver.stack, service_name=service_name, service=service)
+    parse_local_volumes(driver.stack_id, service_name=service_name, service=service)
 
     parse_volumes(
       driver=driver,
@@ -278,7 +276,6 @@ def resolve_env_vars(content: str) -> str:
 
 def parse_compose_file(compose_file: str, resolve_vars=False) -> tuple[dict, str, str]:
   compose_file = os.path.realpath(compose_file)
-  compose_dir = os.path.dirname(compose_file)
 
   with open(compose_file, encoding='utf-8') as file:
     compose_content = file.read()
@@ -288,31 +285,7 @@ def parse_compose_file(compose_file: str, resolve_vars=False) -> tuple[dict, str
 
     compose_data = yaml.safe_load(compose_content)
 
-  return compose_data, compose_file, compose_dir
-
-
-def resolve_networks(
-  project: str,
-  external_networks: list[str] | None = None,
-) -> dict:
-  networks_files = glob.glob(os.path.join('networks', '*.yaml'))
-  merged_data = {}
-
-  for network_file in networks_files:
-    with open(network_file, encoding='utf-8') as file:
-      network_key = os.path.splitext(os.path.basename(network_file))[0]
-      network_data = yaml.safe_load(file)
-      network_name = network_data.get('name', f'{project}_{network_key}')
-      merged_data[network_key] = network_data
-
-      if external_networks and network_key in external_networks:
-        network_data.clear()
-
-        network_data['external'] = True
-
-      network_data['name'] = network_name
-
-  return merged_data
+  return compose_data, compose_file
 
 
 def parse_services(
@@ -329,7 +302,7 @@ def parse_services(
 
   for service_file in services_files:
     resolve_vars = mode and 'compose' in mode
-    compose_data, _, compose_dir = parse_compose_file(service_file, resolve_vars)
+    compose_data, _ = parse_compose_file(service_file, resolve_vars)
     x_mode = compose_data.get('x-mode', 'swarm')
 
     if x_mode not in ['compose', 'swarm']:
@@ -346,7 +319,6 @@ def parse_services(
     # resolve compose local volumes
     resolved_compose_data, volumes = resolve_compose_file(
       driver=driver,
-      compose_dir=compose_dir,
       compose_data=compose_data,
       inject=inject,
       mode=[x_mode],

@@ -28,13 +28,19 @@ class Driver:
     stack: str,
     *,
     project: str,
-    brickname: str,
     shell: Shell,
   ) -> None:
     self.stack = stack
     self.project = project
-    self.brickname = brickname
     self.shell = shell
+
+  @property
+  def brickname(self) -> str:
+    return f'{self.project}/{self.stack}' if self.stack else self.project
+
+  @property
+  def stack_id(self) -> str:
+    return f'{self.project}_{self.stack}' if self.stack else self.project
 
   @property
   def slug(self) -> str:

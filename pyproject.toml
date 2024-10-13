@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "seto"
-version = "2.2.0"
+version = "2.2.1"
 description = "A Docker Swarm Deployment Manager"
 keywords = ["docker", "swarm", "manager"]
 authors = ["Sébastien Demanou <demsking@gmail.com>"]

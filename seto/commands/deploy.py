@@ -43,12 +43,12 @@ def parse_service_vars(entries: dict[str, Any], hostname: str) -> None:
       entries[key] = re.sub(NODE_HOSTNAME_RE, hostname, value)
 
 
-def pick_label_value(labels: dict[str, Any], name: str) -> Any | None:
+def pick_label_value(labels: dict[str, Any], name: str) -> Any | str:
   for label, value in labels.items():
     if label.endswith(name):
       del labels[label]
       return value
-  return None
+  return ''
 
 
 def parse_compose_config(
@@ -98,45 +98,44 @@ def parse_compose_config(
       parse_service_vars(service_labels, compose.node_hostname)
       parse_service_vars(service_environment, compose.node_hostname)
 
+      service['ports'] = service_ports
+      service_traefik_rule = pick_label_value(service_labels, '.rule')
+      service_traefik_middlewares = pick_label_value(service_labels, '.middlewares')
       service_traefik_port = pick_label_value(service_labels, '.loadbalancer.server.port')
+      service_traefik_entryPoints = pick_label_value(service_labels, '.entryPoints')
+      service_traefik_tls_certresolver = pick_label_value(service_labels, '.tls.certresolver')
+      service_traefik_service = pick_label_value(service_labels, '.service')
+      published_port = random.randint(53100, 64200)
 
-      if service_traefik_port:
-        service['ports'] = service_ports
-        service_traefik_rule = pick_label_value(service_labels, '.rule')
-        service_traefik_middlewares = pick_label_value(service_labels, '.middlewares')
-        service_traefik_entryPoints = pick_label_value(service_labels, '.entryPoints')
-        service_traefik_tls_certresolver = pick_label_value(service_labels, '.tls.certresolver')
-        service_traefik_service = pick_label_value(service_labels, '.service')
-        published_port = random.randint(53100, 64200)
+      if not service_traefik_port:
+        raise ValueError(f'Service "{service_name}" error: port is missing')
 
-        service_ports.append(f'{published_port}:{service_traefik_port}')
+      service_ports.append(f'{published_port}:{service_traefik_port}')
 
-        traefik_http_provider_routers[service_name] = {
-          'entryPoints': [service_traefik_entryPoints],
-          'service': service_traefik_service or service_name,
-          'rule': service_traefik_rule,
-          'middlewares': service_traefik_middlewares.split(','),
-          'tls': {
-            'certresolver': service_traefik_tls_certresolver,
-          },
-        }
+      traefik_http_provider_routers[service_name] = {
+        'entryPoints': [service_traefik_entryPoints],
+        'service': service_traefik_service or service_name,
+        'rule': service_traefik_rule,
+        'middlewares': service_traefik_middlewares.split(','),
+        'tls': {
+          'certresolver': service_traefik_tls_certresolver,
+        },
+      }
 
-        node_ip = resolve_hostname(compose.node_hostname)
-        traefik_http_provider_services[service_name] = {
-          'loadBalancer': {
-            'servers': [
-              {
-                'url': f'http://{node_ip}:{published_port}',
-              },
-            ],
-          },
-        }
+      node_ip = resolve_hostname(compose.node_hostname)
+      traefik_http_provider_services[service_name] = {
+        'loadBalancer': {
+          'servers': [
+            {
+              'url': f'http://{node_ip}:{published_port}',
+            },
+          ],
+        },
+      }
 
-        traefik_http_provider_middlewares.update(
-          convert_middlewares_to_dict(service_labels),
-        )
-      else:
-        print(f'No exposed port found for service "{service_name}"')
+      traefik_http_provider_middlewares.update(
+        convert_middlewares_to_dict(service_labels),
+      )
 
 
 def deploy_seto_stack(args, driver: Driver, replica: list[Setting]) -> None:

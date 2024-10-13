@@ -19,8 +19,9 @@
     "python311Packages.twine@latest"
   ],
   "env": {
-    "PATH": ".venv/bin:$PATH",
-    "PYTHONPATH": ".venv/lib/python3.11/site-packages:$PYTHONPATH"
+    "VENV_DIR": ".venv",
+    "PYTHONPATH": ".:$VENV_DIR/lib/python3.11/site-packages:$PYTHONPATH",
+    "PATH": "$VENV_DIR/bin:$PATH"
   },
   "shell": {
     "init_hook": [

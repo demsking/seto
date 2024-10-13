@@ -4,6 +4,7 @@
 .devbox/
 .direnv/
 .ropeproject/
+.venv/
 bridges/
 images/
 dist/

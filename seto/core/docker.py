@@ -13,9 +13,9 @@
 # limitations under the License.
 # ==============================================================================
 import functools
+import json
 from typing import Any
 
-import yaml
 from docker import DockerClient
 
 from .driver import Driver
@@ -40,7 +40,7 @@ class Docker:
 
   @property
   def resolved_config(self) -> str:
-    return resolve_env_vars(yaml.dump(self.config))
+    return resolve_env_vars(json.dumps(self.config))
 
   @property
   def external_networks(self) -> list[str]:

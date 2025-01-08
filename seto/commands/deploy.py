@@ -105,7 +105,7 @@ def parse_compose_config(
       service_traefik_port = pick_label_value(service_labels, '.loadbalancer.server.port')
       service_traefik_entryPoints = pick_label_value(service_labels, '.entryPoints')
       service_traefik_tls_certresolver = pick_label_value(service_labels, '.tls.certresolver')
-      service_traefik_service = pick_label_value(service_labels, '.service')
+      service_traefik_service = pick_label_value(service_labels, '.service') or service_name
       published_port = random.randint(53100, 64200)
 
       if not service_traefik_port:
@@ -114,18 +114,18 @@ def parse_compose_config(
 
       service_ports.append(f'{published_port}:{service_traefik_port}')
 
-      traefik_http_provider_routers[service_name] = {
+      traefik_http_provider_routers[service_traefik_service] = {
         'entryPoints': [service_traefik_entryPoints],
-        'service': service_traefik_service or service_name,
+        'service': service_traefik_service,
         'rule': service_traefik_rule,
-        'middlewares': service_traefik_middlewares.split(','),
+        'middlewares': [item for item in service_traefik_middlewares.split(',') if item],
         'tls': {
           'certresolver': service_traefik_tls_certresolver,
         },
       }
 
       node_ip = resolve_hostname(compose.node_hostname)
-      traefik_http_provider_services[service_name] = {
+      traefik_http_provider_services[service_traefik_service] = {
         'loadBalancer': {
           'servers': [
             {
@@ -152,6 +152,7 @@ def deploy_seto_stack(args, driver: Driver, replica: list[Setting]) -> None:
   config_networks.update(GLOBAL_NETWORKS)
 
   print('Configuring seto-http-provider...')
+  traefik_http_provider_data_path = '/data'
   internal_stack = {
     'networks': config_networks,
     'services': {
@@ -161,10 +162,10 @@ def deploy_seto_stack(args, driver: Driver, replica: list[Setting]) -> None:
         'environment': [
           'WORKER=1',
           'EXPIRATION_MINUTES=10',
-          'PROVIDERS_DATABASE=/data/providers.db',
+          f'DATA_PATH={traefik_http_provider_data_path}',
         ],
         'volumes-nfs': {
-          'data:/data',
+          f'data:{traefik_http_provider_data_path}',
         },
         'deploy': {
           'mode': 'global',

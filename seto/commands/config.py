@@ -1,4 +1,4 @@
-# Copyright 2024 Sébastien Demanou. All Rights Reserved.
+# Copyright 2024-2025 Sébastien Demanou. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -57,7 +57,7 @@ def resolve(
     configs = resolved_compose_data.get('configs', {})
     secrets = resolved_compose_data.get('secrets', {})
 
-    resolved_compose_data['networks'] = {*config_networks, *networks_}
+    resolved_compose_data['networks'] = {**config_networks, **networks_}
     compose['x-placement'] = placement
     compose['networks'].update(networks_)
     compose['services'].update(services)

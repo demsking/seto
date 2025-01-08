@@ -1,4 +1,4 @@
-# Copyright 2024 Sébastien Demanou. All Rights Reserved.
+# Copyright 2024-2025 Sébastien Demanou. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -110,7 +110,7 @@ class DockerCompose(Docker):
       if node.attrs['Spec']['Labels'].get(label_key) == value:
         return node.attrs['Description']['Hostname']
 
-    return None
+    raise ValueError(f'Unable to found node for placement "{self.placement}"')
 
   def info(self) -> None:
     self._exec(f'docker compose -p {self.driver.stack_id} -f - config')

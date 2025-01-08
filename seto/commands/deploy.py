@@ -95,8 +95,9 @@ def parse_compose_config(
         'deploy': service_deploy,
       }
 
-      parse_service_vars(service_labels, compose.node_hostname)
-      parse_service_vars(service_environment, compose.node_hostname)
+      if compose.node_hostname:
+        parse_service_vars(service_labels, compose.node_hostname)
+        parse_service_vars(service_environment, compose.node_hostname)
 
       service['ports'] = service_ports
       service_traefik_rule = pick_label_value(service_labels, '.rule')
@@ -108,7 +109,8 @@ def parse_compose_config(
       published_port = random.randint(53100, 64200)
 
       if not service_traefik_port:
-        raise ValueError(f'Service "{service_name}" error: port is missing')
+        print(f'WARN: Service "{service_name}" has no defined port. Skipped from Traefik HTTP Provider')
+        continue
 
       service_ports.append(f'{published_port}:{service_traefik_port}')
 

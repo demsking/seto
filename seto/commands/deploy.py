@@ -83,7 +83,7 @@ def parse_compose_config(
       service_deploy = {
         'placement': {
           'constraints': [
-            f'node.labels.{placement}',
+            f'node.labels.{placement}' if '=' in placement else f'node.hostname == {placement}',
           ],
         },
       }

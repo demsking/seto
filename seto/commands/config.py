@@ -42,6 +42,7 @@ def resolve(
 
   compose = {
     'x-placement': None,
+    'x-placement-hostname': None,
     'configs': {},
     'networks': config_networks,
     'volumes': {},
@@ -50,6 +51,7 @@ def resolve(
   }
 
   def parse(resolved_compose_data: dict, volumes: list[Volume]):
+    placement_hostname = resolved_compose_data.get('x-placement-hostname', None)
     placement = resolved_compose_data.get('x-placement', None)
     networks_ = resolved_compose_data.get('networks', {})
     services = resolved_compose_data.get('services', {})
@@ -58,6 +60,7 @@ def resolve(
     secrets = resolved_compose_data.get('secrets', {})
 
     resolved_compose_data['networks'] = {**config_networks, **networks_}
+    compose['x-placement-hostname'] = placement_hostname
     compose['x-placement'] = placement
     compose['networks'].update(networks_)
     compose['services'].update(services)
@@ -65,8 +68,8 @@ def resolve(
     compose['configs'].update(configs)
     compose['secrets'].update(secrets)
 
-    if args.compose and not placement:
-      raise ValueError('Missing required x-placement field')
+    if args.compose and not placement and not placement_hostname:
+      raise ValueError('Missing required x-placement or x-placement-hostname field')
 
     if execute:
       execute(resolved_compose_data, placement)

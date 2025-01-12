@@ -14,7 +14,6 @@
 # ==============================================================================
 import functools
 import json
-from typing import Any
 
 from docker import DockerClient
 
@@ -95,16 +94,24 @@ class Docker:
 
 class DockerCompose(Docker):
   @property
-  def placement(self) -> dict[str, Any]:
+  def placement_hostname(self) -> str | None:
+    return self.config['x-placement-hostname']
+
+  @property
+  def placement(self) -> str | None:
     return self.config['x-placement']
 
   @property
   @functools.lru_cache(maxsize=128)
   def node_hostname(self) -> str | None:
+    if self.placement_hostname:
+      return self.placement_hostname
+
     nodes = self.client.nodes.list()
 
     label_key, label_value = self.placement.split('==')
-    value = f'{label_value}'
+    label_key = f'{label_key}'.strip()
+    value = f'{label_value}'.strip()
 
     for node in nodes:
       if node.attrs['Spec']['Labels'].get(label_key) == value:

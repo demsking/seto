@@ -72,7 +72,7 @@ def resolve(
       raise ValueError('Missing required x-placement or x-placement-hostname field')
 
     if execute:
-      execute(resolved_compose_data, placement)
+      execute(resolved_compose_data, placement_hostname or placement)
 
   parse_services(
     driver=driver,

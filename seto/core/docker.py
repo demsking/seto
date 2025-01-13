@@ -14,6 +14,7 @@
 # ==============================================================================
 import functools
 import json
+import socket
 
 from docker import DockerClient
 
@@ -102,6 +103,10 @@ class DockerCompose(Docker):
     return self.config['x-placement']
 
   @property
+  def current_hostname(self) -> str:
+    return socket.gethostname()
+
+  @property
   @functools.lru_cache(maxsize=128)
   def node_hostname(self) -> str | None:
     if self.placement_hostname:
@@ -136,11 +141,14 @@ class DockerCompose(Docker):
     self._exec(f'docker compose -p {self.driver.stack_id} -f - down')
 
   def _exec(self, command: str) -> None:
-    Docker.remote_node_run(
-      command,
-      hostname=self.node_hostname,
-      pipe_input=self.resolved_config,
-    )
+    if self.current_hostname == self.node_hostname:
+      Shell.pipe_exec(command=command, pipe_input=self.resolved_config)
+    else:
+      Docker.remote_node_run(
+        command,
+        hostname=self.node_hostname,
+        pipe_input=self.resolved_config,
+      )
 
 
 class DockerSwarm(Docker):

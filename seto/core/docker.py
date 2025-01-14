@@ -96,11 +96,11 @@ class Docker:
 class DockerCompose(Docker):
   @property
   def placement_hostname(self) -> str | None:
-    return self.config['x-placement-hostname']
+    return self.config.get('x-placement-hostname', None)
 
   @property
   def placement(self) -> str | None:
-    return self.config['x-placement']
+    return self.config.get('x-placement', None)
 
   @property
   def current_hostname(self) -> str:

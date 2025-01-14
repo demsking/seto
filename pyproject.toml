@@ -27,7 +27,7 @@ seto = "seto.__main__:main"
 "Tracker" = "https://gitlab.com/demsking/seto/-/issues"
 
 [tool.poetry.dependencies]
-python = ">=3.11,<3.12"
+python = ">=3.11,<=3.12"
 paramiko = "^3.4.0"
 pyyaml = "^6.0.1"
 docker = "^7.1.0"

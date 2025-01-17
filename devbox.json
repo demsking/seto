@@ -1,32 +1,30 @@
 {
   "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.10.5/.schema/devbox.schema.json",
   "packages": [
-    "python@3.11",
+    "python@3.12",
     "poetry@latest",
     "tmux@latest",
     "gitmux@latest",
     "git-secret@latest",
     "tmuxinator@latest",
     "gnumake@latest",
-    "nodePackages.dotenv-cli@latest",
     "pre-commit@latest",
     "editorconfig-checker@latest",
-    "python311Packages.autopep8@latest",
-    "python311Packages.bandit@latest",
-    "python311Packages.pylint@latest",
+    "python312Packages.autopep8@latest",
+    "python312Packages.bandit@latest",
+    "python312Packages.pylint@latest",
+    "python312Packages.twine@latest",
     "hadolint@latest",
-    "ruff@latest",
-    "python311Packages.twine@latest"
+    "ruff@latest"
   ],
   "env": {
     "VENV_DIR": ".venv",
-    "PYTHONPATH": ".:$VENV_DIR/lib/python3.11/site-packages:$PYTHONPATH",
+    "PYTHONPATH": ".:$VENV_DIR/lib/python3.12/site-packages:$PYTHONPATH",
     "PATH": "$VENV_DIR/bin:$PATH"
   },
   "shell": {
     "init_hook": [
       "poetry shell",
-      "dotenv",
       "pre-commit install -f"
     ],
     "scripts": {}

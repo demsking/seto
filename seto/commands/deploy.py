@@ -320,6 +320,7 @@ def execute_deploy_command(args, driver: Driver) -> None:
     for compose in composes_items:
       # compose.info()
       compose.build()
+      compose.push()
 
     print(f'Pulling {driver.stack_id} compose images...')
     for compose in composes_items:

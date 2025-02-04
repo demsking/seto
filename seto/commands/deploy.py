@@ -16,6 +16,7 @@ import json
 import os
 import random
 import re
+import uuid
 from typing import Any
 
 from docker import DockerClient
@@ -153,6 +154,7 @@ def deploy_seto_stack(args, driver: Driver, replica: list[Setting]) -> None:
 
   print('Configuring seto-http-provider...')
   traefik_http_provider_data_path = '/data'
+  seto_stack_service_name = f'{HTTP_PROVIDER_SERVICENAME}-{uuid.uuid4()}'
   internal_stack = {
     'networks': config_networks,
     'services': {
@@ -171,6 +173,8 @@ def deploy_seto_stack(args, driver: Driver, replica: list[Setting]) -> None:
           'mode': 'global',
           'labels': {
             'traefik.discovery.enable': True,
+            f'traefik.http.routers.{seto_stack_service_name}.service': seto_stack_service_name,
+            f'traefik.http.services.{seto_stack_service_name}.loadbalancer.server.port': 6116,
           },
         },
       },

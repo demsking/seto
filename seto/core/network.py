@@ -17,33 +17,31 @@ import os
 
 import yaml
 
+
+NETWORK_CONFIG = {
+  'ipam': {
+    'driver': 'default',
+  },
+}
+
 GLOBAL_NETWORKS = {
   'seto-cloud-public': {
     'name': 'seto-cloud-public',
     'driver': 'overlay',
     'attachable': True,
+    **NETWORK_CONFIG,
   },
   'seto-cloud-edge': {
     'name': 'seto-cloud-edge',
     'driver': 'overlay',
     'attachable': True,
-    'ipam': {
-      'config': [
-        {'subnet': '172.20.0.0/20'},
-        {'subnet': 'fd00:3984:3989::/64'},
-      ],
-    },
+    **NETWORK_CONFIG,
   },
   'seto-http-provider': {
     'name': 'seto-http-provider',
     'driver': 'overlay',
     'attachable': True,
-    'ipam': {
-      'config': [
-        {'subnet': '172.20.0.0/20'},
-        {'subnet': 'fd00:3984:3989::/64'},
-      ],
-    },
+    **NETWORK_CONFIG,
   },
 }
 
@@ -75,6 +73,8 @@ def resolve_networks(
         network_data.clear()
 
         network_data['external'] = True
+      else:
+        network_data.update(NETWORK_CONFIG)
 
       network_data['name'] = network_name
 

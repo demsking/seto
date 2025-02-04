@@ -610,6 +610,70 @@
         }
       }
     },
+    "python312Packages.pyyaml@latest": {
+      "last_modified": "2025-01-19T08:16:51Z",
+      "resolved": "github:NixOS/nixpkgs/50165c4f7eb48ce82bd063e1fb8047a0f515f8ce#python312Packages.pyyaml",
+      "source": "devbox-search",
+      "version": "6.0.2",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/9zn5xwpibc5md7xk4jkpqa8l2c6qz15n-python3.12-pyyaml-6.0.2",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/w20p2mhg052bsgx6wd18lrydpc4g082y-python3.12-pyyaml-6.0.2-dist"
+            }
+          ],
+          "store_path": "/nix/store/9zn5xwpibc5md7xk4jkpqa8l2c6qz15n-python3.12-pyyaml-6.0.2"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/zawk0flfgwkywk06b0z5kh97pvak0ik4-python3.12-pyyaml-6.0.2",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/nvr266sfcw64rlcl125j2jlinrymdzpv-python3.12-pyyaml-6.0.2-dist"
+            }
+          ],
+          "store_path": "/nix/store/zawk0flfgwkywk06b0z5kh97pvak0ik4-python3.12-pyyaml-6.0.2"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/rbwspn511gha7sxb08zimas8j57mv9b2-python3.12-pyyaml-6.0.2",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/495fc652mycj1q0a0bs1lv8mviyrmxib-python3.12-pyyaml-6.0.2-dist"
+            }
+          ],
+          "store_path": "/nix/store/rbwspn511gha7sxb08zimas8j57mv9b2-python3.12-pyyaml-6.0.2"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/mv4if66b2q83sp6hp2zjc7yrgpzqihm7-python3.12-pyyaml-6.0.2",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/cf01y9qdwbx1zzfv605q3d868drm5x89-python3.12-pyyaml-6.0.2-dist"
+            }
+          ],
+          "store_path": "/nix/store/mv4if66b2q83sp6hp2zjc7yrgpzqihm7-python3.12-pyyaml-6.0.2"
+        }
+      }
+    },
     "python312Packages.twine@latest": {
       "last_modified": "2024-12-23T21:10:33Z",
       "resolved": "github:NixOS/nixpkgs/de1864217bfa9b5845f465e771e0ecb48b30e02d#python312Packages.twine",

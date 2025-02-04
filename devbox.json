@@ -14,13 +14,14 @@
     "python312Packages.bandit@latest",
     "python312Packages.pylint@latest",
     "python312Packages.twine@latest",
+    "python312Packages.pyyaml@latest",
     "hadolint@latest",
     "ruff@latest"
   ],
   "env": {
-    "VENV_DIR": ".venv",
+    "VENV_DIR":   ".venv",
     "PYTHONPATH": ".:$VENV_DIR/lib/python3.12/site-packages:$PYTHONPATH",
-    "PATH": "$VENV_DIR/bin:$PATH"
+    "PATH":       "$VENV_DIR/bin:$PATH"
   },
   "shell": {
     "init_hook": [

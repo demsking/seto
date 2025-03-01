@@ -45,7 +45,8 @@ class Docker:
   @property
   def external_networks(self) -> list[str]:
     return [
-      item.attrs['Name'] for item in self.client.networks.list()
+      item.attrs['Name']
+      for item in self.client.networks.list()
       if item.attrs['Name'].startswith(self.driver.stack_id)
     ]
 

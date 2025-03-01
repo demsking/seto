@@ -1,0 +1,51 @@
+{
+  "python.defaultInterpreterPath": "./.venv/bin/python",
+  "pylint.importStrategy": "fromEnvironment",
+  "editor.formatOnPaste": false,
+  "editor.formatOnSave": true,
+  "editor.formatOnType": true,
+  "files.trimTrailingWhitespace": true,
+  "files.exclude": {
+    "**/.devbox": true,
+    "**/.directory": true,
+    "**/.coverage": true,
+    "**/.direnv": true,
+    "**/.nix-node": true,
+    "**/.ruff_cache": true,
+    "**/.venv": true,
+    "**/.pytest_cache": true,
+    "**/*.egg-info": true,
+    "**/__pycache__": true,
+    "**/dist": true
+  },
+  "python.analysis.typeCheckingMode": "strict",
+  "python.analysis.diagnosticSeverityOverrides": {
+    "reportMissingTypeStubs": "information",
+    "reportPrivateImportUsage": "none"
+  },
+  "python.analysis.exclude": ["**/.venv"],
+  "python.analysis.autoImportCompletions": true,
+  "python.analysis.completeFunctionParens": true,
+  "python.analysis.diagnosticMode": "workspace",
+  "python.analysis.importFormat": "relative",
+  "python.analysis.inlayHints.functionReturnTypes": true,
+  "python.analysis.inlayHints.pytestParameters": true,
+  "python.analysis.inlayHints.variableTypes": true,
+  "python.analysis.fixAll": ["source.convertImportFormat"],
+  "python.testing.pytestEnabled": true,
+  "python.testing.pytestArgs": ["tests"],
+  "python.testing.unittestEnabled": false,
+  "python.terminal.activateEnvInCurrentTerminal": true,
+  "terminal.integrated.profiles.linux": {
+    "bash": {
+      "path": "/bin/bash"
+    }
+  },
+  "terminal.integrated.defaultProfile.linux": "bash",
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff"
+  },
+  "python.analysis.indexing": false,
+  "python.analysis.typeEvaluation.strictListInference": true,
+  "python.analysis.typeEvaluation.strictDictionaryInference": true
+}

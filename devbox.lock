@@ -546,6 +546,70 @@
         }
       }
     },
+    "python312Packages.pyaml@latest": {
+      "last_modified": "2025-02-07T11:26:36Z",
+      "resolved": "github:NixOS/nixpkgs/d98abf5cf5914e5e4e9d57205e3af55ca90ffc1d#python312Packages.pyaml",
+      "source": "devbox-search",
+      "version": "25.1.0",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/9a8b9npzz6k82cngknwnyh7zgs55rprd-python3.12-pyaml-25.1.0",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/dclddgllx945bf4gcj10mb1riys25aj9-python3.12-pyaml-25.1.0-dist"
+            }
+          ],
+          "store_path": "/nix/store/9a8b9npzz6k82cngknwnyh7zgs55rprd-python3.12-pyaml-25.1.0"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/hlfcsx7vjfhv5b9dpg19bryv0mw44hk2-python3.12-pyaml-25.1.0",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/g5i9bg1qi3hhrcz1xbwxx1qbsvn6yj3f-python3.12-pyaml-25.1.0-dist"
+            }
+          ],
+          "store_path": "/nix/store/hlfcsx7vjfhv5b9dpg19bryv0mw44hk2-python3.12-pyaml-25.1.0"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/9cmn4c7i2sdyz945nv773kislkg4lnc2-python3.12-pyaml-25.1.0",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/l57klvdfchcvz3i61xi66hwjbi504ais-python3.12-pyaml-25.1.0-dist"
+            }
+          ],
+          "store_path": "/nix/store/9cmn4c7i2sdyz945nv773kislkg4lnc2-python3.12-pyaml-25.1.0"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/8y47glcwmjiswkhcl666yafc87qd9diw-python3.12-pyaml-25.1.0",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/ibjic1q6k08qj9fq77zzq4q5s2y6ybk5-python3.12-pyaml-25.1.0-dist"
+            }
+          ],
+          "store_path": "/nix/store/8y47glcwmjiswkhcl666yafc87qd9diw-python3.12-pyaml-25.1.0"
+        }
+      }
+    },
     "python312Packages.pylint@latest": {
       "last_modified": "2024-12-23T21:10:33Z",
       "resolved": "github:NixOS/nixpkgs/de1864217bfa9b5845f465e771e0ecb48b30e02d#python312Packages.pylint",

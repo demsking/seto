@@ -16,7 +16,8 @@
     "python312Packages.twine@latest",
     "python312Packages.pyyaml@latest",
     "hadolint@latest",
-    "ruff@latest"
+    "ruff@latest",
+    "python312Packages.pyaml@latest"
   ],
   "env": {
     "VENV_DIR":   ".venv",

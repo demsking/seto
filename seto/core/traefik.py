@@ -1,4 +1,4 @@
-# Copyright 2024 Sébastien Demanou. All Rights Reserved.
+# Copyright 2024-2025 Sébastien Demanou. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -37,10 +37,10 @@ def deep_set(dct: dict[str, Any], keys: str, value: Any):
       # Extend the list if the index doesn't exist yet
       while len(current) <= key:
         current.append({})
-      current = current[key]
+      current = current[key]  # type: ignore
     else:
       if isinstance(current, list):  # Handle case where current is mistakenly a list
-        current = current[-1]
+        current = current[-1]  # type: ignore
       current = current.setdefault(key, {})
 
   # Handle the last key separately

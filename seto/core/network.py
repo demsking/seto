@@ -51,7 +51,8 @@ def get_global_external_networks() -> dict:
     shortname: {
       'name': network['name'],
       'external': True,
-    } for shortname, network in GLOBAL_NETWORKS.items()
+    }
+    for shortname, network in GLOBAL_NETWORKS.items()
   }
 
 
@@ -65,7 +66,7 @@ def resolve_networks(
   for network_file in networks_files:
     with open(network_file, encoding='utf-8') as file:
       network_key = os.path.splitext(os.path.basename(network_file))[0]
-      network_data = yaml.safe_load(file)
+      network_data: dict = yaml.safe_load(file) or {}  # type: ignore
       network_name = network_data.get('name', f'{project}_{network_key}')
       merged_data[network_key] = network_data
 

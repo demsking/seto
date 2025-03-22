@@ -1,4 +1,4 @@
-# Copyright 2024 Sébastien Demanou. All Rights Reserved.
+# Copyright 2024-2025 Sébastien Demanou. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,47 +27,53 @@ from .commands.setup import print_ssh_copy_id_commands
 from .commands.umount import execute_umount_volumes_command
 from .commands.volumes import execute_create_volumes_command
 from .core.shell import Setting
-from .drivers.gluster import GlusterDriver
 from .drivers.nfs import NFSDriver
 from .shells.local import LocalShell
 from .shells.remote import RemoteShell
 
-DriverType = type[str]
-ShellConnectionString = type[str]
+DriverType = str
+ShellConnectionString = str
 
 
-driver_shemes = ['nfs://', 'glusterfs://']
+driver_shemes = ['nfs://']
 driver_examples = [f'{sheme}username:password@hostname' for sheme in driver_shemes]
 DRIVER_EXAMPLES_STR = ' or '.join(driver_examples)
 
 
 def manager_type(value: str) -> tuple[DriverType, ShellConnectionString]:
   if not any(value.startswith(scheme) for scheme in driver_shemes):
-    raise argparse.ArgumentError('manager', f'{value} is not a valid manager ({DRIVER_EXAMPLES_STR})')
+    raise argparse.ArgumentError(
+      'manager',  # type: ignore
+      f'{value} is not a valid manager ({DRIVER_EXAMPLES_STR})',
+    )
 
-  return value.split('://')
+  driver_type, connection_string = value.split('://', 1)
+
+  return driver_type, connection_string
 
 
 def replica_type(value: str) -> list[Setting]:
   connection_strings = value.split(' ')
 
   try:
-    return [
-      Setting.from_connection_string(item.strip()) for item in connection_strings
-    ]
+    return [Setting.from_connection_string(item.strip()) for item in connection_strings]
   except Exception as exception:
-    raise argparse.ArgumentError('replica', f'{value} is not a replica value (username:password@hostname)') from exception
+    raise argparse.ArgumentError(
+      'replica',  # type: ignore
+      f'{value} is not a replica value (username:password@hostname)',
+    ) from exception
 
 
 def nodes_type(value: str) -> list[Setting]:
   connection_strings = value.split(' ')
 
   try:
-    return [
-      Setting.from_connection_string(item.strip()) for item in connection_strings
-    ]
+    return [Setting.from_connection_string(item.strip()) for item in connection_strings]
   except Exception as exception:
-    raise argparse.ArgumentError('nodes', f'{value} is not a nodes value (username:password@hostname)') from exception
+    raise argparse.ArgumentError(
+      'nodes',  # type: ignore
+      f'{value} is not a nodes value (username:password@hostname)',
+    ) from exception
 
 
 def main() -> None:
@@ -125,7 +131,9 @@ def main() -> None:
 
   #
   # Create Volumes command
-  create_volumes_parser = subparsers.add_parser('create-volumes', description='Create and sync shared volumes')
+  create_volumes_parser = subparsers.add_parser(
+    'create-volumes', description='Create and sync shared volumes'
+  )
   create_volumes_parser.set_defaults(func=execute_create_volumes_command)
   create_volumes_parser.add_argument(
     '--replica',
@@ -155,7 +163,9 @@ def main() -> None:
 
   #
   # Unmount Volumes command
-  umount_volumes_parser = subparsers.add_parser('unmount-volumes', description='Unmount shared volumes')
+  umount_volumes_parser = subparsers.add_parser(
+    'unmount-volumes', description='Unmount shared volumes'
+  )
   umount_volumes_parser.set_defaults(func=execute_umount_volumes_command)
   umount_volumes_parser.add_argument(
     '--clients',
@@ -167,7 +177,9 @@ def main() -> None:
 
   #
   # Config command
-  config_parser = subparsers.add_parser('config', description='Parse, resolve and render compose file in canonical format')
+  config_parser = subparsers.add_parser(
+    'config', description='Parse, resolve and render compose file in canonical format'
+  )
   config_parser.set_defaults(func=execute_config_command)
 
   config_parser.add_argument(
@@ -178,7 +190,9 @@ def main() -> None:
 
   #
   # Deploy command
-  deploy_parser = subparsers.add_parser('deploy', description='Deploy a new stack or update an existing stack')
+  deploy_parser = subparsers.add_parser(
+    'deploy', description='Deploy a new stack or update an existing stack'
+  )
   deploy_parser.set_defaults(func=execute_deploy_command)
 
   #
@@ -197,7 +211,7 @@ def main() -> None:
   driver_name, connection_string = args.manager
   setting = Setting.from_connection_string(connection_string)
   create_shell = LocalShell if setting.local else RemoteShell
-  create_driver = GlusterDriver if driver_name == 'gluster' else NFSDriver
+  create_driver = NFSDriver
   shell = create_shell(setting, args.key)
   driver = create_driver(args.stack, project=args.project, shell=shell)
 

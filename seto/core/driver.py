@@ -1,4 +1,4 @@
-# Copyright 2024 Sébastien Demanou. All Rights Reserved.
+# Copyright 2024-2025 Sébastien Demanou. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ class Driver:
     project: str,
     shell: Shell,
   ) -> None:
-    self.stack = stack
+    self.stack: str | None = stack
     self.project = project
     self.shell = shell
 
@@ -48,7 +48,7 @@ class Driver:
 
   @property
   def sheme(self) -> str:
-    raise f'{self.slug}://'
+    return f'{self.slug}://'
 
   @property
   def driver_name(self) -> str:
@@ -92,7 +92,10 @@ class Driver:
       node.run(f'touch {authorized_keys_file}', quiet=True)
       authorized_keys = node.file(authorized_keys_file)
 
-      authorized_keys.append(node.ssh_pub_key)
+      # Append the SSH public key to authorized_keys file
+      if node.ssh_pub_key:
+        authorized_keys.append(node.ssh_pub_key)
+
       authorized_keys.chown(self.setouser, self.setouser)
       authorized_keys.chmod('600')
 
@@ -132,7 +135,7 @@ class Driver:
   ) -> None:
     raise NotImplementedError()
 
-  def mount_volumes(self, *, clients: list[str], volumes: list[Volume]) -> None:
+  def mount_volumes(self, *, clients: list[Setting], volumes: list[Volume]) -> None:
     if len(volumes) > 0:
       for node_setting in clients:
         node = Driver.get_shell(node_setting, self.shell.key_file_path)
@@ -162,7 +165,7 @@ class Driver:
   def mount(self, node: Shell, storage: str, *, device: str, fstab: File) -> None:
     raise NotImplementedError()
 
-  def umount_volumes(self, *, clients: list[str], volumes: list[Volume]) -> None:
+  def umount_volumes(self, *, clients: list[Setting], volumes: list[Volume]) -> None:
     if len(volumes) > 0:
       for node_setting in clients:
         node = Driver.get_shell(node_setting, self.shell.key_file_path)
@@ -173,7 +176,7 @@ class Driver:
   def umount_node_volumes(self, node: Shell, volumes: list[Volume]) -> None:
     for volume in volumes:
       print(f'\nUnmounting volume {node.hostname}:{self.mount_point(volume.mount_folder)}')
-      self.umount(node, volume)
+      self.umount(node, volume.mount_folder)
 
   def umount(self, node: Shell, device: str) -> None:
     node.run(f'umount {device}')
@@ -181,6 +184,6 @@ class Driver:
   def resolve_compose_volume(self, volume: Volume) -> dict:
     raise NotImplementedError()
 
-  def terminate(self):
+  def terminate(self) -> None:
     # Close the SSH connection
     self.shell.close()

@@ -1,4 +1,4 @@
-# Copyright 2024 Sébastien Demanou. All Rights Reserved.
+# Copyright 2024-2025 Sébastien Demanou. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -49,6 +49,12 @@ class Setting:
       node_host = client_user
       client_user = 'root'
 
+    if not node_host:
+      raise ValueError('Unable to determine hostname from connection string')
+
+    if not client_user:
+      raise ValueError('Unable to determine username from connection string')
+
     username, password = tuple((client_user.split(':') + [None, None])[0:2])
     node_ip = resolve_hostname(node_host)
 
@@ -86,7 +92,7 @@ class File:
     else:
       self.shell.run(f'chown {owner} {self.filename}', quiet=True)
 
-  def chmod(self, mode: str):
+  def chmod(self, mode: str | int):
     if 'letsencrypt' in self.filename:
       mode = 600
 
@@ -104,7 +110,7 @@ class Shell:
     return self.setting.hostname
 
   @property
-  def username(self) -> str:
+  def username(self) -> str | None:
     return self.setting.username
 
   @property
@@ -113,9 +119,11 @@ class Shell:
 
   @property
   @lru_cache
-  def ssh_pub_key(self) -> str:
-    with open(self.pub_key_file_path, encoding='utf-8') as key_file:
-      return key_file.read()
+  def ssh_pub_key(self) -> str | None:
+    if self.pub_key_file_path:
+      with open(self.pub_key_file_path, encoding='utf-8') as key_file:
+        return key_file.read()
+    return None
 
   def connect(self):
     raise NotImplementedError()
@@ -135,7 +143,7 @@ class Shell:
       stderr=subprocess.PIPE,
       text=True,
       shell=True,
-      env={**(env_vars or {}), **dict(subprocess.os.environ)},
+      env={**(env_vars or {}), **dict(subprocess.os.environ)},  # type: ignore
     )
 
     standard_output, standard_error = process.communicate(**kwargs)
@@ -155,7 +163,7 @@ class Shell:
     with StringIO(pipe_input) as pipe:
       return Shell.exec(command, stdout=stdout, env_vars=env_vars, input=pipe.read())
 
-  def install(self, package_name: str, *, user='nobody', group='nogroup') -> None:
+  def install(self, package_name: str, *, user='nobody', group='nogroup') -> bool:
     result = self.run(f'dpkg -l | grep {package_name}', quiet=True, stdout=False)
 
     if package_name not in result:
@@ -164,7 +172,7 @@ class Shell:
 
     return False
 
-  def mkdir(self, path: str, *, user='nobody', group='nogroup', mode: str = 'g+w') -> None:
+  def mkdir(self, path: str, *, user='nobody', group='nogroup', mode: str | int = 'g+w') -> None:
     try:
       self.run(f'ls {path}', quiet=True, stderr=True)
     except Exception:

@@ -87,11 +87,11 @@ def resolve(
 
 def execute_config_command(args, driver: Driver) -> None:
   compose = resolve(args, driver)
-  compose_output = yaml.dump(compose)
+  compose_output = yaml.dump(compose) or '{}'
 
   if args.compose:
     command = f'docker compose -p {driver.stack_id} -f - config'
   else:
     command = 'docker stack config -c -'
 
-  Shell.pipe_exec(command, pipe_input=compose_output)
+  Shell.pipe_exec(command, pipe_input=str(compose_output))

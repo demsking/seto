@@ -1,8 +1,8 @@
 # Ṣeto
 
 Ṣeto is a command-line tool designed to assist with setting up and managing
-shared storage volumes using NFS or GlusterFS drivers. It simplifies the process
-of configuring stack-based deployments, setting up manager and replica nodes,
+shared storage volumes using NFS driver. It simplifies the process of
+configuring stack-based deployments, setting up manager and replica nodes,
 creating and syncing shared volumes, and mounting and unmounting these volumes.
 
 ### Features
@@ -23,7 +23,7 @@ description of each subcommand and its options.
 These options are applicable to all subcommands:
 
 - `--stack`: Required. Specifies the stack name.
-- `--driver`: Required. Specifies the driver URI to use. Can be `nfs://username:password@hostname` or `gluster://username:password@hostname`.
+- `--driver`: Required. Specifies the driver URI to use. Example: `nfs://username:password@hostname`
 
 #### Subcommands
 

@@ -1,5 +1,5 @@
 {
-  "python.defaultInterpreterPath": "./.venv/bin/python",
+  "python.defaultInterpreterPath": "/home/devuser/.local/venv/bin/python",
   "pylint.importStrategy": "fromEnvironment",
   "editor.formatOnPaste": false,
   "editor.formatOnSave": true,
@@ -8,6 +8,7 @@
   "files.exclude": {
     "**/.devbox": true,
     "**/.directory": true,
+    "**/.poetry": true,
     "**/.coverage": true,
     "**/.direnv": true,
     "**/.nix-node": true,
@@ -18,12 +19,14 @@
     "**/__pycache__": true,
     "**/dist": true
   },
-  "python.analysis.typeCheckingMode": "strict",
+  "python.analysis.typeCheckingMode": "basic",
   "python.analysis.diagnosticSeverityOverrides": {
     "reportMissingTypeStubs": "information",
     "reportPrivateImportUsage": "none"
   },
-  "python.analysis.exclude": ["**/.venv"],
+  "python.analysis.exclude": [
+    ".venv/**"
+  ],
   "python.analysis.autoImportCompletions": true,
   "python.analysis.completeFunctionParens": true,
   "python.analysis.diagnosticMode": "workspace",
@@ -33,7 +36,9 @@
   "python.analysis.inlayHints.variableTypes": true,
   "python.analysis.fixAll": ["source.convertImportFormat"],
   "python.testing.pytestEnabled": true,
-  "python.testing.pytestArgs": ["tests"],
+  "python.testing.pytestArgs": [
+    "tests"
+  ],
   "python.testing.unittestEnabled": false,
   "python.terminal.activateEnvInCurrentTerminal": true,
   "terminal.integrated.profiles.linux": {
@@ -44,8 +49,5 @@
   "terminal.integrated.defaultProfile.linux": "bash",
   "[python]": {
     "editor.defaultFormatter": "charliermarsh.ruff"
-  },
-  "python.analysis.indexing": false,
-  "python.analysis.typeEvaluation.strictListInference": true,
-  "python.analysis.typeEvaluation.strictDictionaryInference": true
+  }
 }

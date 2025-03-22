@@ -1,4 +1,4 @@
-# Copyright 2024 Sébastien Demanou. All Rights Reserved.
+# Copyright 2024-2025 Sébastien Demanou. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -79,9 +79,13 @@ def parse_local_volumes(
     image_name = f'{stack}-{service_name}'.replace('_', '-')
     service_dockerfile_name = f'{image_name}.dockerfile'
     service_dockerfile_file = os.path.join('images', service_dockerfile_name)
-    service_dockerfile_definition = [
-      f'FROM {service["image"]}',
-    ] + [f'COPY {source} {target}' for source, target in local_volumes] + ['']
+    service_dockerfile_definition = (
+      [
+        f'FROM {service["image"]}',
+      ]
+      + [f'COPY {source} {target}' for source, target in local_volumes]
+      + ['']
+    )
     service_dockerfile = '\n'.join(service_dockerfile_definition)
     service_dockerfile = resolve_env_vars(service_dockerfile)
 
@@ -235,11 +239,15 @@ def parse_service_configs(
 
       if source.startswith('./') or source.startswith('../'):
         if os.path.isfile(source):
-          config_name = re.sub(r'_{2,}', '_', f"{service_name}_{source.replace('/', '_').replace('.', '_')}".replace('-', '_'))
+          config_name = re.sub(
+            r'_{2,}',
+            '_',
+            f"{service_name}_{source.replace('/', '_').replace('.', '_')}".replace('-', '_'),
+          )
 
           if inject:
             with open(source, encoding='utf-8') as config:
-              configs[config_name] = {
+              configs[config_name] = {  # type: ignore
                 'content': config.read(),
               }
           else:
@@ -247,11 +255,13 @@ def parse_service_configs(
               'file': source,
             }
 
-          service_configs.append({
-            'source': config_name,
-            'target': target,
-            'mode': parse_permission_mode(mode),
-          })
+          service_configs.append(
+            {
+              'source': config_name,
+              'target': target,
+              'mode': parse_permission_mode(mode),
+            }
+          )
 
           continue
 
@@ -274,7 +284,7 @@ def resolve_env_vars(content: str) -> str:
   return output.stdout
 
 
-def parse_compose_file(compose_file: str, resolve_vars=False) -> tuple[dict, str, str]:
+def parse_compose_file(compose_file: str, resolve_vars=False) -> tuple[dict, str]:
   compose_file = os.path.realpath(compose_file)
 
   with open(compose_file, encoding='utf-8') as file:
@@ -285,7 +295,7 @@ def parse_compose_file(compose_file: str, resolve_vars=False) -> tuple[dict, str
 
     compose_data = yaml.safe_load(compose_content)
 
-  return compose_data, compose_file
+  return compose_data, compose_file  # type: ignore
 
 
 def parse_services(
@@ -295,13 +305,13 @@ def parse_services(
   execute: Callable[[dict, list], None] | None = None,
   mode: list[ResolveMode] | None = None,
   inject: bool = False,
-) -> tuple[dict, list]:
+) -> tuple[list, list]:
   services_files = glob.glob(os.path.join(stack, '*.yaml'))
   output_resolved_compose_data = []
   output_volumes = []
 
   for service_file in services_files:
-    resolve_vars = mode and 'compose' in mode
+    resolve_vars = isinstance(mode, list) and 'compose' in mode
     compose_data, _ = parse_compose_file(service_file, resolve_vars)
     x_mode = compose_data.get('x-mode', 'swarm')
 

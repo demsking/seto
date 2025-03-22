@@ -47,7 +47,7 @@ class Docker:
     return [
       item.attrs['Name']
       for item in self.client.networks.list()
-      if item.attrs['Name'].startswith(self.driver.stack_id)
+      if item.attrs and item.attrs['Name'].startswith(self.driver.stack_id)
     ]
 
   @staticmethod
@@ -58,7 +58,7 @@ class Docker:
     pipe_input: str,
   ) -> None:
     ssh_command = f"ssh {Driver.setouser}@{hostname} '{command}'"
-    return Shell.pipe_exec(ssh_command, pipe_input=pipe_input)
+    return Shell.pipe_exec(ssh_command, pipe_input=pipe_input)  # type: ignore
 
   def build(self) -> None:
     Shell.pipe_exec(
@@ -100,8 +100,8 @@ class DockerCompose(Docker):
     return self.config.get('x-placement-hostname', None)
 
   @property
-  def placement(self) -> str | None:
-    return self.config.get('x-placement', None)
+  def placement(self) -> str:
+    return self.config.get('x-placement', '')
 
   @property
   def current_hostname(self) -> str:
@@ -109,7 +109,7 @@ class DockerCompose(Docker):
 
   @property
   @functools.lru_cache(maxsize=128)
-  def node_hostname(self) -> str | None:
+  def node_hostname(self) -> str:
     if self.placement_hostname:
       return self.placement_hostname
 
@@ -120,7 +120,7 @@ class DockerCompose(Docker):
     value = f'{label_value}'.strip()
 
     for node in nodes:
-      if node.attrs['Spec']['Labels'].get(label_key) == value:
+      if node.attrs and node.attrs['Spec']['Labels'].get(label_key) == value:
         return node.attrs['Description']['Hostname']
 
     raise ValueError(f'Unable to found node for placement "{self.placement}"')

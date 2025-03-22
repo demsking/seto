@@ -167,7 +167,9 @@ class Shell:
     result = self.run(f'dpkg -l | grep {package_name}', quiet=True, stdout=False)
 
     if package_name not in result:
-      self.run(f'apt-get install -y --quiet {package_name}', quiet=True)
+      self.run(
+        f'DEBIAN_FRONTEND=noninteractive apt-get install -y --quiet {package_name}', quiet=True
+      )
       return True
 
     return False

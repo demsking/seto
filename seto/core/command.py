@@ -1,4 +1,4 @@
-# Copyright 2024 Sébastien Demanou. All Rights Reserved.
+# Copyright 2024-2025 Sébastien Demanou. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ def parse_volumes_args(args, driver: Driver) -> list[Volume]:
     driver=driver,
     stack=args.stack or args.project,
     execute=lambda resolved_compose_data, volumes: all_volumes.extend(volumes),
+    image_prefix=args.image_prefix,
   )
 
   return all_volumes

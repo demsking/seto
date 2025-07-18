@@ -56,10 +56,7 @@ def parse_volume_entry(entry: str, default_mode='rw') -> tuple[str, str, str]:
 
 
 def parse_local_volumes(
-  stack: str,
-  *,
-  service_name: str,
-  service: Service,
+  stack: str, *, service_name: str, service: Service, image_prefix: str
 ) -> None:
   local_volumes = []
 
@@ -89,7 +86,7 @@ def parse_local_volumes(
     service_dockerfile = '\n'.join(service_dockerfile_definition)
     service_dockerfile = resolve_env_vars(service_dockerfile)
 
-    service['image'] = f'demsking/{image_name}:{image_version}'
+    service['image'] = f'{image_prefix}{image_name}:{image_version}'
     service['build'] = {
       'context': '.',
       'dockerfile': service_dockerfile_file,
@@ -162,6 +159,7 @@ def resolve_compose_file(
   compose_data: dict,
   inject: bool = False,
   mode: list[ResolveMode] | None = None,
+  image_prefix: str,
 ) -> tuple[dict, list]:
   mode_value = mode or ['swarm']
   updated_compose_data = compose_data.copy()
@@ -185,7 +183,9 @@ def resolve_compose_file(
 
     service_deploy_labels.update(service_labels)
     parse_stack_values(service_deploy_labels)
-    parse_local_volumes(driver.stack_id, service_name=service_name, service=service)
+    parse_local_volumes(
+      driver.stack_id, service_name=service_name, service=service, image_prefix=image_prefix
+    )
 
     parse_volumes(
       driver=driver,
@@ -242,7 +242,7 @@ def parse_service_configs(
           config_name = re.sub(
             r'_{2,}',
             '_',
-            f"{service_name}_{source.replace('/', '_').replace('.', '_')}".replace('-', '_'),
+            f'{service_name}_{source.replace("/", "_").replace(".", "_")}'.replace('-', '_'),
           )
 
           if inject:
@@ -305,6 +305,7 @@ def parse_services(
   execute: Callable[[dict, list], None] | None = None,
   mode: list[ResolveMode] | None = None,
   inject: bool = False,
+  image_prefix: str,
 ) -> tuple[list, list]:
   services_files = glob.glob(os.path.join(stack, '*.yaml'))
   output_resolved_compose_data = []
@@ -332,6 +333,7 @@ def parse_services(
       compose_data=compose_data,
       inject=inject,
       mode=[x_mode],
+      image_prefix=image_prefix,
     )
 
     output_resolved_compose_data.append(resolved_compose_data)

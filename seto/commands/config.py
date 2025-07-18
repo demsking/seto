@@ -51,8 +51,8 @@ def resolve(
   }
 
   def parse(resolved_compose_data: dict, volumes: list[Volume]):
-    placement_hostname = resolved_compose_data.get('x-placement-hostname', None)
-    placement = resolved_compose_data.get('x-placement', None)
+    placement_hostname: str | None = resolved_compose_data.get('x-placement-hostname', None)
+    placement: str | None = resolved_compose_data.get('x-placement', None)
     networks_ = resolved_compose_data.get('networks', {})
     services = resolved_compose_data.get('services', {})
     volumes = resolved_compose_data.get('volumes', {})
@@ -72,10 +72,11 @@ def resolve(
       raise ValueError('Missing required x-placement or x-placement-hostname field')
 
     if execute:
-      execute(resolved_compose_data, placement_hostname or placement)
+      execute(resolved_compose_data, placement_hostname or placement or '')
 
   parse_services(
     driver=driver,
+    image_prefix=args.image_prefix,
     stack=args.stack or args.project,
     execute=parse,
     inject=inject,

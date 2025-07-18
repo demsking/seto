@@ -110,7 +110,9 @@ def parse_compose_config(
       published_port = random.randint(53100, 64200)
 
       if not service_traefik_port:
-        print(f'WARN: Service "{service_name}" has no defined port. Skipped from Traefik HTTP Provider')
+        print(
+          f'WARN: Service "{service_name}" has no defined port. Skipped from Traefik HTTP Provider'
+        )
         continue
 
       service_ports.append(f'{published_port}:{service_traefik_port}')
@@ -184,6 +186,7 @@ def deploy_seto_stack(args, driver: Driver, replica: list[Setting]) -> None:
   # Resolving compose local volumes
   resolved_compose_data, volumes = resolve_compose_file(
     driver=driver,
+    image_prefix=args.image_prefix,
     compose_data=internal_stack,
     inject=True,
   )
@@ -239,30 +242,31 @@ def execute_deploy_command(args, driver: Driver) -> None:
     },
   }
 
-  register_command = ' && '.join([
-    f'echo "Registering service {driver.stack_id}..."',
-    f'curl -s -X POST http://{HTTP_PROVIDER_SERVICENAME}:6116/api/config/{driver.stack_id} -H "Content-Type: application/json" -d @{traefik_http_provider_target} > /dev/nul',
-  ])
+  register_command = ' && '.join(
+    [
+      f'echo "Registering service {driver.stack_id}..."',
+      f'curl -s -X POST http://{HTTP_PROVIDER_SERVICENAME}:6116/api/config/{driver.stack_id} -H "Content-Type: application/json" -d @{traefik_http_provider_target} > /dev/nul',
+    ]
+  )
 
-  entrypoint = ' && '.join([
-    # Log the start of the initial endpoint call
-    'echo "Starting initial call to the provider endpoint..."',
-
-    # Call the POST endpoint at startup
-    register_command,
-
-    # Log the end of the initial endpoint call
-    'echo "Initial call to the provider endpoint completed. Running cron job..."',
-
-    # Set up the cron job
-    f'echo "*/1 * * * * {register_command}" | crontab -',
-
-    # Start the cron service
-    'crond -f',
-  ])
+  entrypoint = ' && '.join(
+    [
+      # Log the start of the initial endpoint call
+      'echo "Starting initial call to the provider endpoint..."',
+      # Call the POST endpoint at startup
+      register_command,
+      # Log the end of the initial endpoint call
+      'echo "Initial call to the provider endpoint completed. Running cron job..."',
+      # Set up the cron job
+      f'echo "*/1 * * * * {register_command}" | crontab -',
+      # Start the cron service
+      'crond -f',
+    ]
+  )
 
   seto_agent_compose_data, _ = resolve_compose_file(
     driver=driver,
+    image_prefix=args.image_prefix,
     compose_data={
       'services': {
         'seto_agent': {

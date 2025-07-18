@@ -194,6 +194,9 @@ def main() -> None:
     'deploy', description='Deploy a new stack or update an existing stack'
   )
   deploy_parser.set_defaults(func=execute_deploy_command)
+  deploy_parser.add_argument(
+    '--image-prefix', default='', help='Image namespace prefix to added to internal images'
+  )
 
   #
   # Down command

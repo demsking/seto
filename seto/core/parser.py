@@ -18,6 +18,7 @@ import re
 import subprocess
 import sys
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 from typing import Literal
 from typing import TypedDict
@@ -272,6 +273,19 @@ def parse_service_configs(
     service['volumes'] = new_volumes
 
 
+def load_env_file(env_file_path: str) -> None:
+  """Load environment variables from a .env file into os.environ."""
+  if os.path.exists(env_file_path):
+    with open(env_file_path, encoding='utf-8') as file:
+      for line in file:
+        line = line.strip()
+        if line and not line.startswith('#') and '=' in line:
+          key, value = line.split('=', 1)
+          # Remove quotes if present
+          value = value.strip('"\'')
+          os.environ[key.strip()] = value
+
+
 def resolve_env_vars(content: str) -> str:
   output = subprocess.run(
     ['envsubst'],
@@ -280,21 +294,24 @@ def resolve_env_vars(content: str) -> str:
     capture_output=True,
     check=True,
   )
-
   return output.stdout
 
 
 def parse_compose_file(compose_file: str, resolve_vars=False) -> tuple[dict, str]:
   compose_file = os.path.realpath(compose_file)
 
+  # Auto-load corresponding .env file if it exists
+  compose_path = Path(compose_file)
+  env_file_path = compose_path.parent / f'{compose_path.stem}.env'
+  load_env_file(str(env_file_path))
+
   with open(compose_file, encoding='utf-8') as file:
     compose_content = file.read()
 
-    if resolve_vars:
-      compose_content = resolve_env_vars(compose_content)
+  if resolve_vars:
+    compose_content = resolve_env_vars(compose_content)
 
-    compose_data = yaml.safe_load(compose_content)
-
+  compose_data = yaml.safe_load(compose_content)
   return compose_data, compose_file  # type: ignore
 
 

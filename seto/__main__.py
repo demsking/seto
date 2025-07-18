@@ -220,6 +220,9 @@ def main() -> None:
 
   # Call the function associated with the selected subcommand
   if hasattr(args, 'func'):
+    if not hasattr(args, 'image_prefix'):
+      setattr(args, 'image_prefix', '')
+
     if args.debug:
       args.func(args, driver)
     else:

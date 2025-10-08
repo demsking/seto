@@ -16,7 +16,6 @@ import json
 import os
 import random
 import re
-import uuid
 from typing import Any
 
 from docker import DockerClient
@@ -26,6 +25,7 @@ from ..core.docker import DockerCompose
 from ..core.docker import DockerSwarm
 from ..core.driver import Driver
 from ..core.network import GLOBAL_NETWORKS
+from ..core.network import HTTP_PROVIDER_NETWORK
 from ..core.network import resolve_networks
 from ..core.parser import resolve_compose_file
 from ..core.shell import Setting
@@ -123,7 +123,7 @@ def parse_compose_config(
         'rule': service_traefik_rule,
         'middlewares': [item for item in service_traefik_middlewares.split(',') if item],
         'tls': {
-          'certresolver': service_traefik_tls_certresolver,
+          'certResolver': service_traefik_tls_certresolver,
         },
       }
 
@@ -155,22 +155,22 @@ def deploy_seto_stack(args, driver: Driver, replica: list[Setting]) -> None:
   config_networks.update(GLOBAL_NETWORKS)
 
   print('Configuring seto-http-provider...')
-  traefik_http_provider_data_path = '/data'
-  seto_stack_service_name = f'{HTTP_PROVIDER_SERVICENAME}-{uuid.uuid4()}'
+  # seto_stack_service_name = f'{HTTP_PROVIDER_SERVICENAME}-{uuid.uuid4()}'
+  seto_stack_service_name = HTTP_PROVIDER_SERVICENAME
   internal_stack = {
     'networks': config_networks,
     'services': {
       HTTP_PROVIDER_SERVICENAME: {
         'image': 'demsking/traefik-http-provider',
+        'restart': 'unless-stopped',
         'networks': list(config_networks.keys()),
+        'ports': ['6116:6116'],
         'environment': [
-          'WORKER=1',
+          'REDIS_HOST=redis',
+          'REDIS_PORT=6379',
+          'REDIS_DB=0',
           'EXPIRATION_MINUTES=10',
-          f'DATA_PATH={traefik_http_provider_data_path}',
         ],
-        'volumes-nfs': {
-          f'data:{traefik_http_provider_data_path}',
-        },
         'deploy': {
           'mode': 'global',
           'labels': {
@@ -179,6 +179,30 @@ def deploy_seto_stack(args, driver: Driver, replica: list[Setting]) -> None:
             f'traefik.http.services.{seto_stack_service_name}.loadbalancer.server.port': 6116,
           },
         },
+      },
+      'redis': {
+        'image': 'redis:8-alpine',
+        'restart': 'unless-stopped',
+        'networks': [HTTP_PROVIDER_NETWORK],
+        'command': [
+          'redis-server',
+          '--appendonly', 'yes',
+          '--appendfsync', 'everysec',
+          '--save', '60 1',
+          '--maxmemory-policy', 'allkeys-lru',
+          '--bind', '0.0.0.0',
+        ],
+        'volumes-nfs': ['data:/data'],
+        'deploy': {
+          'replicas': 1,
+          'placement': {
+            'constraints': ['node.role == manager']
+          },
+          'restart_policy': {
+            'condition': 'on-failure',
+            'delay': '5s'
+          },
+        }
       },
     },
   }

@@ -1,4 +1,4 @@
-# Copyright 2024 Sébastien Demanou. All Rights Reserved.
+# Copyright 2024-2025 Sébastien Demanou. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,17 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-import socket
+import sys
+import tomllib
 
+with open('pyproject.toml', 'rb') as file:
+  value = tomllib.load(file)['project'][sys.argv[1]]
 
-def resolve_hostname(hostname: str) -> str:
-  """
-  Resolve a hostname to its corresponding IP address.
+if isinstance(value, list):
+  value = ', '.join(value)
 
-  Args:
-    hostname (str): The hostname to resolve.
-
-  Returns:
-    str: The IP address of the hostname, or an error message if the resolution fails.
-  """
-  return socket.gethostbyname(hostname)
+print(value)

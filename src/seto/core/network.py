@@ -24,6 +24,8 @@ NETWORK_CONFIG = {
   },
 }
 
+HTTP_PROVIDER_NETWORK = 'seto-http-provider'
+
 GLOBAL_NETWORKS = {
   'seto-cloud-public': {
     'name': 'seto-cloud-public',
@@ -37,8 +39,8 @@ GLOBAL_NETWORKS = {
     'attachable': True,
     **NETWORK_CONFIG,
   },
-  'seto-http-provider': {
-    'name': 'seto-http-provider',
+  HTTP_PROVIDER_NETWORK: {
+    'name': HTTP_PROVIDER_NETWORK,
     'driver': 'overlay',
     'attachable': True,
     **NETWORK_CONFIG,

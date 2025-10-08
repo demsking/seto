@@ -1,40 +1,56 @@
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+##
+## https://packaging.python.org/en/latest/guides/writing-pyproject-toml/
 
-[tool.poetry]
+[build-system]
+requires = ["uv_build>=0.8.22,<0.9.0"]
+build-backend = "uv_build"
+
+[project]
 name = "seto"
 version = "3.4.1"
 description = "A Docker Swarm Deployment Manager"
 keywords = ["docker", "swarm", "manager"]
-authors = ["Sébastien Demanou <demsking@gmail.com>"]
-license = "Apache 2.0"
+authors = [{ name = "Sébastien Demanou", email = "demsking@gmail.com" }]
+maintainers = [{ name = "Sébastien Demanou", email = "demsking@gmail.com" }]
+license = { text = "Apache-2.0" }
 readme = "README.md"
+requires-python = ">=3.12,<3.13"
+include = ["seto"]
 
-include = []
-exclude = []
+classifiers = [
+  # How mature is this project? Common values are
+  #   3 - Alpha
+  #   4 - Beta
+  #   5 - Production/Stable
+  "Development Status :: 4 - Beta",
 
-packages = [
-  { include = "seto" },
+  # Indicate who your project is intended for
+  "Intended Audience :: Developers",
+
+  # Specify the Python versions you support here.
+  "Programming Language :: Python :: 3.11",
+
+  "Operating System :: POSIX :: Linux",
 ]
 
-[tool.poetry.scripts]
-seto = "seto.__main__:main"
+dependencies = [
+  "docker>=7.1.0",
+  "paramiko>=4.0.0",
+  "pyyaml>=6.0.3",
+]
 
-[tool.poetry.urls]
+[project.scripts]
+seto = "seto:run"
+
+[project.urls]
 "Say Thanks!" = "https://www.buymeacoffee.com/demsking"
+"Documentation" = "https://demsking.gitlab.io/seto"
 "Source" = "https://gitlab.com/demsking/seto"
-"Tracker" = "https://gitlab.com/demsking/seto/-/issues"
+"Issues" = "https://gitlab.com/demsking/seto/-/issues"
 
-[tool.poetry.dependencies]
-python = ">=3.12,<3.13"
-paramiko = "^3.4.0"
-pyyaml = "^6.0.1"
-docker = "^7.1.0"
-
-[tool.poetry.group.dev.dependencies]
-classify-imports = "^4.2.0"
+[tool.skjold]
+sources = ["pyup", "gemnasium", "osv", "pypa"]
+report_only = false
 
 [tool.pytest.ini_options]
-# Function starting with the following pattern are considered for test cases.
 python_functions = "test_"

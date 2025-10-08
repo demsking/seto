@@ -1,4 +1,4 @@
-# Copyright 2024 Sébastien Demanou. All Rights Reserved.
+# Copyright 2024-2025 Sébastien Demanou. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,3 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
+from ..core.command import parse_volumes_args
+from ..core.driver import Driver
+from ..core.shell import Setting
+
+
+def execute_mount_volumes_command(args, driver: Driver) -> None:
+  clients: list[Setting] = [items[0] for items in args.clients]
+  all_volumes = parse_volumes_args(args, driver)
+
+  driver.mount_volumes(clients=clients, volumes=all_volumes)

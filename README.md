@@ -183,6 +183,24 @@ The tool includes basic error handling to catch and report errors related to arg
 
 Please see the [Makefile](Makefile) for the full list of targets.
 
+## Running seto from Docker
+
+You can build a small Docker image that contains the `seto` CLI and run it
+without installing the project dependencies locally.
+
+```sh
+docker run -it --rm --network=host \
+   -v .:/app \
+   -v ~/.ssh/id_rsa:/root/.ssh/id_rsa:ro \
+   -v /var/run/docker.sock:/var/run/docker.sock \
+   demsking/seto \
+      --project my-project \
+      --manager nfs://... \
+      setup \
+         --replica <replica-hosts> \
+         --clients <clients-hosts>
+```
+
 ## Docker Swarm Setup
 
 To set up Docker Swarm, you'll first need to ensure you have Docker installed on

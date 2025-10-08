@@ -1,5 +1,6 @@
-STACK_NAME := "test"
-APP_VERSION := $(shell python metadata.py version)
+APP_NAME := $(shell python scripts/metadata.py name)
+APP_VERSION := $(shell python scripts/metadata.py version)
+IMAGE_NAME := demsking/$(APP_NAME)
 
 .PHONY: env
 
@@ -10,10 +11,10 @@ env:
 	git secret reveal -f
 
 install:
-	poetry install
+	uv sync
 
 update:
-	poetry update
+	uv update
 	devbox update
 	pre-commit autoupdate
 
@@ -21,7 +22,7 @@ clean:
 	rm -rf dist/
 
 package: clean
-	poetry build
+	uv build
 	twine check dist/*
 
 publish: package
@@ -30,9 +31,6 @@ publish: package
 	twine upload --verbose dist/*
 	git push --tags origin main
 
-secret:
-	@openssl rand -base64 32
-
 lint:
 	pre-commit run --all-files
 
@@ -40,31 +38,31 @@ fix:
 	ruff check . --fix
 
 help:
-	@poetry run seto -h
+	@uv run seto -h
 
 help-compose:
-	@poetry run seto compose -h
+	@uv run seto compose -h
 
 help-setup:
-	@poetry run seto setup -h
+	@uv run seto setup -h
 
 help-create-volumes:
-	@poetry run seto create-volumes -h
+	@uv run seto create-volumes -h
 
 help-mount-volumes:
-	@poetry run seto mount-volumes -h
+	@uv run seto mount-volumes -h
 
 help-umount-volumes:
-	@poetry run seto umount-volumes -h
+	@uv run seto umount-volumes -h
 
 help-deploy:
-	@poetry run seto deploy -h
+	@uv run seto deploy -h
 
 help-down:
-	@poetry run seto down -h
+	@uv run seto down -h
 
 resolved-compose.yaml:
-	@poetry run seto \
+	@uv run seto \
 	  --stack $(STACK_NAME) \
 	  --manager $(SETO_MANAGER) \
 	  --debug \
@@ -157,18 +155,52 @@ umount:
 	  unmount-volumes \
 	    --clients $(SETO_MOUNT_NODES)
 
-.PHONY: services
-services:
-	docker stack services $(STACK_NAME)
-
 ps:
 	docker stack ps $(STACK_NAME)
 
-couchdb-authtoken:
-	@echo -n $(COUCHDB_DBNAME) \
-	  | openssl dgst -sha256 -hmac $(COUCHDB_SECRET)
-
-
-# Show outdated dependencies using poetry
+# Show outdated dependencies using uv
 outdated:
-	poetry show --outdated
+	uv show --outdated
+
+#
+## Packaging
+build/context:
+	@if ! docker buildx inspect $(APP_NAME) > /dev/null 2>&1; then \
+		docker buildx create --name $(APP_NAME) --bootstrap; \
+	fi
+	mkdir -p build/
+	touch $@
+
+multiplatform-image: build/context
+	@echo "Building $(IMAGE_NAME):$(APP_VERSION)"
+	uv lock
+	docker buildx use $(APP_NAME)
+	docker buildx build . \
+	  --platform linux/amd64,linux/arm64 \
+	  --push \
+	  --progress plain \
+	  --tag $(IMAGE_NAME):$(APP_VERSION) \
+	  --tag $(IMAGE_NAME):latest \
+	  --label "org.opencontainers.image.title=$(APP_NAME)" \
+	  --label "org.opencontainers.image.description=$(shell python scripts/metadata.py description)" \
+	  --label "org.opencontainers.image.version=$(APP_VERSION)" \
+	  --label "org.opencontainers.image.revision=$(shell git rev-parse HEAD)" \
+	  --label "org.opencontainers.image.authors=Sébastien Demanou <demsking@gmail.com>" \
+	  --label "org.opencontainers.image.created=$(shell date --rfc-3339=seconds)" \
+	  --label "org.opencontainers.image.vendor=Sébastien Demanou" \
+	  --label "org.opencontainers.image.licenses=$(shell python scripts/metadata.py license)"
+
+image-test:
+	uv lock
+	docker build . \
+	  --progress plain \
+	  --tag $(IMAGE_NAME):test
+
+preview: image-test
+	docker run -it --rm -v /var/run/docker.sock:/var/run/docker.sock $(IMAGE_NAME):test
+
+publish: image-test
+	git commit pyproject.toml uv.lock -m "Release $(APP_VERSION)"
+	$(MAKE) multiplatform-image
+	git tag v$(APP_VERSION)
+	git push --tags origin main

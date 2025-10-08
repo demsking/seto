@@ -1,4 +1,4 @@
-# Copyright 2024 Sébastien Demanou. All Rights Reserved.
+# Copyright 2024-2025 Sébastien Demanou. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -106,7 +106,7 @@ class NFSDriver(Driver):
   def mount(self, node: Shell, storage: str, *, device: str, fstab: File) -> None:
     host_storage = f'{self.shell.setting.ip}:{storage}'
     node.run(f'mount -t nfs {host_storage} {device}')
-    fstab.append(f'{host_storage}\t{device}\tnfs\tauto,nofail,noatime,nolock,intr,tcp,actimeo=1800 0 0')
+    fstab.append(f'{host_storage}\t{device}\tnfs\tauto,nofail,noatime,intr,tcp,actimeo=1800 0 0')
 
   def umount_node_volumes(self, node: Shell, volumes: list[Volume]) -> None:
     device = self.mount_point()
@@ -119,7 +119,7 @@ class NFSDriver(Driver):
       'driver': 'local',
       'driver_opts': {
         'type': 'nfs',
-        'o': f'addr={self.shell.setting.ip},nolock,soft,rw',
+        'o': f'addr={self.shell.setting.ip},soft,rw',
         'device': f':{self.storage(volume)}',
       },
     }

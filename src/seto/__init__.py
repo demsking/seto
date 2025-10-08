@@ -14,6 +14,7 @@
 # ==============================================================================
 import argparse
 import os
+import socket
 import sys
 
 from paramiko.ssh_exception import AuthenticationException
@@ -42,8 +43,7 @@ DRIVER_EXAMPLES_STR = ' or '.join(driver_examples)
 
 def manager_type(value: str) -> tuple[DriverType, ShellConnectionString]:
   if not any(value.startswith(scheme) for scheme in driver_shemes):
-    raise argparse.ArgumentError(
-      'manager',  # type: ignore
+    raise argparse.ArgumentTypeError(
       f'{value} is not a valid manager ({DRIVER_EXAMPLES_STR})',
     )
 
@@ -57,10 +57,11 @@ def replica_type(value: str) -> list[Setting]:
 
   try:
     return [Setting.from_connection_string(item.strip()) for item in connection_strings]
+  except socket.gaierror as error:
+    raise argparse.ArgumentTypeError(f'{value} - {error}') from error
   except Exception as exception:
-    raise argparse.ArgumentError(
-      'replica',  # type: ignore
-      f'{value} is not a replica value (username:password@hostname)',
+    raise argparse.ArgumentTypeError(
+      f'{value} is not a replica value (username:password@hostname)'
     ) from exception
 
 
@@ -69,14 +70,15 @@ def nodes_type(value: str) -> list[Setting]:
 
   try:
     return [Setting.from_connection_string(item.strip()) for item in connection_strings]
+  except socket.gaierror as error:
+    raise argparse.ArgumentTypeError(f'{value} - {error}') from error
   except Exception as exception:
-    raise argparse.ArgumentError(
-      'nodes',  # type: ignore
-      f'{value} is not a nodes value (username:password@hostname)',
+    raise argparse.ArgumentTypeError(
+      f'{value} is not a nodes value (username:password@hostname)'
     ) from exception
 
 
-def main() -> None:
+def run() -> None:
   parser = argparse.ArgumentParser('seto', description='')
   subparsers = parser.add_subparsers()
 
@@ -239,6 +241,3 @@ def main() -> None:
     parser.print_help()
 
   sys.exit(0)
-
-
-main()

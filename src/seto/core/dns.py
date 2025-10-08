@@ -1,4 +1,4 @@
-# Copyright 2024 Sébastien Demanou. All Rights Reserved.
+# Copyright 2024-2025 Sébastien Demanou. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,13 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-from ..core.command import parse_volumes_args
-from ..core.driver import Driver
-from ..core.shell import Setting
+import socket
 
 
-def execute_umount_volumes_command(args, driver: Driver) -> None:
-  clients: list[Setting] = [items[0] for items in args.clients]
-  all_volumes = parse_volumes_args(args, driver)
+def resolve_hostname(hostname: str) -> str:
+  """
+  Resolve a hostname to its corresponding IP address.
 
-  driver.umount_volumes(clients=clients, volumes=all_volumes)
+  Args:
+    hostname (str): The hostname to resolve.
+
+  Returns:
+    str: The IP address of the hostname, or an error message if the resolution fails.
+  """
+  return socket.gethostbyname(hostname)

@@ -76,7 +76,7 @@ def parse_local_volumes(
 
     image_name = f'{stack}-{service_name}'.replace('_', '-')
     service_dockerfile_name = f'{image_name}.dockerfile'
-    service_dockerfile_file = os.path.join('images', service_dockerfile_name)
+    service_dockerfile_file = Path('images') / service_dockerfile_name
     service_dockerfile_definition = (
       [
         f'FROM {service["image"]}',
@@ -90,10 +90,13 @@ def parse_local_volumes(
     service['image'] = f'{image_prefix}{image_name}:{image_version}'
     service['build'] = {
       'context': '.',
-      'dockerfile': service_dockerfile_file,
+      'dockerfile': str(service_dockerfile_file),
     }
 
-    with open(service_dockerfile_file, 'w', encoding='utf-8') as dockerfile:
+    # Ensure parent directory exists before writing
+    service_dockerfile_file.parent.mkdir(parents=True, exist_ok=True)
+
+    with service_dockerfile_file.open('w', encoding='utf-8') as dockerfile:
       dockerfile.write(service_dockerfile)
 
 

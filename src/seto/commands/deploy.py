@@ -233,32 +233,21 @@ def deploy_seto_stack(args, driver: Driver, replica: list[Setting]) -> None:
   driver.project = args.project
   driver.stack = args.stack
 
-
-def execute_deploy_command(args, driver: Driver) -> None:
-  client = DockerClient.from_env()
-
-  # Docker Swarm
-  print(f'Resolving {driver.stack_id} services...')
-  setattr(args, 'compose', False)
-  swarm_config = resolve(args, driver)
-
-  swarm = DockerSwarm(
-    client=client,
-    driver=driver,
-    config=swarm_config,
-  )
-
-  # Docker Compose
-  setattr(args, 'compose', True)
-  networks_list = list(swarm_config['networks'].keys())
-  composes_items: list[DockerCompose] = []
+def build_seto_agent_service(
+  args,
+  driver: Driver,
+  swarm_config: dict,
+  *,
+  traefik_http_provider_routers: dict,
+  traefik_http_provider_services: dict,
+  traefik_http_provider_middlewares: dict,
+) -> None:
+  if not traefik_http_provider_services:
+    return
 
   bridges_path = Path('bridges')
   traefik_http_provider_filename = bridges_path / 'traefik-http-provider.json'
   traefik_http_provider_target = '/traefik/config.json'
-  traefik_http_provider_routers = {}
-  traefik_http_provider_services = {}
-  traefik_http_provider_middlewares = {}
   traefik_http_provider = {
     'http': {
       'routers': traefik_http_provider_routers,
@@ -276,15 +265,10 @@ def execute_deploy_command(args, driver: Driver) -> None:
 
   entrypoint = ' && '.join(
     [
-      # Log the start of the initial endpoint call
       'echo "Starting initial call to the provider endpoint..."',
-      # Call the POST endpoint at startup
       register_command,
-      # Log the end of the initial endpoint call
       'echo "Initial call to the provider endpoint completed. Running cron job..."',
-      # Set up the cron job
       f'echo "*/1 * * * * {register_command}" | crontab -',
-      # Start the cron service
       'crond -f',
     ]
   )
@@ -296,7 +280,7 @@ def execute_deploy_command(args, driver: Driver) -> None:
       'services': {
         'seto_agent': {
           'image': 'curlimages/curl:latest',
-          'user': 'root',  # Ensure it runs as root to avoid issue `crontab: must be suid to work properly`
+          'user': 'root',
           'networks': [HTTP_PROVIDER_NETWORK],
           'entrypoint': f"sh -c '{entrypoint}'",
           'volumes-image': [
@@ -308,6 +292,30 @@ def execute_deploy_command(args, driver: Driver) -> None:
   )
 
   swarm_config['services'].update(seto_agent_compose_data['services'])
+  bridges_path.mkdir(parents=True, exist_ok=True)
+  traefik_http_provider_filename.write_text(json.dumps(traefik_http_provider, indent='  '), encoding='utf-8')
+
+
+def execute_deploy_command(args, driver: Driver) -> None:
+  client = DockerClient.from_env()
+
+  print(f'Resolving {driver.stack_id} services...')
+  setattr(args, 'compose', False)
+  swarm_config = resolve(args, driver)
+
+  swarm = DockerSwarm(
+    client=client,
+    driver=driver,
+    config=swarm_config,
+  )
+
+  setattr(args, 'compose', True)
+  networks_list = list(swarm_config['networks'].keys())
+  composes_items: list[DockerCompose] = []
+
+  traefik_http_provider_routers = {}
+  traefik_http_provider_services = {}
+  traefik_http_provider_middlewares = {}
 
   resolve(
     args,
@@ -328,18 +336,20 @@ def execute_deploy_command(args, driver: Driver) -> None:
     ),
   )
 
-  bridges_path.mkdir(parents=True, exist_ok=True)
-  traefik_http_provider_filename.write_text(json.dumps(traefik_http_provider, indent='  '), encoding='utf-8')
+  build_seto_agent_service(
+    args,
+    driver,
+    swarm_config,
+    traefik_http_provider_routers=traefik_http_provider_routers,
+    traefik_http_provider_services=traefik_http_provider_services,
+    traefik_http_provider_middlewares=traefik_http_provider_middlewares,
+  )
 
   print(f'Building {driver.stack_id} swarm images...')
-  # swarm.info()
   swarm.build()
 
   print(f'Pushing {driver.stack_id} images...')
   swarm.push()
-
-  # print(f'Creating {driver.stack_id} volumes...')
-  # driver.create_volumes(replica=replica, volumes=volumes, force=args.force)
 
   print(f'Deploying {driver.stack_id} swarm environment...')
   swarm.deploy()
@@ -348,7 +358,6 @@ def execute_deploy_command(args, driver: Driver) -> None:
   if composes_items:
     print(f'Building {driver.stack_id} compose images...')
     for compose in composes_items:
-      # compose.info()
       compose.build()
       compose.push()
 

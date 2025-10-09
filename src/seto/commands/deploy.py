@@ -17,6 +17,7 @@ import os
 import random
 import re
 from typing import Any
+from pathlib import Path
 
 from docker import DockerClient
 
@@ -252,8 +253,8 @@ def execute_deploy_command(args, driver: Driver) -> None:
   networks_list = list(swarm_config['networks'].keys())
   composes_items: list[DockerCompose] = []
 
-  bridges_path = 'bridges'
-  traefik_http_provider_filename = os.path.join(bridges_path, 'traefik-http-provider.json')
+  bridges_path = Path('bridges')
+  traefik_http_provider_filename = bridges_path / 'traefik-http-provider.json'
   traefik_http_provider_target = '/traefik/config.json'
   traefik_http_provider_routers = {}
   traefik_http_provider_services = {}
@@ -327,11 +328,9 @@ def execute_deploy_command(args, driver: Driver) -> None:
     ),
   )
 
-  if not os.path.exists(bridges_path):
-    os.mkdir(bridges_path)
+  bridges_path.mkdir(parents=True, exist_ok=True)
 
-  with open(traefik_http_provider_filename, 'w', encoding='utf-8') as file:
-    file.write(json.dumps(traefik_http_provider, indent='  '))
+  traefik_http_provider_filename.write_text(json.dumps(traefik_http_provider, indent='  '), encoding='utf-8')
 
   print(f'Building {driver.stack_id} swarm images...')
   # swarm.info()

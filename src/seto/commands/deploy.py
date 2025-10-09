@@ -269,7 +269,7 @@ def execute_deploy_command(args, driver: Driver) -> None:
   register_command = ' && '.join(
     [
       f'echo "Registering service {driver.stack_id}..."',
-      f'curl -s -X POST http://{HTTP_PROVIDER_SERVICENAME}:6116/api/config/{driver.stack_id} -H "Content-Type: application/json" -d @{traefik_http_provider_target} > /dev/nul',
+      f'curl -s -X POST http://{HTTP_PROVIDER_SERVICENAME}:6116/api/config/{driver.stack_id} -H "Content-Type: application/json" -d @{traefik_http_provider_target} > /dev/null',
     ]
   )
 

@@ -164,7 +164,7 @@ def deploy_seto_stack(args, driver: Driver, replica: list[Setting]) -> None:
       HTTP_PROVIDER_SERVICENAME: {
         'image': 'demsking/traefik-http-provider',
         'restart': 'unless-stopped',
-        'networks': list(config_networks.keys()),
+        'networks': [HTTP_PROVIDER_NETWORK],
         'ports': ['6116:6116'],
         'environment': [
           'REDIS_HOST=redis',
@@ -297,7 +297,7 @@ def execute_deploy_command(args, driver: Driver) -> None:
         'seto_agent': {
           'image': 'curlimages/curl:latest',
           'user': 'root',  # Ensure it runs as root to avoid issue `crontab: must be suid to work properly`
-          'networks': networks_list,
+          'networks': [HTTP_PROVIDER_NETWORK],
           'entrypoint': f"sh -c '{entrypoint}'",
           'volumes-image': [
             f'{traefik_http_provider_filename}:{traefik_http_provider_target}',
@@ -329,7 +329,6 @@ def execute_deploy_command(args, driver: Driver) -> None:
   )
 
   bridges_path.mkdir(parents=True, exist_ok=True)
-
   traefik_http_provider_filename.write_text(json.dumps(traefik_http_provider, indent='  '), encoding='utf-8')
 
   print(f'Building {driver.stack_id} swarm images...')

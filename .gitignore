@@ -5,6 +5,7 @@
 .direnv/
 .ropeproject/
 .venv/
+build/
 bridges/
 images/
 dist/

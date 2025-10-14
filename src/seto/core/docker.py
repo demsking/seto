@@ -166,12 +166,11 @@ class DockerSwarm(Docker):
     )
 
   def ps(self) -> None:
-    # Shell.exec(f'docker stack ps --no-trunc - {self.driver.stack_id}')
+    Shell.exec(f'docker stack ps --no-trunc - {self.driver.stack_id}')
     Shell.exec(f'docker stack services {self.driver.stack_id}')
 
   def logs(self) -> None:
-    # Shell.exec(f'docker stack service logs -f -c - {self.driver.stack_id}')
-    pass
+    Shell.exec(f'docker stack service logs -f -n 100 -c - {self.driver.stack_id}')
 
   def down(self) -> None:
     Shell.exec(f'docker stack rm {self.driver.stack_id}')

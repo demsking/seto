@@ -40,7 +40,7 @@ WORKDIR /app
 # Set the shell to /bin/ash and enable pipefail
 SHELL ["/bin/ash", "-eo", "pipefail", "-c"]
 
-RUN apk add --no-cache docker-cli gettext ca-certificates \
+RUN apk add --no-cache docker-cli openssh-client gettext ca-certificates \
   && update-ca-certificates
 
 # Copy the environment, but not the source code

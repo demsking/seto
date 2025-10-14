@@ -173,14 +173,48 @@ class Shell:
     with StringIO(input) as pipe:
       return Shell.exec(command, stdout=stdout, env_vars=env_vars, input=pipe.read())
 
-  def install(self, package_name: str, *, user='nobody', group='nogroup') -> bool:
-    result = self.run(f'dpkg -l | grep {package_name}', quiet=True, stdout=False)
+  def install(self, package_name: str, *, user: str = "nobody", group: str = "nogroup") -> bool:
+    """
+    Install a package on remote Debian/Ubuntu or Fedora/RHEL system.
+    """
+
+    # Detect package manager
+    pkg_manager = None
+
+    if "apt-get" in self.run("command -v apt-get", quiet=True, stdout=False):
+      pkg_manager = "apt"
+    elif "dnf" in self.run("command -v dnf", quiet=True, stdout=False):
+      pkg_manager = "dnf"
+    elif "yum" in self.run("command -v yum", quiet=True, stdout=False):
+      pkg_manager = "yum"
+
+    if not pkg_manager:
+      raise RuntimeError("Unsupported remote OS: no known package manager found")
+
+    # Check if package is already installed
+    check_cmd = (
+      f"dpkg -l | grep -w {package_name}"
+      if pkg_manager == "apt"
+      else f"rpm -qa | grep -w {package_name}"
+    )
+    result = self.run(check_cmd, quiet=True, stdout=False)
 
     if package_name not in result:
-      self.run(
-        f'DEBIAN_FRONTEND=noninteractive apt-get install -y --quiet {package_name}', quiet=True
-      )
+      print(f'Installing {package_name} on {self.setting.hostname}...')
+
+      if pkg_manager == "apt":
+        self.run(
+          f"DEBIAN_FRONTEND=noninteractive apt-get install -y --quiet {package_name}",
+          quiet=True,
+        )
+      elif pkg_manager == "dnf":
+        self.run(f"dnf install -y {package_name}", quiet=True)
+      elif pkg_manager == "yum":
+        self.run(f"yum install -y {package_name}", quiet=True)
+
       return True
+
+    print(f'{package_name} is already installed on {self.setting.hostname}')
 
     return False
 

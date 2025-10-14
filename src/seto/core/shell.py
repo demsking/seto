@@ -13,6 +13,7 @@
 # limitations under the License.
 # ==============================================================================
 import os
+import shlex
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -135,10 +136,20 @@ class Shell:
 
   @staticmethod
   def exec(command: str, *, stdout=True, env_vars: dict | None = None, **kwargs) -> str:
-    # Run docker stack deploy with the content piped to it
+    """
+    Execute a shell command securely and optionally send data via stdin.
+    """
+    has_piped_input = 'input' in kwargs
+
+    if has_piped_input:
+      print(f"$ echo '...' | {command}")
+    else:
+      print(f"$ {command}")
+
+    cmd = shlex.split(command)
     process = subprocess.Popen(
-      command,
-      stdin=subprocess.PIPE,
+      cmd,
+      stdin=subprocess.PIPE if has_piped_input else None,
       stdout=subprocess.PIPE,
       stderr=subprocess.PIPE,
       text=True,
@@ -151,9 +162,8 @@ class Shell:
     if stdout and standard_output:
       print(standard_output)
 
-    # Check the output and return code
     if process.returncode != 0:
-      print(standard_error)
+      print(standard_error, file=sys.stderr)
       sys.exit(process.returncode)
 
     return standard_output

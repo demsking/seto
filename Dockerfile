@@ -1,16 +1,20 @@
 #
 ## Stage 1: Builder
-FROM python:3.12-alpine AS builder
+FROM python:3.12-slim AS builder
 
-ENV UV_LINK_MODE=copy
+ENV UV_LINK_MODE=copy \
+    DEBIAN_FRONTEND=noninteractive
 
-# Set the shell to /bin/ash and enable pipefail
-SHELL ["/bin/ash", "-eo", "pipefail", "-c"]
+SHELL ["/bin/bash", "-eo", "pipefail", "-c"]
+
+# Install build dependencies
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends curl ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 
-# Change the working directory
 WORKDIR /opt/seto
 
 # Install dependencies
@@ -19,32 +23,35 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --no-dev --locked --no-install-project --compile-bytecode
 
-# Sync the project
+# Sync project
 COPY pyproject.toml uv.lock README.md ./
 COPY src/ ./src
 RUN --mount=type=cache,target=/root/.cache/uv \
-  uv sync --no-dev --locked \
-    && uv build
+    uv sync --no-dev --locked && \
+    uv build
 
 #
 ## Stage 2: Final
-FROM python:3.12-alpine
+FROM python:3.12-slim
 
-ENV PATH="/opt/seto/.venv/bin:$PATH"
-ENV PYTHONPATH="/opt/seto/.venv/lib/python3.12/site-packages"
-ENV PYTHONUNBUFFERED="1"
-ENV PYTHONDONTWRITEBYTECODE="1"
+ENV PATH="/opt/seto/.venv/bin:$PATH" \
+    PYTHONPATH="/opt/seto/.venv/lib/python3.12/site-packages" \
+    PYTHONUNBUFFERED="1" \
+    PYTHONDONTWRITEBYTECODE="1" \
+    DEBIAN_FRONTEND=noninteractive
 
 WORKDIR /app
 
-# Set the shell to /bin/ash and enable pipefail
-SHELL ["/bin/ash", "-eo", "pipefail", "-c"]
+SHELL ["/bin/bash", "-eo", "pipefail", "-c"]
 
-RUN apk add --no-cache docker-cli openssh-client gettext ca-certificates \
-  && update-ca-certificates
+# Install runtime dependencies
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends docker-cli openssh-client gettext ca-certificates && \
+    update-ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
 
-# Copy the environment, but not the source code
-COPY --from=builder --chown=setouser:setouser /opt/seto/.venv /opt/seto/.venv
-COPY --from=builder --chown=setouser:setouser /opt/seto/src /opt/seto/src
+# Copy virtual environment and app
+COPY --from=builder --chown=nobody:nogroup /opt/seto/.venv /opt/seto/.venv
+COPY --from=builder --chown=nobody:nogroup /opt/seto/src /opt/seto/src
 
 ENTRYPOINT ["seto"]

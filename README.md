@@ -1,146 +1,208 @@
 # Ṣeto
 
-Ṣeto is a command-line tool designed to assist with setting up and managing
-shared storage volumes using NFS driver. It simplifies the process of
-configuring stack-based deployments, setting up manager and replica nodes,
-creating and syncing shared volumes, and mounting and unmounting these volumes.
+Ṣeto is a **command-line orchestration tool** that automates the setup,
+management, and synchronization of shared storage volumes using an **NFS
+driver**. It provides a simple workflow for managing **stack-based deployments**
+across multiple hosts — from setup to mounting and unmounting volumes.
 
-### Features
+## Overview
 
-- **Compose Command**: Resolves Docker Compose files.
-- **Setup Command**: Sets up manager and replica nodes.
-- **Create Volumes Command**: Creates and syncs shared volumes across nodes.
-- **Mount Volumes Command**: Mounts shared volumes on specified nodes.
-- **Unmount Volumes Command**: Unmounts shared volumes from specified nodes.
+Ṣeto streamlines distributed storage management by automating:
 
-### Usage
+- Remote setup of **manager** and **replica** nodes.
+- Creation and synchronization of **shared volumes**.
+- Automated **mounting/unmounting** of NFS volumes.
+- Resolution of **Docker Compose stacks** before deployment.
 
-The main entry point for Ṣeto is the `seto` command. Below is a detailed
-description of each subcommand and its options.
+This tool is ideal for environments using Docker Swarm, Compose stacks, or
+custom orchestrations that depend on synchronized shared storage.
 
-#### Global Options
+## Supported Operating Systems
 
-These options are applicable to all subcommands:
+Ṣeto has been **tested and validated** on the following Linux distributions:
 
-- `--stack`: Required. Specifies the stack name.
-- `--driver`: Required. Specifies the driver URI to use. Example: `nfs://username:password@hostname`
+| Distribution | Versions Tested                | Package Manager | Status       |
+|--------------|--------------------------------|-----------------|--------------|
+| **Debian**   | 11 (Bullseye), 12 (Bookworm)   | `apt-get`       | ✅ Supported |
+| **Fedora**   | 39, 40                         | `dnf`           | ✅ Supported |
 
-#### Subcommands
+> **Note:** Other Linux distributions (RHEL, Ubuntu, AlmaLinux) may work but are
+> not officially tested. All remote nodes must have **SSH**, **Docker**, and
+> **NFS client utilities** installed.
 
-##### 1. Compose Command
+## Features
 
-Resolves Docker Compose files.
+- **Compose Command** – Resolves and validates Docker Compose files.
+- **Setup Command** – Configures manager and replica nodes.
+- **Create Volumes Command** – Creates and synchronizes NFS volumes.
+- **Mount Volumes Command** – Mounts volumes on replicas.
+- **Unmount Volumes Command** – Safely detaches shared volumes.
+
+## Global Options
+
+These options apply to all subcommands:
+
+| Option       | Description                          | Example                           |
+|--------------|--------------------------------------|-----------------------------------|
+| `--stack`    | Stack name for grouping resources.   | `--stack my-stack`                |
+| `--driver`   | Driver URI for shared storage.       | `--driver nfs://user:pass@host`   |
+
+## Subcommands
+
+### 1. Compose Command
+
+Resolves Docker Compose files before deployment.
 
 ```bash
 seto --stack <stack-name> --driver <driver-uri> compose
-```
+````
 
-Example:
+**Example**
 
 ```bash
 seto --stack my-stack --driver nfs://user:pass@host compose
 ```
 
-##### 2. Setup Command
+### 2. Setup Command
 
-Sets up the manager and replica nodes.
+Sets up **manager** and **replica** nodes for NFS synchronization.
 
 ```bash
-seto --stack <stack-name> --driver <driver-uri> setup --replica <replica-connection-strings>
+seto --stack <stack-name> --driver <driver-uri> \
+  setup --replica <replica-connection-strings>
 ```
 
-- `--replica`: Required. Specifies the nodes to set up in the format `username:password@hostname`.
+| Option      | Description                                          |
+|-------------|------------------------------------------------------|
+| `--replica` | Required. Replica connections: `user:pass@hostname`. |
 
-Example:
+**Example**
 
 ```bash
-seto --stack my-stack --driver nfs://user:pass@host setup --replica user:pass@replica1 user:pass@replica2
+seto --stack my-stack --driver nfs://user:pass@host \
+  setup --replica user:pass@replica1 user:pass@replica2
 ```
 
-##### 3. Create Volumes Command
+### 3. Create Volumes Command
 
-Creates and syncs shared volumes across nodes.
+Creates and synchronizes shared NFS volumes across nodes.
 
 ```bash
-seto --stack <stack-name> --driver <driver-uri> create-volumes --replica <replica-connection-strings> [--force]
+seto --stack <stack-name> --driver <driver-uri> \
+  create-volumes --replica <replica-strings> [--force]
 ```
 
-- `--replica`: Required. Specifies the nodes where volumes will be created.
-- `--force`: Optional. Forces volume data synchronization.
+| Option      | Description                          |
+|-------------|--------------------------------------|
+| `--replica` | Required. Nodes for volume creation. |
+| `--force`   | Optional. Forces re-synchronization. |
 
-Example:
+**Example**
 
 ```bash
-seto --stack my-stack --driver nfs://user:pass@host create-volumes --replica user:pass@replica1 user:pass@replica2 --force
+seto --stack my-stack --driver nfs://user:pass@host \
+  create-volumes --replica user:pass@replica1 user:pass@replica2 --force
 ```
 
-##### 4. Mount Volumes Command
+### 4. Mount Volumes Command
 
-Mounts shared volumes on specified nodes.
+Mounts shared NFS volumes on replicas.
 
 ```bash
-seto --stack <stack-name> --driver <driver-uri> mount-volumes --replica <replica-connection-strings>
+seto --stack <stack-name> --driver <driver-uri> \
+  mount-volumes --replica <replica-strings>
 ```
 
-- `--replica`: Required. Specifies the nodes where volumes will be mounted.
+| Option      | Description                                |
+| :---------- | :----------------------------------------- |
+| `--replica` | Required. Nodes where volumes are mounted. |
 
-Example:
+**Example**
 
 ```bash
-seto --stack my-stack --driver nfs://user:pass@host mount-volumes --replica user:pass@replica1 user:pass@replica2
+seto --stack my-stack --driver nfs://user:pass@host \
+  mount-volumes --replica user:pass@replica1 user:pass@replica2
 ```
 
-##### 5. Unmount Volumes Command
+### 5. Unmount Volumes Command
 
-Unmounts shared volumes from specified nodes.
+Unmounts shared NFS volumes from replicas.
 
 ```bash
-seto --stack <stack-name> --driver <driver-uri> unmount-volumes --replica <replica-connection-strings>
+seto --stack <stack-name> --driver <driver-uri> \
+  unmount-volumes --replica <replica-strings>
 ```
 
-- `--replica`: Required. Specifies the nodes where volumes will be unmounted.
+| Option      | Description                                  |
+| :---------- | :------------------------------------------- |
+| `--replica` | Required. Nodes where volumes are unmounted. |
 
-Example:
+**Example**
 
 ```bash
-seto --stack my-stack --driver nfs://user:pass@host unmount-volumes --replica user:pass@replica1 user:pass@replica2
+seto --stack my-stack --driver nfs://user:pass@host \
+  unmount-volumes --replica user:pass@replica1 user:pass@replica2
 ```
 
-### Example Workflow
+## Example Workflow
 
-1. **Setup Manager and Replica Nodes**
-
-```bash
-seto --stack my-stack --driver nfs://user:pass@host setup --replica user:pass@replica1 user:pass@replica2
-```
-
-2. **Create Volumes**
+Typical end-to-end workflow:
 
 ```bash
-seto --stack my-stack --driver nfs://user:pass@host create-volumes --replica user:pass@replica1 user:pass@replica2 --force
-```
+# 1. Setup manager and replicas
+seto --stack my-stack --driver nfs://user:pass@host \
+  setup --replica user:pass@replica1 user:pass@replica2
 
-3. **Mount Volumes**
+# 2. Create and sync volumes
+seto --stack my-stack --driver nfs://user:pass@host \
+  create-volumes --replica user:pass@replica1 user:pass@replica2 --force
 
-```bash
-seto --stack my-stack --driver nfs://user:pass@host mount-volumes --replica user:pass@replica1 user:pass@replica2
-```
+# 3. Mount volumes for usage
+seto --stack my-stack --driver nfs://user:pass@host \
+  mount-volumes --replica user:pass@replica1 user:pass@replica2
 
-4. **Unmount Volumes**
-
-```bash
-seto --stack my-stack --driver nfs://user:pass@host unmount-volumes --replica user:pass@replica1 user:pass@replica2
-```
-
-5. **Deploy Stack**
-
-```bash
+# 4. Deploy stack after mounting
 seto --stack my-stack --manager nfs://user@manager-host deploy
+
+# 5. Unmount volumes when finished
+seto --stack my-stack --driver nfs://user:pass@host \
+  unmount-volumes --replica user:pass@replica1 user:pass@replica2
 ```
 
-### Error Handling
+## Error Handling
 
-The tool includes basic error handling to catch and report errors related to argument parsing and execution. If an error occurs, a message will be printed, and the tool will exit with a non-zero status code.
+Ṣeto provides reliable error handling:
+
+* Missing or invalid arguments exit with a **non-zero status**.
+* Remote errors are captured and clearly reported.
+* Commands are **idempotent** — safe to re-run if interrupted.
+* Execution stops immediately on critical errors.
+
+## Notes
+
+* NFS authentication uses the URI:
+  `nfs://username:password@hostname`
+* Replica connections follow:
+  `username:password@hostname`
+* Future versions will support **GlusterFS**, **CephFS**, and **CIFS**.
+
+## Running seto from Docker
+
+You can build a small Docker image that contains the `seto` CLI and run it
+without installing the project dependencies locally.
+
+```sh
+docker run -it --rm --network=host \
+   -v .:/app \
+   -v ~/.ssh/id_rsa:/root/.ssh/id_rsa:ro \
+   -v /var/run/docker.sock:/var/run/docker.sock \
+   demsking/seto \
+      --project my-project \
+      --manager nfs://... \
+      setup \
+         --replica <replica-hosts> \
+         --clients <clients-hosts>
+```
 
 ## Environment Setup
 
@@ -182,24 +244,6 @@ The tool includes basic error handling to catch and report errors related to arg
 ## Makefile Targets
 
 Please see the [Makefile](Makefile) for the full list of targets.
-
-## Running seto from Docker
-
-You can build a small Docker image that contains the `seto` CLI and run it
-without installing the project dependencies locally.
-
-```sh
-docker run -it --rm --network=host \
-   -v .:/app \
-   -v ~/.ssh/id_rsa:/root/.ssh/id_rsa:ro \
-   -v /var/run/docker.sock:/var/run/docker.sock \
-   demsking/seto \
-      --project my-project \
-      --manager nfs://... \
-      setup \
-         --replica <replica-hosts> \
-         --clients <clients-hosts>
-```
 
 ## Docker Swarm Setup
 

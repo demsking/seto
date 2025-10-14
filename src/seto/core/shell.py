@@ -135,29 +135,28 @@ class Shell:
     return username in ouput
 
   @staticmethod
-  def exec(command: str, *, stdout=True, env_vars: dict | None = None, **kwargs) -> str:
+  def exec(command: str, *, stdout=True, env_vars: dict | None = None, input: str | None = None) -> str:
     """
     Execute a shell command securely and optionally send data via stdin.
     """
-    has_piped_input = 'input' in kwargs
+    print(f"$ {command}" if not input else f"$ echo '...' | {command}")
 
-    if has_piped_input:
-      print(f"$ echo '...' | {command}")
-    else:
-      print(f"$ {command}")
+    cmd = shlex.split(command) if input else command
+    env = {**(env_vars or {}), **dict(subprocess.os.environ)}  # type: ignore
+    shell_exec = env.get("SHELL", "/bin/bash")
 
-    cmd = shlex.split(command)
     process = subprocess.Popen(
       cmd,
-      stdin=subprocess.PIPE if has_piped_input else None,
+      stdin=subprocess.PIPE if input else None,
       stdout=subprocess.PIPE,
       stderr=subprocess.PIPE,
       text=True,
-      shell=True,
-      env={**(env_vars or {}), **dict(subprocess.os.environ)},  # type: ignore
+      shell=True if input else False,
+      env=env,
+      executable=shell_exec,
     )
 
-    standard_output, standard_error = process.communicate(**kwargs)
+    standard_output, standard_error = process.communicate(input=input)
 
     if stdout and standard_output:
       print(standard_output)

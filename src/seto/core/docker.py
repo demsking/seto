@@ -55,27 +55,27 @@ class Docker:
     command: str,
     *,
     hostname: str,
-    pipe_input: str,
+    input: str,
   ) -> None:
     ssh_command = f"ssh {Driver.setouser}@{hostname} '{command}'"
-    return Shell.pipe_exec(ssh_command, pipe_input=pipe_input)  # type: ignore
+    return Shell.pipe(ssh_command, input=input)  # type: ignore
 
   def build(self) -> None:
-    Shell.pipe_exec(
+    Shell.pipe(
       command=f'docker compose -f - -p {self.driver.stack_id} build --no-cache',
-      pipe_input=self.resolved_config,
+      input=self.resolved_config,
     )
 
   def push(self) -> None:
-    Shell.pipe_exec(
+    Shell.pipe(
       command=f'docker compose -f - -p {self.driver.stack_id} push',
-      pipe_input=self.resolved_config,
+      input=self.resolved_config,
     )
 
   def pull(self) -> None:
-    Shell.pipe_exec(
+    Shell.pipe(
       command=f'docker compose -f - -p {self.driver.stack_id} pull --policy=always',
-      pipe_input=self.resolved_config,
+      input=self.resolved_config,
     )
 
   def info(self) -> None:
@@ -143,26 +143,26 @@ class DockerCompose(Docker):
 
   def _exec(self, command: str) -> None:
     if self.current_hostname == self.node_hostname:
-      Shell.pipe_exec(command=command, pipe_input=self.resolved_config)
+      Shell.pipe(command=command, input=self.resolved_config)
     else:
       Docker.remote_node_run(
         command,
         hostname=self.node_hostname,
-        pipe_input=self.resolved_config,
+        input=self.resolved_config,
       )
 
 
 class DockerSwarm(Docker):
   def info(self) -> None:
-    Shell.pipe_exec(
+    Shell.pipe(
       command='docker stack config -c -',
-      pipe_input=self.resolved_config,
+      input=self.resolved_config,
     )
 
   def deploy(self) -> None:
-    Shell.pipe_exec(
+    Shell.pipe(
       command=f'docker stack deploy --prune --detach=true --resolve-image=always -c - {self.driver.stack_id}',
-      pipe_input=self.resolved_config,
+      input=self.resolved_config,
     )
 
   def ps(self) -> None:

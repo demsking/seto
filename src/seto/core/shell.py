@@ -169,8 +169,8 @@ class Shell:
     return standard_output
 
   @staticmethod
-  def pipe_exec(command: str, *, stdout=True, pipe_input: str, env_vars: dict | None = None) -> str:
-    with StringIO(pipe_input) as pipe:
+  def pipe(command: str, *, stdout=True, input: str, env_vars: dict | None = None) -> str:
+    with StringIO(input) as pipe:
       return Shell.exec(command, stdout=stdout, env_vars=env_vars, input=pipe.read())
 
   def install(self, package_name: str, *, user='nobody', group='nogroup') -> bool:

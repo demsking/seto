@@ -37,7 +37,7 @@ class LocalShell(Shell):
       cmd = f"sudo sh -c '{cmd}'"
 
     if not quiet:
-      print(f'{self.prompt} {cmd}')
+      self.print(cmd)
 
     process = subprocess.Popen(
       cmd,
@@ -63,7 +63,7 @@ class LocalShell(Shell):
     return stdout_output
 
   def copy_file(self, *, local_path: str, remote_path: str) -> None:
-    print(f'{self.prompt} cp {local_path} {remote_path}')
+    self.print(f'cp {local_path} {remote_path}')
     self.run(f'cp {local_path} {remote_path}')
 
   def close(self) -> None:

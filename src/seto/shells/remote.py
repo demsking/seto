@@ -58,14 +58,22 @@ class RemoteShell(Shell):
     stdout=True,
     stderr=False,
     quiet=False,
+    input: str | None = None,
   ) -> str:
     if sudo:
       cmd = f"sudo sh -c '{cmd}'"
 
     if not quiet:
-      print(f'{self.prompt} {cmd}')
+      self.print(cmd)
 
-    _stdin, std_output, stderr = self.ssh.exec_command(cmd)
+    stdin, std_output, stderr = self.ssh.exec_command(cmd)
+
+    if input:
+      assert stdin is not None
+      stdin.write(input)
+      stdin.flush()
+      stdin.channel.shutdown_write() # very important to close stdin for EOF
+
     stdout_output = std_output.read().decode('utf-8')
     stderr_output = stderr.read().decode('utf-8')
 
@@ -82,7 +90,7 @@ class RemoteShell(Shell):
     return stdout_output
 
   def copy_file(self, *, local_path: str, remote_path: str) -> None:
-    print(f'{self.prompt} scp {local_path} {self.hostname}:{remote_path}')
+    self.print(f'scp {local_path} {self.hostname}:{remote_path}')
     self._fs.put(local_path, remote_path)
 
   def close(self) -> None:

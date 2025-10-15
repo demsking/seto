@@ -20,6 +20,7 @@ from docker import DockerClient
 
 from .driver import Driver
 from .parser import resolve_env_vars
+from .shell import Setting
 from .shell import Shell
 
 
@@ -50,30 +51,28 @@ class Docker:
       if item.attrs and item.attrs['Name'].startswith(self.driver.stack_id)
     ]
 
-  @staticmethod
-  def remote_node_run(
-    command: str,
-    *,
-    hostname: str,
-    input: str,
-  ) -> None:
-    ssh_command = f"ssh {Driver.setouser}@{hostname} '{command}'"
-    return Shell.pipe(ssh_command, input=input)  # type: ignore
+  def _remote_node_run(self, command: str, *, hostname: str, input: str) -> None:
+    setting = Setting.from_connection_string(f'{Driver.setouser}@{hostname}')
+    node = Driver.get_shell(setting, self.shell.key_file_path)
+
+    node.connect()
+    node.run(command, input=input)
+    node.close()
 
   def build(self) -> None:
-    Shell.pipe(
+    self.shell.pipe(
       command=f'docker compose -f - -p {self.driver.stack_id} build --no-cache',
       input=self.resolved_config,
     )
 
   def push(self) -> None:
-    Shell.pipe(
+    self.shell.pipe(
       command=f'docker compose -f - -p {self.driver.stack_id} push',
       input=self.resolved_config,
     )
 
   def pull(self) -> None:
-    Shell.pipe(
+    self.shell.pipe(
       command=f'docker compose -f - -p {self.driver.stack_id} pull --policy=always',
       input=self.resolved_config,
     )
@@ -143,9 +142,9 @@ class DockerCompose(Docker):
 
   def _exec(self, command: str) -> None:
     if self.current_hostname == self.node_hostname:
-      Shell.pipe(command=command, input=self.resolved_config)
+      self.shell.pipe(command=command, input=self.resolved_config)
     else:
-      Docker.remote_node_run(
+      self._remote_node_run(
         command,
         hostname=self.node_hostname,
         input=self.resolved_config,
@@ -154,23 +153,24 @@ class DockerCompose(Docker):
 
 class DockerSwarm(Docker):
   def info(self) -> None:
-    Shell.pipe(
+    self.shell.pipe(
       command='docker stack config -c -',
       input=self.resolved_config,
     )
 
   def deploy(self) -> None:
-    Shell.pipe(
+    self.shell.pipe(
       command=f'docker stack deploy --prune --detach=true --resolve-image=always -c - {self.driver.stack_id}',
       input=self.resolved_config,
     )
 
   def ps(self) -> None:
-    Shell.exec(f'docker stack ps --no-trunc - {self.driver.stack_id}')
-    Shell.exec(f'docker stack services {self.driver.stack_id}')
+    # self.shell(f'docker stack ps --no-trunc {self.driver.stack_id}')
+    # self.shell(f'docker stack services {self.driver.stack_id}')
+    pass
 
   def logs(self) -> None:
-    Shell.exec(f'docker stack service logs -f -n 100 -c - {self.driver.stack_id}')
+    self.shell(f'docker stack service logs -f -n 100 -c - {self.driver.stack_id}')
 
   def down(self) -> None:
-    Shell.exec(f'docker stack rm {self.driver.stack_id}')
+    self.shell(f'docker stack rm {self.driver.stack_id}')

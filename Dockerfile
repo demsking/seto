@@ -38,17 +38,22 @@ ENV PATH="/opt/seto/.venv/bin:$PATH" \
     PYTHONPATH="/opt/seto/.venv/lib/python3.12/site-packages" \
     PYTHONUNBUFFERED="1" \
     PYTHONDONTWRITEBYTECODE="1" \
-    DEBIAN_FRONTEND=noninteractive
+    DEBIAN_FRONTEND=noninteractive \
+    SHELL="/bin/bash"
 
 WORKDIR /app
 
 SHELL ["/bin/bash", "-eo", "pipefail", "-c"]
 
 # Install runtime dependencies
-RUN apt-get update -qq && \
-    apt-get install -y --no-install-recommends docker-cli openssh-client gettext ca-certificates && \
-    update-ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
+RUN apt-get update -qq \
+  && apt-get install -y --no-install-recommends \
+                        docker-cli \
+                        openssh-client \
+                        gettext \
+                        ca-certificates \
+  && update-ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
 
 # Copy virtual environment and app
 COPY --from=builder --chown=nobody:nogroup /opt/seto/.venv /opt/seto/.venv

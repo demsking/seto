@@ -134,24 +134,27 @@ class Shell:
 
     return username in ouput
 
-  @staticmethod
-  def exec(command: str, *, stdout=True, env_vars: dict | None = None, input: str | None = None) -> str:
+  def print(self, message: str) -> None:
+    print(f'{self.prompt} {message}')
+
+  def exec(self, command: str, *, stdout=True, env: dict | None = None, input: str | None = None) -> str:
     """
     Execute a shell command securely and optionally send data via stdin.
     """
-    print(f"$ {command}" if not input else f"$ echo '...' | {command}")
-
-    cmd = shlex.split(command) if input else command
-    env = {**(env_vars or {}), **dict(subprocess.os.environ)}  # type: ignore
+    has_input = input is not None
+    cmd = shlex.split(command) if has_input else command
+    env = {**dict(subprocess.os.environ), **(env or {})}  # type: ignore
     shell_exec = env.get("SHELL", "/bin/bash")
+
+    self.print(f"echo '...' | {command}" if has_input else command)
 
     process = subprocess.Popen(
       cmd,
-      stdin=subprocess.PIPE if input else None,
+      stdin=subprocess.PIPE if has_input else None,
       stdout=subprocess.PIPE,
       stderr=subprocess.PIPE,
       text=True,
-      shell=True if input else False,
+      shell=has_input,
       env=env,
       executable=shell_exec,
     )
@@ -167,10 +170,9 @@ class Shell:
 
     return standard_output
 
-  @staticmethod
-  def pipe(command: str, *, stdout=True, input: str, env_vars: dict | None = None) -> str:
+  def pipe(self, command: str, *, stdout=True, input: str, env: dict | None = None) -> str:
     with StringIO(input) as pipe:
-      return Shell.exec(command, stdout=stdout, env_vars=env_vars, input=pipe.read())
+      return self.exec(command, stdout=stdout, env=env, input=pipe.read())
 
   def install(self, package_name: str, *, user: str = "nobody", group: str = "nogroup") -> bool:
     """

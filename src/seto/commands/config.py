@@ -20,7 +20,6 @@ from ..core.driver import Driver
 from ..core.network import get_global_external_networks
 from ..core.network import resolve_networks
 from ..core.parser import parse_services
-from ..core.shell import Shell
 from ..core.volume import Volume
 
 
@@ -95,4 +94,4 @@ def execute_config_command(args, driver: Driver) -> None:
   else:
     command = 'docker stack config -c -'
 
-  Shell.pipe(command, input=str(compose_output))
+  driver.shell.pipe(command, input=str(compose_output))

@@ -14,6 +14,7 @@
 # ==============================================================================
 import os
 import shlex
+import socket
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -43,20 +44,22 @@ class Setting:
 
   @staticmethod
   def from_connection_string(connection_string: str) -> 'Setting':
-    client_user, node_host = tuple((connection_string.split('@') + [None])[0:2])
-    is_local = node_host is None
+    client_user: str | None = None
+    node_host: str = connection_string
 
-    if is_local:
-      node_host = client_user
-      client_user = 'root'
+    if '@' in connection_string:
+      client_user, node_host = tuple(connection_string.split('@')[0:2])
 
     if not node_host:
       raise ValueError('Unable to determine hostname from connection string')
 
-    if not client_user:
+    node_host = node_host.lower()
+    is_local = node_host == 'localhost' or node_host == socket.gethostname()
+
+    if not is_local and not client_user:
       raise ValueError('Unable to determine username from connection string')
 
-    username, password = tuple((client_user.split(':') + [None, None])[0:2])
+    username, password = tuple((client_user.split(':') + [None])[0:2]) if client_user else (None, None)
     node_ip = resolve_hostname(node_host)
 
     return Setting(
@@ -72,7 +75,7 @@ class File:
   def __init__(self, shell: 'Shell', filename: str) -> None:
     self.shell = shell
     self.filename = filename
-    self.content = shell.run(f'cat {self.filename}', quiet=True, stdout=False)
+    self.content = shell.run(f'cat {self.filename}', sudo=True, quiet=True, stdout=False)
 
   def append(self, entry: str, *, key: str | None = None) -> bool:
     cleaned_entry = entry.strip()
@@ -80,7 +83,7 @@ class File:
 
     if entry_key not in self.content:
       add_entry_cmd = f'echo "{cleaned_entry}" >> {self.filename}'
-      self.shell.run(add_entry_cmd, quiet=True)
+      self.shell.run(add_entry_cmd, sudo=True, quiet=True)
       self.content += f'\n{cleaned_entry}'
 
       return True
@@ -89,15 +92,15 @@ class File:
 
   def chown(self, owner: str, group: str | None = None):
     if group:
-      self.shell.run(f'chown {owner}:{group} {self.filename}', quiet=True)
+      self.shell.run(f'chown {owner}:{group} {self.filename}', sudo=True, quiet=True)
     else:
-      self.shell.run(f'chown {owner} {self.filename}', quiet=True)
+      self.shell.run(f'chown {owner} {self.filename}', sudo=True, quiet=True)
 
   def chmod(self, mode: str | int):
     if 'letsencrypt' in self.filename:
       mode = 600
 
-    self.shell.run(f'chmod {mode} {self.filename}', quiet=True)
+    self.shell.run(f'chmod {mode} {self.filename}', sudo=True, quiet=True)
 
 
 class Shell:
@@ -116,7 +119,7 @@ class Shell:
 
   @property
   def prompt(self) -> str:
-    return f'{self.setting.username}@{self.setting.hostname}:~$'
+    return f'{self.setting.username}@{self.setting.hostname}:~$' if self.setting.username else f'{self.setting.hostname}:~$'
 
   @property
   @lru_cache
@@ -130,7 +133,7 @@ class Shell:
     raise NotImplementedError()
 
   def check_user_exists(self, username: str) -> bool:
-    ouput = self.run(f'getent passwd {username}', stdout=False, quiet=True)
+    ouput = self.run(f'getent passwd {username}', sudo=True, stdout=False, quiet=True)
 
     return username in ouput
 
@@ -198,7 +201,7 @@ class Shell:
       if pkg_manager == "apt"
       else f"rpm -qa | grep -w {package_name}"
     )
-    result = self.run(check_cmd, quiet=True, stdout=False)
+    result = self.run(check_cmd, sudo=True, quiet=True, stdout=False)
 
     if package_name not in result:
       print(f'Installing {package_name} on {self.setting.hostname}...')
@@ -206,12 +209,13 @@ class Shell:
       if pkg_manager == "apt":
         self.run(
           f"DEBIAN_FRONTEND=noninteractive apt-get install -y --quiet {package_name}",
+          sudo=True,
           quiet=True,
         )
       elif pkg_manager == "dnf":
-        self.run(f"dnf install -y {package_name}", quiet=True)
+        self.run(f"dnf install -y {package_name}", sudo=True, quiet=True)
       elif pkg_manager == "yum":
-        self.run(f"yum install -y {package_name}", quiet=True)
+        self.run(f"yum install -y {package_name}", sudo=True, quiet=True)
 
       return True
 
@@ -221,23 +225,24 @@ class Shell:
 
   def mkdir(self, path: str, *, user='nobody', group='nogroup', mode: str | int = 'g+w') -> None:
     try:
-      self.run(f'ls {path}', quiet=True, stderr=True)
+      self.run(f'ls {path}', sudo=True, quiet=True, stderr=True)
     except Exception:
       if 'letsencrypt' in path:
         mode = 600
 
-      self.run(f'mkdir -p {path}', quiet=True)
-      self.run(f'chown -R {user}:{group} {path}', quiet=True)
-      self.run(f'chmod -R {mode} {path}', quiet=True)
+      self.run(f'mkdir -p {path}', sudo=True, quiet=True)
+      self.run(f'chown -R {user}:{group} {path}', sudo=True, quiet=True)
+      self.run(f'chmod -R {mode} {path}', sudo=True, quiet=True)
 
   def run(
     self,
     cmd: str,
     *,
-    sudo=True,
+    sudo=False,
     stdout=True,
     stderr=False,
     quiet=False,
+    input: str | None = None,
   ) -> str:
     raise NotImplementedError()
 

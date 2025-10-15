@@ -61,7 +61,7 @@ def replica_type(value: str) -> list[Setting]:
     raise argparse.ArgumentTypeError(f'{value} - {error}') from error
   except Exception as exception:
     raise argparse.ArgumentTypeError(
-      f'{value} is not a replica value (username:password@hostname)'
+      f'{value} is not a replica value (username:password@hostname). {exception}'
     ) from exception
 
 
@@ -219,6 +219,8 @@ def run() -> None:
   create_driver = NFSDriver
   shell = create_shell(setting, args.key)
   driver = create_driver(args.stack, project=args.project, shell=shell)
+
+  shell.connect()
 
   # Call the function associated with the selected subcommand
   if hasattr(args, 'func'):

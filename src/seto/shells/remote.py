@@ -54,7 +54,7 @@ class RemoteShell(Shell):
     self,
     cmd: str,
     *,
-    sudo=True,
+    sudo=False,
     stdout=True,
     stderr=False,
     quiet=False,
@@ -66,7 +66,7 @@ class RemoteShell(Shell):
     if not quiet:
       self.print(cmd)
 
-    stdin, std_output, stderr = self.ssh.exec_command(cmd)
+    stdin, std_output, stderr_output = self.ssh.exec_command(cmd)
 
     if input:
       assert stdin is not None
@@ -75,7 +75,7 @@ class RemoteShell(Shell):
       stdin.channel.shutdown_write() # very important to close stdin for EOF
 
     stdout_output = std_output.read().decode('utf-8')
-    stderr_output = stderr.read().decode('utf-8')
+    stderr_output = stderr_output.read().decode('utf-8')
 
     if stdout_output and stdout:
       print(stdout_output)
@@ -85,7 +85,9 @@ class RemoteShell(Shell):
         raise Exception(stderr_output)
 
       print(stderr_output)
-      sys.exit(1)
+
+      if stderr:
+        sys.exit(1)
 
     return stdout_output
 

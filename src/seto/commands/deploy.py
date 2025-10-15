@@ -97,9 +97,9 @@ def parse_compose_config(
         'deploy': service_deploy,
       }
 
-      if compose.node_hostname:
-        parse_service_vars(service_labels, compose.node_hostname)
-        parse_service_vars(service_environment, compose.node_hostname)
+      if compose.nodename:
+        parse_service_vars(service_labels, compose.nodename)
+        parse_service_vars(service_environment, compose.nodename)
 
       service['ports'] = service_ports
       service_traefik_rule = pick_label_value(service_labels, '.rule')
@@ -128,7 +128,7 @@ def parse_compose_config(
         },
       }
 
-      node_ip = resolve_hostname(compose.node_hostname)
+      node_ip = resolve_hostname(compose.nodename)
       traefik_http_provider_services[service_traefik_service] = {
         'loadBalancer': {
           'servers': [
@@ -352,8 +352,10 @@ def execute_deploy_command(args, driver: Driver) -> None:
   swarm.push()
 
   print(f'Deploying {driver.stack_id} swarm environment...')
+  swarm.info()
   swarm.deploy()
   swarm.ps()
+  swarm.logs()
 
   if composes_items:
     print(f'Building {driver.stack_id} compose images...')
@@ -363,6 +365,7 @@ def execute_deploy_command(args, driver: Driver) -> None:
 
     print(f'Pulling {driver.stack_id} compose images...')
     for compose in composes_items:
+      compose.info()
       compose.pull()
 
     print(f'Deploying {driver.stack_id} compose environment...')

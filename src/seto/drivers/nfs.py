@@ -40,11 +40,11 @@ class NFSDriver(Driver):
     fresh_installed = self.shell.install('nfs-kernel-server')
 
     if fresh_installed:
-      self.shell.run('systemctl start nfs-server')
-      self.shell.run('systemctl enable nfs-kernel-server')
+      self.shell.run('systemctl start nfs-server', sudo=True)
+      self.shell.run('systemctl enable nfs-kernel-server', sudo=True)
 
   def apply_manager_changes(self) -> None:
-    self.shell.run('exportfs -rav')
+    self.shell.run('exportfs -rav', sudo=True)
 
   def setup_node(self, shell: Shell, force: bool = False) -> None:
     shell.install('nfs-common')
@@ -72,7 +72,7 @@ class NFSDriver(Driver):
       if force or is_new_entry:
         print(f'Initializing volume {volume.name}...')
         self.shell.copy_volume(volume, self.brick)
-        self.shell.run(f'chown -R nobody:nogroup {self.brick}', stdout=False, quiet=True)
+        self.shell.run(f'chown -R nobody:nogroup {self.brick}', sudo=True, stdout=False, quiet=True)
 
   def add_exports_entry(
     self,
@@ -87,7 +87,7 @@ class NFSDriver(Driver):
     self.shell.mkdir(volume_storage)
 
     if 'letsencrypt' in volume_storage:
-      self.shell.run(f'[ -n "$(ls -A x 2>/dev/null)" ] && chmod 600 {volume_storage}/*', stdout=False, quiet=True)
+      self.shell.run(f'[ -n "$(ls -A x 2>/dev/null)" ] && chmod 600 {volume_storage}/*', sudo=True, stdout=False, quiet=True)
 
     return exports.append(f'{volume_storage}\t*({options_str})', key=f'{volume_storage}\t')
 

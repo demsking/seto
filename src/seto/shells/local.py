@@ -28,10 +28,11 @@ class LocalShell(Shell):
     self,
     cmd: str,
     *,
-    sudo=True,
+    sudo=False,
     stdout=True,
     stderr=False,
     quiet=False,
+    input: str | None = None,
   ) -> str:
     if sudo:
       cmd = f"sudo sh -c '{cmd}'"
@@ -46,9 +47,16 @@ class LocalShell(Shell):
       stderr=subprocess.PIPE,
     )
 
-    std_output, stderr = process.communicate()
+    std_output, stderr_output = process.communicate()
+
+    if input:
+      assert stdin is not None
+      stdin.write(input)
+      stdin.flush()
+      stdin.channel.shutdown_write() # very important to close stdin for EOF
+
     stdout_output = std_output.decode('utf-8')
-    stderr_output = stderr.decode('utf-8')
+    stderr_output = stderr_output.decode('utf-8')
 
     if stdout_output and stdout:
       print(stdout_output)
@@ -58,7 +66,9 @@ class LocalShell(Shell):
         raise Exception(stderr_output)
 
       print(stderr_output)
-      sys.exit(1)
+
+      if stderr:
+        sys.exit(1)
 
     return stdout_output
 

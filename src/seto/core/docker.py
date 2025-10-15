@@ -44,6 +44,10 @@ class Docker:
     return resolve_env_vars(json.dumps(self.config))
 
   @property
+  def hostname(self) -> str:
+    return socket.gethostname()
+
+  @property
   def external_networks(self) -> list[str]:
     return [
       item.attrs['Name']
@@ -73,7 +77,7 @@ class Docker:
 
   def pull(self) -> None:
     self.shell.pipe(
-      command=f'docker compose -f - -p {self.driver.stack_id} pull --policy=always',
+      command=f'docker compose -f - -p {self.driver.stack_id} pull --dry-run --ignore-buildable --policy=always',
       input=self.resolved_config,
     )
 
@@ -103,12 +107,8 @@ class DockerCompose(Docker):
     return self.config.get('x-placement', '')
 
   @property
-  def current_hostname(self) -> str:
-    return socket.gethostname()
-
-  @property
   @functools.lru_cache(maxsize=128)
-  def node_hostname(self) -> str:
+  def nodename(self) -> str:
     if self.placement_hostname:
       return self.placement_hostname
 
@@ -128,7 +128,7 @@ class DockerCompose(Docker):
     self._exec(f'docker compose -p {self.driver.stack_id} -f - config')
 
   def deploy(self) -> None:
-    print(f'Deploying on {self.node_hostname}...')
+    print(f'Deploying on {self.nodename}...')
     self._exec(f'docker compose -p {self.driver.stack_id} -f - up -d --remove-orphans')
 
   def ps(self) -> None:
@@ -141,17 +141,23 @@ class DockerCompose(Docker):
     self._exec(f'docker compose -p {self.driver.stack_id} -f - down')
 
   def _exec(self, command: str) -> None:
-    if self.current_hostname == self.node_hostname:
+    if self.hostname == self.nodename:
       self.shell.pipe(command=command, input=self.resolved_config)
     else:
       self._remote_node_run(
         command,
-        hostname=self.node_hostname,
+        hostname=self.nodename,
         input=self.resolved_config,
       )
 
 
 class DockerSwarm(Docker):
+  @property
+  def shell(self) -> Shell:
+    return Driver.get_shell(
+      Setting.from_connection_string(self.hostname),
+    )
+
   def info(self) -> None:
     self.shell.pipe(
       command='docker stack config -c -',
@@ -165,12 +171,12 @@ class DockerSwarm(Docker):
     )
 
   def ps(self) -> None:
-    # self.shell(f'docker stack ps --no-trunc {self.driver.stack_id}')
-    # self.shell(f'docker stack services {self.driver.stack_id}')
-    pass
+    self.shell.run(f'docker stack ps --no-trunc {self.driver.stack_id}', stderr=False)
+    self.shell.run(f'docker stack services {self.driver.stack_id}', stderr=False)
 
   def logs(self) -> None:
-    self.shell(f'docker stack service logs -f -n 100 -c - {self.driver.stack_id}')
+    for service in self.config.get('services', {}).keys():
+      self.shell.run(f'docker service logs -n 10 {self.driver.stack_id}_{service}', stderr=False)
 
   def down(self) -> None:
-    self.shell(f'docker stack rm {self.driver.stack_id}')
+    self.shell.run(f'docker stack rm {self.driver.stack_id}')

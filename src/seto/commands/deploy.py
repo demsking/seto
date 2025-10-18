@@ -126,7 +126,7 @@ def parse_compose_config(
       service_url = f'http://{node_ip}:{published_port}'
       service_labels[f'traefik.http.services.{service_name}.loadBalancer.servers[0].url'] = service_url
       service_labels[f'traefik.http.services.{service_name}.loadBalancer.servers[0].weight'] = 2
-      service_labels[f'traefik.http.services.{service_name}.loadBalancer.servers[0].preservePath'] = True
+      service_labels[f'traefik.http.services.{service_name}.loadBalancer.servers[0].preservePath'] = 'true'
 
       service_ports.append(f'{published_port}:{service_traefik_port}')
 

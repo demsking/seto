@@ -27,6 +27,9 @@ from .commands.setup import execute_setup_command
 from .commands.setup import print_ssh_copy_id_commands
 from .commands.umount import execute_umount_volumes_command
 from .commands.volumes import execute_create_volumes_command
+from .core.package import APP_NAME
+from .core.package import APP_DESCRIPTION
+from .core.package import APP_VERSION
 from .core.shell import Setting
 from .drivers.nfs import NFSDriver
 from .shells.local import LocalShell
@@ -79,11 +82,19 @@ def nodes_type(value: str) -> list[Setting]:
 
 
 def run() -> None:
-  parser = argparse.ArgumentParser('seto', description='')
+  parser = argparse.ArgumentParser(APP_NAME, description=APP_DESCRIPTION)
   subparsers = parser.add_subparsers()
 
   parser.add_argument('--project', required=True, help='Project name')
   parser.add_argument('--stack', help='Stack name')
+
+  # add version argument
+  parser.add_argument(
+    '-v', '--version',
+    action='version',
+    version=f'{APP_NAME} {APP_VERSION}',
+    help='Show the version number and exit',
+  )
 
   parser.add_argument(
     '--manager',

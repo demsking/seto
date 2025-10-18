@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-import shlex
 import subprocess
 import sys
 
@@ -35,9 +34,8 @@ class LocalShell(Shell):
     env: dict | None = None,
   ) -> str:
     if sudo:
-      cmd = f"sudo sh -c '{cmd}'"
+      command = f"sudo sh -c '{command}'"
 
-    cmd = shlex.split(command)
     env = {**dict(subprocess.os.environ), **(env or {})}  # type: ignore
     shell_exec = env.get('SHELL', '/bin/bash')
 
@@ -45,7 +43,7 @@ class LocalShell(Shell):
       self.print(f"echo '...' | {command}" if input else command)
 
     result = subprocess.run(
-      cmd,
+      command,
       input=input,
       capture_output=True,
       text=True,

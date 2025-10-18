@@ -135,7 +135,7 @@ class DockerCompose(Docker):
     self._exec(f'docker compose -p {self.driver.stack_id} -f - ps')
 
   def logs(self) -> None:
-    self._exec(f'docker compose -p {self.driver.stack_id} -f - logs')
+    self._exec(f'docker compose -p {self.driver.stack_id} -f - logs -n 10')
 
   def down(self) -> None:
     self._exec(f'docker compose -p {self.driver.stack_id} -f - down')

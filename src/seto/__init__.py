@@ -218,7 +218,7 @@ def run() -> None:
   create_shell = LocalShell if setting.local else RemoteShell
   create_driver = NFSDriver
   shell = create_shell(setting, args.key)
-  driver = create_driver(args.stack, project=args.project, shell=shell)
+  driver = create_driver(args.stack, project=args.project, shell=shell, debug=args.debug)
 
   shell.connect()
 

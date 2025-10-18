@@ -29,10 +29,12 @@ class Driver:
     *,
     project: str,
     shell: Shell,
+    debug: bool = False,
   ) -> None:
     self.stack: str | None = stack
     self.project = project
     self.shell = shell
+    self.debug = debug
 
   @property
   def brickname(self) -> str:

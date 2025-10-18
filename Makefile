@@ -23,12 +23,11 @@ clean:
 
 package: clean
 	uv build
-	twine check dist/*
 
 publish: package
 	git commit pyproject.toml -m "Release $(APP_VERSION)"
 	git tag v$(APP_VERSION)
-	twine upload --verbose dist/*
+	uv publish --verbose dist/*
 	git push --tags origin main
 
 lint:

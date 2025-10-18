@@ -13,7 +13,6 @@
 # limitations under the License.
 # ==============================================================================
 import json
-import os
 import random
 import re
 from typing import Any
@@ -30,7 +29,6 @@ from ..core.network import HTTP_PROVIDER_NETWORK
 from ..core.network import resolve_networks
 from ..core.parser import resolve_compose_file
 from ..core.shell import Setting
-from ..core.traefik import convert_middlewares_to_dict
 from .config import resolve
 
 
@@ -43,6 +41,13 @@ def parse_service_vars(entries: dict[str, Any], hostname: str) -> None:
   for key, value in entries.items():
     if isinstance(value, str):
       entries[key] = re.sub(NODE_HOSTNAME_RE, hostname, value)
+
+
+def get_label_value(labels: dict[str, Any], name: str) -> Any | str:
+  for label, value in labels.items():
+    if label.endswith(name):
+      return value
+  return ''
 
 
 def pick_label_value(labels: dict[str, Any], name: str) -> Any | str:
@@ -95,6 +100,7 @@ def parse_compose_config(
         'image': 'traefik/whoami',
         'networks': service_networks,
         'deploy': service_deploy,
+        'labels': service_labels,
       }
 
       if compose.nodename:
@@ -102,13 +108,12 @@ def parse_compose_config(
         parse_service_vars(service_environment, compose.nodename)
 
       service['ports'] = service_ports
-      service_traefik_rule = pick_label_value(service_labels, '.rule')
-      service_traefik_middlewares = pick_label_value(service_labels, '.middlewares')
+      # service_traefik_rule = get_label_value(service_labels, '.rule')
+      # service_traefik_middlewares = get_label_value(service_labels, '.middlewares')
       service_traefik_port = pick_label_value(service_labels, '.loadbalancer.server.port')
-      service_traefik_entryPoints = pick_label_value(service_labels, '.entryPoints')
-      service_traefik_tls_certresolver = pick_label_value(service_labels, '.tls.certresolver')
-      service_traefik_service = pick_label_value(service_labels, '.service') or service_name
-      published_port = random.randint(53100, 64200)
+      # service_traefik_entryPoints = get_label_value(service_labels, '.entryPoints')
+      # service_traefik_tls_certresolver = get_label_value(service_labels, '.tls.certresolver')
+      # service_traefik_service = get_label_value(service_labels, '.service') or service_name
 
       if not service_traefik_port:
         print(
@@ -116,32 +121,39 @@ def parse_compose_config(
         )
         continue
 
+      published_port = random.randint(53100, 64200)
+      node_ip = resolve_hostname(compose.nodename)
+      service_url = f'http://{node_ip}:{published_port}'
+      service_labels[f'traefik.http.services.{service_name}.loadBalancer.servers[0].url'] = service_url
+      service_labels[f'traefik.http.services.{service_name}.loadBalancer.servers[0].weight'] = 2
+      service_labels[f'traefik.http.services.{service_name}.loadBalancer.servers[0].preservePath'] = True
+
       service_ports.append(f'{published_port}:{service_traefik_port}')
 
-      traefik_http_provider_routers[service_traefik_service] = {
-        'entryPoints': [service_traefik_entryPoints],
-        'service': service_traefik_service,
-        'rule': service_traefik_rule,
-        'middlewares': [item for item in service_traefik_middlewares.split(',') if item],
-        'tls': {
-          'certResolver': service_traefik_tls_certresolver,
-        },
-      }
+      # traefik_http_provider_routers[service_traefik_service] = {
+      #   'entryPoints': [service_traefik_entryPoints],
+      #   'service': service_traefik_service,
+      #   'rule': service_traefik_rule,
+      #   'middlewares': [item for item in service_traefik_middlewares.split(',') if item],
+      #   'tls': {
+      #     'certResolver': service_traefik_tls_certresolver,
+      #   },
+      # }
 
-      node_ip = resolve_hostname(compose.nodename)
-      traefik_http_provider_services[service_traefik_service] = {
-        'loadBalancer': {
-          'servers': [
-            {
-              'url': f'http://{node_ip}:{published_port}',
-            },
-          ],
-        },
-      }
+      # node_ip = resolve_hostname(compose.nodename)
+      # traefik_http_provider_services[service_traefik_service] = {
+      #   'loadBalancer': {
+      #     'servers': [
+      #       {
+      #         'url': f'http://{node_ip}:{published_port}',
+      #       },
+      #     ],
+      #   },
+      # }
 
-      traefik_http_provider_middlewares.update(
-        convert_middlewares_to_dict(service_labels),
-      )
+      # traefik_http_provider_middlewares.update(
+      #   convert_middlewares_to_dict(service_labels),
+      # )
 
 
 def deploy_seto_stack(args, driver: Driver, replica: list[Setting]) -> None:
@@ -232,6 +244,7 @@ def deploy_seto_stack(args, driver: Driver, replica: list[Setting]) -> None:
   # Restore initial driver config
   driver.project = args.project
   driver.stack = args.stack
+
 
 def build_seto_agent_service(
   args,

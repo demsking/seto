@@ -125,7 +125,12 @@ class DockerCompose(Docker):
     raise ValueError(f'Unable to found node for placement "{self.placement}"')
 
   def info(self) -> None:
-    self._exec(f'docker compose -p {self.driver.stack_id} -f - config')
+    if self.driver.debug:
+      command = f'docker compose -p {self.driver.stack_id} -f - config'
+    else:
+      command = f'docker compose -p {self.driver.stack_id} -f - config --no-env-resolution --skip-interpolation'
+
+    self.shell.run(command, input=self.resolved_config)
 
   def deploy(self) -> None:
     print(f'Deploying on {self.nodename}...')

@@ -292,6 +292,54 @@
         }
       }
     },
+    "nodePackages.nodemon@latest": {
+      "last_modified": "2024-06-12T20:55:33Z",
+      "resolved": "github:NixOS/nixpkgs/a9858885e197f984d92d7fe64e9fff6b2e488d40#nodePackages.nodemon",
+      "source": "devbox-search",
+      "version": "3.1.3",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/9l1ajnkynanjd7jav3ai5j4z8zfh4a8l-nodemon-3.1.3",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/9l1ajnkynanjd7jav3ai5j4z8zfh4a8l-nodemon-3.1.3"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/62aygf8gxa837lzwifqd5bh318lch7rc-nodemon-3.1.3",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/62aygf8gxa837lzwifqd5bh318lch7rc-nodemon-3.1.3"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/afkhzhmv03f0m5q92fngip4d48pzfq1r-nodemon-3.1.3",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/afkhzhmv03f0m5q92fngip4d48pzfq1r-nodemon-3.1.3"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/1pfa9bl0cmvl4yflnqhn26h9fc51adgj-nodemon-3.1.3",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/1pfa9bl0cmvl4yflnqhn26h9fc51adgj-nodemon-3.1.3"
+        }
+      }
+    },
     "poetry@latest": {
       "last_modified": "2024-12-23T21:10:33Z",
       "plugin_version": "0.0.4",

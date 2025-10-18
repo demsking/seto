@@ -17,15 +17,16 @@
     "python312Packages.pyyaml@latest",
     "hadolint@latest",
     "ruff@latest",
-    "python312Packages.pyaml@latest"
+    "python312Packages.pyaml@latest",
+    "nodePackages.nodemon@latest"
   ],
   "env": {
-    "VENV_DIR": ".venv",
+    "VENV_DIR":   ".venv",
     "PYTHONPATH": ".:$VENV_DIR/lib/python3.12/site-packages:$PYTHONPATH",
-    "PATH": "$VENV_DIR/bin:$PATH"
+    "PATH":       "$VENV_DIR/bin:$PATH"
   },
   "shell": {
     "init_hook": ["pre-commit install -f"],
-    "scripts": {}
+    "scripts":   {}
   }
 }

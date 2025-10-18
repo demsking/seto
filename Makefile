@@ -24,6 +24,9 @@ clean:
 package: clean
 	uv build
 
+watch:
+	nodemon -e py -w src/seto -V -x make package image-test
+
 publish: package
 	git commit pyproject.toml -m "Release $(APP_VERSION)"
 	git tag v$(APP_VERSION)

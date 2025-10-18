@@ -52,7 +52,7 @@ class RemoteShell(Shell):
 
   def run(
     self,
-    cmd: str,
+    command: str,
     *,
     sudo=False,
     stdout=True,
@@ -61,18 +61,18 @@ class RemoteShell(Shell):
     input: str | None = None,
   ) -> str:
     if sudo:
-      cmd = f"sudo sh -c '{cmd}'"
+      command = f"sudo sh -c '{command}'"
 
     if not quiet:
-      self.print(cmd)
+      self.print(command)
 
-    stdin, std_output, stderr_output = self.ssh.exec_command(cmd)
+    stdin, std_output, stderr_output = self.ssh.exec_command(command)
 
     if input:
       assert stdin is not None
       stdin.write(input)
       stdin.flush()
-      stdin.channel.shutdown_write() # very important to close stdin for EOF
+      stdin.channel.shutdown_write()  # very important to close stdin for EOF
 
     stdout_output = std_output.read().decode('utf-8')
     stderr_output = stderr_output.read().decode('utf-8')

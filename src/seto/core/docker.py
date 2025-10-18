@@ -64,19 +64,19 @@ class Docker:
     node.close()
 
   def build(self) -> None:
-    self.shell.pipe(
+    self.shell.run(
       command=f'docker compose -f - -p {self.driver.stack_id} build --no-cache',
       input=self.resolved_config,
     )
 
   def push(self) -> None:
-    self.shell.pipe(
+    self.shell.run(
       command=f'docker compose -f - -p {self.driver.stack_id} push',
       input=self.resolved_config,
     )
 
   def pull(self) -> None:
-    self.shell.pipe(
+    self.shell.run(
       command=f'docker compose -f - -p {self.driver.stack_id} pull --dry-run --ignore-buildable --policy=always',
       input=self.resolved_config,
     )
@@ -142,7 +142,7 @@ class DockerCompose(Docker):
 
   def _exec(self, command: str) -> None:
     if self.hostname == self.nodename:
-      self.shell.pipe(command=command, input=self.resolved_config)
+      self.shell.run(command=command, input=self.resolved_config)
     else:
       self._remote_node_run(
         command,
@@ -159,14 +159,16 @@ class DockerSwarm(Docker):
     )
 
   def info(self) -> None:
-    self.shell.pipe(
-      command='docker stack config -c -',
-      input=self.resolved_config,
-    )
+    if self.driver.debug:
+      command = 'docker stack config -c -'
+    else:
+      command = 'docker stack config -c - --skip-interpolation'
+
+    self.shell.run(command, input=self.resolved_config)
 
   def deploy(self) -> None:
-    self.shell.pipe(
-      command=f'docker stack deploy --prune --detach=true --resolve-image=always -c - {self.driver.stack_id}',
+    self.shell.run(
+      command=f'docker stack deploy --prune --detach=false --resolve-image=always -c - {self.driver.stack_id}',
       input=self.resolved_config,
     )
 

@@ -94,4 +94,4 @@ def execute_config_command(args, driver: Driver) -> None:
   else:
     command = 'docker stack config -c -'
 
-  driver.shell.pipe(command, input=str(compose_output))
+  driver.shell.run(command, input=str(compose_output))

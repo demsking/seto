@@ -13,13 +13,10 @@
 # limitations under the License.
 # ==============================================================================
 import os
-import shlex
 import socket
-import subprocess
 import sys
 from dataclasses import dataclass
 from functools import lru_cache
-from io import StringIO
 
 from .dns import resolve_hostname
 from .volume import Volume
@@ -140,44 +137,7 @@ class Shell:
   def print(self, message: str) -> None:
     print(f'{self.prompt} {message}')
 
-  def exec(self, command: str, *, stdout=True, env: dict | None = None, input: str | None = None) -> str:
-    """
-    Execute a shell command securely and optionally send data via stdin.
-    """
-    has_input = input is not None
-    cmd = shlex.split(command) if has_input else command
-    env = {**dict(subprocess.os.environ), **(env or {})}  # type: ignore
-    shell_exec = env.get("SHELL", "/bin/bash")
-
-    self.print(f"echo '...' | {command}" if has_input else command)
-
-    process = subprocess.Popen(
-      cmd,
-      stdin=subprocess.PIPE if has_input else None,
-      stdout=subprocess.PIPE,
-      stderr=subprocess.PIPE,
-      text=True,
-      shell=has_input,
-      env=env,
-      executable=shell_exec,
-    )
-
-    standard_output, standard_error = process.communicate(input=input)
-
-    if stdout and standard_output:
-      print(standard_output)
-
-    if process.returncode != 0:
-      print(standard_error, file=sys.stderr)
-      sys.exit(process.returncode)
-
-    return standard_output
-
-  def pipe(self, command: str, *, stdout=True, input: str, env: dict | None = None) -> str:
-    with StringIO(input) as pipe:
-      return self.exec(command, stdout=stdout, env=env, input=pipe.read())
-
-  def install(self, package_name: str, *, user: str = "nobody", group: str = "nogroup") -> bool:
+  def install(self, package_name: str, *, user: str = 'nobody', group: str = 'nogroup') -> bool:
     """
     Install a package on remote Debian/Ubuntu or Fedora/RHEL system.
     """
@@ -185,20 +145,20 @@ class Shell:
     # Detect package manager
     pkg_manager = None
 
-    if "apt-get" in self.run("command -v apt-get", quiet=True, stdout=False):
-      pkg_manager = "apt"
-    elif "dnf" in self.run("command -v dnf", quiet=True, stdout=False):
-      pkg_manager = "dnf"
-    elif "yum" in self.run("command -v yum", quiet=True, stdout=False):
-      pkg_manager = "yum"
+    if 'apt-get' in self.run('command -v apt-get', quiet=True, stdout=False):
+      pkg_manager = 'apt'
+    elif 'dnf' in self.run('command -v dnf', quiet=True, stdout=False):
+      pkg_manager = 'dnf'
+    elif 'yum' in self.run('command -v yum', quiet=True, stdout=False):
+      pkg_manager = 'yum'
 
     if not pkg_manager:
-      raise RuntimeError("Unsupported remote OS: no known package manager found")
+      raise RuntimeError('Unsupported remote OS: no known package manager found')
 
     # Check if package is already installed
     check_cmd = (
       f"dpkg -l | grep -w {package_name}"
-      if pkg_manager == "apt"
+      if pkg_manager == 'apt'
       else f"rpm -qa | grep -w {package_name}"
     )
     result = self.run(check_cmd, sudo=True, quiet=True, stdout=False)
@@ -206,15 +166,15 @@ class Shell:
     if package_name not in result:
       print(f'Installing {package_name} on {self.setting.hostname}...')
 
-      if pkg_manager == "apt":
+      if pkg_manager == 'apt':
         self.run(
           f"DEBIAN_FRONTEND=noninteractive apt-get install -y --quiet {package_name}",
           sudo=True,
           quiet=True,
         )
-      elif pkg_manager == "dnf":
+      elif pkg_manager == 'dnf':
         self.run(f"dnf install -y {package_name}", sudo=True, quiet=True)
-      elif pkg_manager == "yum":
+      elif pkg_manager == 'yum':
         self.run(f"yum install -y {package_name}", sudo=True, quiet=True)
 
       return True
@@ -236,7 +196,7 @@ class Shell:
 
   def run(
     self,
-    cmd: str,
+    command: str,
     *,
     sudo=False,
     stdout=True,

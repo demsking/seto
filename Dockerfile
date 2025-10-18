@@ -58,5 +58,6 @@ RUN apt-get update -qq \
 # Copy virtual environment and app
 COPY --from=builder --chown=nobody:nogroup /opt/seto/.venv /opt/seto/.venv
 COPY --from=builder --chown=nobody:nogroup /opt/seto/src /opt/seto/src
+COPY --chown=nobody:nogroup pyproject.toml /opt/seto/pyproject.toml
 
 ENTRYPOINT ["seto"]

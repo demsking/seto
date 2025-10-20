@@ -12,22 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-import tomllib
-from pathlib import Path
+from importlib.metadata import metadata, PackageNotFoundError
 
-__all__ = [
-  'APP_DESCRIPTION',
-  'APP_NAME',
-  'APP_VERSION',
-]
-
-PROJECT_DIRECTORY = Path(__file__).resolve().parents[2]
-_pyproject_path = PROJECT_DIRECTORY / 'pyproject.toml'
-
-with _pyproject_path.open('rb') as file:
-  package = tomllib.load(file)['project']
-  APP_NAME = package['name']
-  APP_DESCRIPTION = package['description']
-  APP_VERSION = package['version']
-  del package
-  del tomllib
+try:
+  dist_meta = metadata('seto')
+  APP_NAME = dist_meta['Name']
+  APP_DESCRIPTION = dist_meta['Summary']
+  APP_VERSION = dist_meta['Version']
+except PackageNotFoundError:
+  APP_NAME = "seto"
+  APP_DESCRIPTION = "A Docker Swarm Deployment Manager"
+  APP_VERSION = "0.0.0"

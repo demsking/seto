@@ -12,11 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-import json
 import random
 import re
 from typing import Any
-from pathlib import Path
 
 from docker import DockerClient
 
@@ -25,7 +23,6 @@ from ..core.docker import DockerCompose
 from ..core.docker import DockerSwarm
 from ..core.driver import Driver
 from ..core.network import GLOBAL_NETWORKS
-from ..core.network import HTTP_PROVIDER_NETWORK
 from ..core.network import resolve_networks
 from ..core.parser import resolve_compose_file
 from ..core.shell import Setting
@@ -34,7 +31,6 @@ from .config import resolve
 
 # Define the regular expression pattern to match {{ .Node.Hostname }} with optional spaces
 NODE_HOSTNAME_RE = r'\{\{\s*\.Node\.Hostname\s*\}\}'
-HTTP_PROVIDER_SERVICENAME = 'seto-http-provider'
 
 
 def parse_service_vars(entries: dict[str, Any], hostname: str) -> None:
@@ -68,9 +64,6 @@ def parse_compose_config(
   compose_config: dict,
   placement: str,
   composes: list[DockerCompose],
-  traefik_http_provider_routers: dict,
-  traefik_http_provider_services: dict,
-  traefik_http_provider_middlewares: dict,
 ) -> None:
   if compose_config['services']:
     compose = DockerCompose(
@@ -97,7 +90,8 @@ def parse_compose_config(
 
       # Use a shadow service to make sure all networks are created on all node
       swarm_config['services'][service_bridge_name] = {
-        'image': 'traefik/whoami',
+        'image': 'busybox',
+        'command': ['sleep', 'infinity'],
         'networks': service_networks,
         'deploy': service_deploy,
         'labels': service_labels,
@@ -108,12 +102,7 @@ def parse_compose_config(
         parse_service_vars(service_environment, compose.nodename)
 
       service['ports'] = service_ports
-      # service_traefik_rule = get_label_value(service_labels, '.rule')
-      # service_traefik_middlewares = get_label_value(service_labels, '.middlewares')
       service_traefik_port = pick_label_value(service_labels, '.loadbalancer.server.port')
-      # service_traefik_entryPoints = get_label_value(service_labels, '.entryPoints')
-      # service_traefik_tls_certresolver = get_label_value(service_labels, '.tls.certresolver')
-      # service_traefik_service = get_label_value(service_labels, '.service') or service_name
 
       if not service_traefik_port:
         print(
@@ -130,31 +119,6 @@ def parse_compose_config(
 
       service_ports.append(f'{published_port}:{service_traefik_port}')
 
-      # traefik_http_provider_routers[service_traefik_service] = {
-      #   'entryPoints': [service_traefik_entryPoints],
-      #   'service': service_traefik_service,
-      #   'rule': service_traefik_rule,
-      #   'middlewares': [item for item in service_traefik_middlewares.split(',') if item],
-      #   'tls': {
-      #     'certResolver': service_traefik_tls_certresolver,
-      #   },
-      # }
-
-      # node_ip = resolve_hostname(compose.nodename)
-      # traefik_http_provider_services[service_traefik_service] = {
-      #   'loadBalancer': {
-      #     'servers': [
-      #       {
-      #         'url': f'http://{node_ip}:{published_port}',
-      #       },
-      #     ],
-      #   },
-      # }
-
-      # traefik_http_provider_middlewares.update(
-      #   convert_middlewares_to_dict(service_labels),
-      # )
-
 
 def deploy_seto_stack(args, driver: Driver, replica: list[Setting]) -> None:
   # Temporary rewrite driver config
@@ -163,59 +127,18 @@ def deploy_seto_stack(args, driver: Driver, replica: list[Setting]) -> None:
 
   # Building seto config
   client = DockerClient.from_env()
-  config_networks = resolve_networks(args.project)
 
-  config_networks.update(GLOBAL_NETWORKS)
-
-  print('Configuring seto-http-provider...')
-  # seto_stack_service_name = f'{HTTP_PROVIDER_SERVICENAME}-{uuid.uuid4()}'
-  seto_stack_service_name = HTTP_PROVIDER_SERVICENAME
+  print('Configuring seto agent...')
   internal_stack = {
-    'networks': config_networks,
+    'networks': GLOBAL_NETWORKS,
     'services': {
-      HTTP_PROVIDER_SERVICENAME: {
-        'image': 'demsking/traefik-http-provider',
-        'restart': 'unless-stopped',
-        'networks': [HTTP_PROVIDER_NETWORK],
-        'ports': ['6116:6116'],
-        'environment': [
-          'REDIS_HOST=redis',
-          'REDIS_PORT=6379',
-          'REDIS_DB=0',
-          'EXPIRATION_MINUTES=10',
-        ],
+      'agent': {
+        'image': 'busybox',
+        'command': ['sleep', 'infinity'],
+        'networks': [name for name in GLOBAL_NETWORKS.keys()],
         'deploy': {
           'mode': 'global',
-          'labels': {
-            'traefik.discovery.enable': True,
-            f'traefik.http.routers.{seto_stack_service_name}.service': seto_stack_service_name,
-            f'traefik.http.services.{seto_stack_service_name}.loadbalancer.server.port': 6116,
-          },
         },
-      },
-      'redis': {
-        'image': 'redis:8-alpine',
-        'restart': 'unless-stopped',
-        'networks': [HTTP_PROVIDER_NETWORK],
-        'command': [
-          'redis-server',
-          '--appendonly', 'yes',
-          '--appendfsync', 'everysec',
-          '--save', '60 1',
-          '--maxmemory-policy', 'allkeys-lru',
-          '--bind', '0.0.0.0',
-        ],
-        'volumes-nfs': ['data:/data'],
-        'deploy': {
-          'replicas': 1,
-          'placement': {
-            'constraints': ['node.role == manager']
-          },
-          'restart_policy': {
-            'condition': 'on-failure',
-            'delay': '5s'
-          },
-        }
       },
     },
   }
@@ -228,9 +151,6 @@ def deploy_seto_stack(args, driver: Driver, replica: list[Setting]) -> None:
     inject=True,
   )
 
-  print('Creating seto volumes...')
-  driver.create_volumes(replica=replica, volumes=volumes, force=args.force)
-
   print('Deploying seto services...')
   swarm = DockerSwarm(
     client=client,
@@ -240,73 +160,64 @@ def deploy_seto_stack(args, driver: Driver, replica: list[Setting]) -> None:
 
   swarm.info()
   swarm.deploy()
+  swarm.ps()
+  swarm.logs()
 
   # Restore initial driver config
   driver.project = args.project
   driver.stack = args.stack
 
 
-def build_seto_agent_service(
-  args,
-  driver: Driver,
-  swarm_config: dict,
-  *,
-  traefik_http_provider_routers: dict,
-  traefik_http_provider_services: dict,
-  traefik_http_provider_middlewares: dict,
-) -> None:
-  if not traefik_http_provider_services:
-    return
+def deploy_project_stack(args, driver: Driver, replica: list[Setting]) -> None:
+  # Temporary rewrite driver config
+  driver.project = f'seto-{args.project}'
+  driver.stack = None
 
-  bridges_path = Path('bridges')
-  traefik_http_provider_filename = bridges_path / 'traefik-http-provider.json'
-  traefik_http_provider_target = '/traefik/config.json'
-  traefik_http_provider = {
-    'http': {
-      'routers': traefik_http_provider_routers,
-      'services': traefik_http_provider_services,
-      'middlewares': traefik_http_provider_middlewares,
-    },
-  }
+  # Building seto config
+  client = DockerClient.from_env()
+  project_networks = resolve_networks(args.project)
 
-  register_command = ' && '.join(
-    [
-      f'echo "Registering service {driver.stack_id}..."',
-      f'curl -s -X POST http://{HTTP_PROVIDER_SERVICENAME}:6116/api/config/{driver.stack_id} -H "Content-Type: application/json" -d @{traefik_http_provider_target} > /dev/null',
-    ]
-  )
-
-  entrypoint = ' && '.join(
-    [
-      'echo "Starting initial call to the provider endpoint..."',
-      register_command,
-      'echo "Initial call to the provider endpoint completed. Running cron job..."',
-      f'echo "*/1 * * * * {register_command}" | crontab -',
-      'crond -f',
-    ]
-  )
-
-  seto_agent_compose_data, _ = resolve_compose_file(
-    driver=driver,
-    image_prefix=args.image_prefix,
-    compose_data={
-      'services': {
-        'seto_agent': {
-          'image': 'curlimages/curl:latest',
-          'user': 'root',
-          'networks': [HTTP_PROVIDER_NETWORK],
-          'entrypoint': f"sh -c '{entrypoint}'",
-          'volumes-image': [
-            f'{traefik_http_provider_filename}:{traefik_http_provider_target}',
-          ],
+  print('Configuring seto project agent...')
+  internal_stack = {
+    'networks': project_networks,
+    'services': {
+      'agent': {
+        'image': 'busybox',
+        'command': ['sleep', 'infinity'],
+        'networks': [name for name in project_networks.keys()],
+        'deploy': {
+          'mode': 'global',
         },
       },
     },
+  }
+
+  # Resolving compose local volumes
+  resolved_compose_data, volumes = resolve_compose_file(
+    driver=driver,
+    image_prefix=args.image_prefix,
+    compose_data=internal_stack,
+    inject=True,
   )
 
-  swarm_config['services'].update(seto_agent_compose_data['services'])
-  bridges_path.mkdir(parents=True, exist_ok=True)
-  traefik_http_provider_filename.write_text(json.dumps(traefik_http_provider, indent='  '), encoding='utf-8')
+  print('Creating seto project volumes...')
+  driver.create_volumes(replica=replica, volumes=volumes, force=args.force)
+
+  print('Deploying seto project services...')
+  swarm = DockerSwarm(
+    client=client,
+    driver=driver,
+    config=resolved_compose_data,
+  )
+
+  swarm.info()
+  swarm.deploy()
+  swarm.ps()
+  swarm.logs()
+
+  # Restore initial driver config
+  driver.project = args.project
+  driver.stack = args.stack
 
 
 def execute_deploy_command(args, driver: Driver) -> None:
@@ -326,10 +237,6 @@ def execute_deploy_command(args, driver: Driver) -> None:
   networks_list = list(swarm_config['networks'].keys())
   composes_items: list[DockerCompose] = []
 
-  traefik_http_provider_routers = {}
-  traefik_http_provider_services = {}
-  traefik_http_provider_middlewares = {}
-
   resolve(
     args,
     driver,
@@ -343,19 +250,7 @@ def execute_deploy_command(args, driver: Driver) -> None:
       compose_config=config,
       placement=placement,
       composes=composes_items,
-      traefik_http_provider_routers=traefik_http_provider_routers,
-      traefik_http_provider_services=traefik_http_provider_services,
-      traefik_http_provider_middlewares=traefik_http_provider_middlewares,
     ),
-  )
-
-  build_seto_agent_service(
-    args,
-    driver,
-    swarm_config,
-    traefik_http_provider_routers=traefik_http_provider_routers,
-    traefik_http_provider_services=traefik_http_provider_services,
-    traefik_http_provider_middlewares=traefik_http_provider_middlewares,
   )
 
   print(f'Building {driver.stack_id} swarm images...')
@@ -365,7 +260,7 @@ def execute_deploy_command(args, driver: Driver) -> None:
   swarm.push()
 
   print(f'Deploying {driver.stack_id} swarm environment...')
-  swarm.info()
+  # swarm.info()
   swarm.deploy()
   swarm.ps()
   swarm.logs()
@@ -378,7 +273,7 @@ def execute_deploy_command(args, driver: Driver) -> None:
 
     print(f'Pulling {driver.stack_id} compose images...')
     for compose in composes_items:
-      compose.info()
+      # compose.info()
       compose.pull()
 
     print(f'Deploying {driver.stack_id} compose environment...')

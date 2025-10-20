@@ -34,6 +34,9 @@ class Docker:
     self.driver = driver
     self.client = client
     self.config = config
+    self.localshell = Driver.get_shell(
+      Setting.from_connection_string(self.hostname),
+    )
 
   @property
   def shell(self) -> Shell:
@@ -55,28 +58,20 @@ class Docker:
       if item.attrs and item.attrs['Name'].startswith(self.driver.stack_id)
     ]
 
-  def _remote_node_run(self, command: str, *, hostname: str, input: str) -> None:
-    setting = Setting.from_connection_string(f'{Driver.setouser}@{hostname}')
-    node = Driver.get_shell(setting, self.shell.key_file_path)
-
-    node.connect()
-    node.run(command, input=input)
-    node.close()
-
   def build(self) -> None:
-    self.shell.run(
+    self.localshell.exec(
       command=f'docker compose -f - -p {self.driver.stack_id} build --no-cache',
       input=self.resolved_config,
     )
 
   def push(self) -> None:
-    self.shell.run(
+    self.localshell.exec(
       command=f'docker compose -f - -p {self.driver.stack_id} push',
       input=self.resolved_config,
     )
 
   def pull(self) -> None:
-    self.shell.run(
+    self.localshell.exec(
       command=f'docker compose -f - -p {self.driver.stack_id} pull --dry-run --ignore-buildable --policy=always',
       input=self.resolved_config,
     )
@@ -124,13 +119,31 @@ class DockerCompose(Docker):
 
     raise ValueError(f'Unable to found node for placement "{self.placement}"')
 
+  def _remote_node_run(self, command: str, *, hostname: str, input: str) -> None:
+    setting = Setting.from_connection_string(f'{Driver.setouser}@{hostname}')
+    node = Driver.get_shell(setting, self.shell.key_file_path)
+
+    node.connect()
+    node.run(command, input=input)
+    node.close()
+
+  def _exec(self, command: str) -> None:
+    if self.hostname == self.nodename:
+      self.shell.run(command=command, input=self.resolved_config, split=True)
+    else:
+      self._remote_node_run(
+        command,
+        hostname=self.nodename,
+        input=self.resolved_config,
+      )
+
   def info(self) -> None:
     if self.driver.debug:
       command = f'docker compose -p {self.driver.stack_id} -f - config'
     else:
       command = f'docker compose -p {self.driver.stack_id} -f - config --no-env-resolution --skip-interpolation'
 
-    self.shell.run(command, input=self.resolved_config)
+    self._exec(command)
 
   def deploy(self) -> None:
     print(f'Deploying on {self.nodename}...')
@@ -144,16 +157,6 @@ class DockerCompose(Docker):
 
   def down(self) -> None:
     self._exec(f'docker compose -p {self.driver.stack_id} -f - down')
-
-  def _exec(self, command: str) -> None:
-    if self.hostname == self.nodename:
-      self.shell.run(command=command, input=self.resolved_config)
-    else:
-      self._remote_node_run(
-        command,
-        hostname=self.nodename,
-        input=self.resolved_config,
-      )
 
 
 class DockerSwarm(Docker):
@@ -173,7 +176,7 @@ class DockerSwarm(Docker):
 
   def deploy(self) -> None:
     self.shell.run(
-      command=f'docker stack deploy --prune --detach=false --resolve-image=always -c - {self.driver.stack_id}',
+      command=f'docker stack deploy --prune --detach=true --resolve-image=always -c - {self.driver.stack_id}',
       input=self.resolved_config,
     )
 

@@ -21,7 +21,7 @@ __all__ = [
   'APP_VERSION',
 ]
 
-PROJECT_DIRECTORY = Path(__file__).resolve().parents[3]
+PROJECT_DIRECTORY = Path(__file__).resolve().parents[2]
 _pyproject_path = PROJECT_DIRECTORY / 'pyproject.toml'
 
 with _pyproject_path.open('rb') as file:

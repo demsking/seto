@@ -22,6 +22,54 @@ class LocalShell(Shell):
   def connect(self):
     pass
 
+  def exec(
+    self,
+    command: str,
+    *,
+    sudo=False,
+    stdout=True,
+    stderr=False,
+    quiet=False,
+    input: str | None = None,
+    env: dict | None = None,
+  ):
+    if sudo:
+      command = f"sudo sh -c '{command}'"
+
+    env = {**dict(subprocess.os.environ), **(env or {})}  # type: ignore
+    shell_exec = env.get('SHELL', '/bin/bash')
+    has_input = input is not None
+
+    if not quiet:
+      self.print(f"echo '...' | {command}" if input else command)
+
+    process = subprocess.Popen(
+      command,
+      stdin=subprocess.PIPE if has_input else None,
+      stdout=subprocess.PIPE,
+      stderr=subprocess.PIPE,
+      text=True,
+      shell=has_input,
+      env=env,
+      executable=shell_exec,
+    )
+
+    std_output, stderr_output = process.communicate(input=input)
+
+    if stdout and std_output:
+      print(std_output)
+
+    if stderr_output:
+      if stderr:
+        raise Exception(stderr_output)
+
+      print(stderr_output, file=sys.stderr)
+
+      if stderr:
+        sys.exit(process.returncode)
+
+    return std_output
+
   def run(
     self,
     command: str,

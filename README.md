@@ -186,24 +186,6 @@ seto --stack my-stack --driver nfs://user:pass@host \
   `username:password@hostname`
 * Future versions will support **GlusterFS**, **CephFS**, and **CIFS**.
 
-## Running seto from Docker
-
-You can build a small Docker image that contains the `seto` CLI and run it
-without installing the project dependencies locally.
-
-```sh
-docker run -it --rm --network=host \
-   -v .:/app \
-   -v ~/.ssh/id_rsa:/root/.ssh/id_rsa:ro \
-   -v /var/run/docker.sock:/var/run/docker.sock \
-   demsking/seto \
-      --project my-project \
-      --manager nfs://... \
-      setup \
-         --replica <replica-hosts> \
-         --clients <clients-hosts>
-```
-
 ## Environment Setup
 
 0. See [cloud-init.yaml](cloud-init.yaml) file for prerequisites to install.

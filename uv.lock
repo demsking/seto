@@ -259,7 +259,7 @@ wheels = [
 
 [[package]]
 name = "seto"
-version = "3.7.0rc1"
+version = "3.7.0rc3"
 source = { editable = "." }
 dependencies = [
     { name = "docker" },

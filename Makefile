@@ -13,6 +13,9 @@ env:
 install:
 	uv sync
 
+outdated:
+	uv show --outdated
+
 update:
 	uv update
 	devbox update
@@ -156,50 +159,3 @@ umount:
 
 ps:
 	docker stack ps $(STACK_NAME)
-
-# Show outdated dependencies using uv
-outdated:
-	uv show --outdated
-
-#
-## Packaging
-build/context:
-	@if ! docker buildx inspect $(APP_NAME) > /dev/null 2>&1; then \
-		docker buildx create --name $(APP_NAME) --bootstrap; \
-	fi
-	mkdir -p build/
-	touch $@
-
-multiplatform-image: build/context
-	@echo "Building $(IMAGE_NAME):$(APP_VERSION)"
-	uv lock
-	docker buildx use $(APP_NAME)
-	docker buildx build . \
-	  --platform linux/amd64,linux/arm64 \
-	  --push \
-	  --progress plain \
-	  --tag $(IMAGE_NAME):$(APP_VERSION) \
-	  --tag $(IMAGE_NAME):latest \
-	  --label "org.opencontainers.image.title=$(APP_NAME)" \
-	  --label "org.opencontainers.image.description=$(shell python scripts/metadata.py description)" \
-	  --label "org.opencontainers.image.version=$(APP_VERSION)" \
-	  --label "org.opencontainers.image.revision=$(shell git rev-parse HEAD)" \
-	  --label "org.opencontainers.image.authors=Sébastien Demanou <demsking@gmail.com>" \
-	  --label "org.opencontainers.image.created=$(shell date --rfc-3339=seconds)" \
-	  --label "org.opencontainers.image.vendor=Sébastien Demanou" \
-	  --label "org.opencontainers.image.licenses=$(shell python scripts/metadata.py license)"
-
-image-test:
-	uv lock
-	docker build . \
-	  --progress plain \
-	  --tag $(IMAGE_NAME):test
-
-preview: image-test
-	docker run -it --rm -v /var/run/docker.sock:/var/run/docker.sock $(IMAGE_NAME):test
-
-image: image-test
-	git commit pyproject.toml uv.lock -m "Release $(APP_VERSION)"
-	$(MAKE) multiplatform-image
-	git tag v$(APP_VERSION)
-	git push --tags origin main

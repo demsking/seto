@@ -71,7 +71,6 @@ resolved-compose.yaml:
 	  config
 
 config:
-	@mkdir -p images/
 	@python -m \
 	  seto \
 	    --debug \
@@ -80,7 +79,6 @@ config:
 	  config
 
 config--compose:
-	@mkdir -p images/
 	@python -m \
 	  seto \
 	    --debug \
@@ -90,7 +88,6 @@ config--compose:
 	    --compose
 
 deploy:
-	@mkdir -p images/
 	@pkexec echo
 	@python -m \
 	  seto \

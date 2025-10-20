@@ -30,7 +30,7 @@ watch:
 publish: package
 	git commit pyproject.toml -m "Release $(APP_VERSION)"
 	git tag v$(APP_VERSION)
-	uv publish --verbose dist/*
+	twine upload --verbose dist/*
 	git push --tags origin main
 
 lint:
@@ -198,7 +198,7 @@ image-test:
 preview: image-test
 	docker run -it --rm -v /var/run/docker.sock:/var/run/docker.sock $(IMAGE_NAME):test
 
-publish: image-test
+image: image-test
 	git commit pyproject.toml uv.lock -m "Release $(APP_VERSION)"
 	$(MAKE) multiplatform-image
 	git tag v$(APP_VERSION)

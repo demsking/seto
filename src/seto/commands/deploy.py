@@ -12,13 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-import random
 import re
 from typing import Any
 
 from docker import DockerClient
 
-from ..core.dns import resolve_hostname
 from ..core.docker import DockerCompose
 from ..core.docker import DockerSwarm
 from ..core.driver import Driver
@@ -73,51 +71,6 @@ def parse_compose_config(
     )
 
     composes.append(compose)
-
-    for service_name, service in compose_config['services'].items():
-      service_bridge_name = f'{service_name}_bridge'
-      service_environment = service.get('environment', {})
-      service_labels = service.get('labels', {})
-      service_networks = service.get('networks', [])
-      service_ports = service.get('ports', [])
-      service_deploy = {
-        'placement': {
-          'constraints': [
-            f'node.labels.{placement}' if '=' in placement else f'node.hostname == {placement}',
-          ],
-        },
-      }
-
-      # Use a shadow service to make sure all networks are created on all node
-      swarm_config['services'][service_bridge_name] = {
-        'image': 'busybox',
-        'command': ['sleep', 'infinity'],
-        'networks': service_networks,
-        'deploy': service_deploy,
-        'labels': service_labels,
-      }
-
-      if compose.nodename:
-        parse_service_vars(service_labels, compose.nodename)
-        parse_service_vars(service_environment, compose.nodename)
-
-      service['ports'] = service_ports
-      service_traefik_port = pick_label_value(service_labels, '.loadbalancer.server.port')
-
-      if not service_traefik_port:
-        print(
-          f'WARN: Service "{service_name}" has no defined port. Skipped from Traefik HTTP Provider'
-        )
-        continue
-
-      published_port = random.randint(53100, 64200)
-      node_ip = resolve_hostname(compose.nodename)
-      service_url = f'http://{node_ip}:{published_port}'
-      service_labels[f'traefik.http.services.{service_name}.loadBalancer.servers[0].url'] = service_url
-      service_labels[f'traefik.http.services.{service_name}.loadBalancer.servers[0].weight'] = 2
-      service_labels[f'traefik.http.services.{service_name}.loadBalancer.servers[0].preservePath'] = 'true'
-
-      service_ports.append(f'{published_port}:{service_traefik_port}')
 
 
 def deploy_seto_stack(args, driver: Driver, replica: list[Setting]) -> None:
@@ -260,7 +213,7 @@ def execute_deploy_command(args, driver: Driver) -> None:
   swarm.push()
 
   print(f'Deploying {driver.stack_id} swarm environment...')
-  # swarm.info()
+  swarm.info()
   swarm.deploy()
   swarm.ps()
   swarm.logs()
@@ -273,7 +226,7 @@ def execute_deploy_command(args, driver: Driver) -> None:
 
     print(f'Pulling {driver.stack_id} compose images...')
     for compose in composes_items:
-      # compose.info()
+      compose.info()
       compose.pull()
 
     print(f'Deploying {driver.stack_id} compose environment...')

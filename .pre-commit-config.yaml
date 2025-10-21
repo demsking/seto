@@ -2,7 +2,7 @@
 # See https://pre-commit.com/hooks.html for more hooks
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: trailing-whitespace
         name: 'Remove Trailing Whitespace'
@@ -57,7 +57,7 @@ repos:
         ]
 
   - repo: https://github.com/asottile/reorder-python-imports
-    rev: v3.14.0
+    rev: v3.16.0
     hooks:
       - id: reorder-python-imports
         name: 'Reorder Python Imports'
@@ -98,7 +98,7 @@ repos:
           - "--ignore-patterns=.*_test\\.py"
 
   - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.9.1
+    rev: v0.14.1
     hooks:
       - id: ruff
         name: 'Ruff Python Linter'
@@ -122,7 +122,7 @@ repos:
         description: 'Ensure the use of type annotations in Python code.'
 
   - repo: https://github.com/PyCQA/bandit
-    rev: 1.8.2
+    rev: 1.8.6
     hooks:
       - id: bandit
         name: 'Security Analysis with Bandit'
@@ -130,14 +130,14 @@ repos:
         args: [-c, bandit.yaml]
 
   - repo: https://github.com/PyCQA/doc8
-    rev: v1.1.2
+    rev: v2.0.0
     hooks:
       - id: doc8
         name: 'Lint Documentation with doc8'
         description: 'Lint reStructuredText and Markdown documentation files using doc8.'
 
   - repo: https://github.com/asottile/pyupgrade
-    rev: v3.19.1
+    rev: v3.21.0
     hooks:
       - id: pyupgrade
         name: 'Upgrade Python Syntax with pyupgrade'

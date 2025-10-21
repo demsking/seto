@@ -14,10 +14,11 @@ install:
 	uv sync
 
 outdated:
-	uv show --outdated
+	uv pip list --outdated
 
 update:
-	uv update
+	uv lock --upgrade
+	uv sync
 	devbox update
 	pre-commit autoupdate
 

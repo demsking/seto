@@ -1,6 +1,4 @@
-APP_NAME := $(shell python scripts/metadata.py name)
 APP_VERSION := $(shell python scripts/metadata.py version)
-IMAGE_NAME := demsking/$(APP_NAME)
 
 .PHONY: env
 
@@ -29,7 +27,7 @@ package: clean
 	uv build
 
 watch:
-	nodemon -e py -w src/seto -V -x make package image-test
+	nodemon -e py -w src/seto -V -x make package
 
 publish: package
 	git commit pyproject.toml -m "Release $(APP_VERSION)"

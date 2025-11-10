@@ -305,8 +305,9 @@ def parse_compose_file(compose_file: str, resolve_vars=False) -> tuple[dict, str
 
   # Auto-load corresponding .env file if it exists
   compose_path = Path(compose_file)
-  env_file_path = compose_path.parent / f'{compose_path.stem}.env'
-  load_env_file(str(env_file_path))
+
+  load_env_file(str(compose_path.parent / '.env'))
+  load_env_file(str(compose_path.parent / f'{compose_path.stem}.env'))
 
   with open(compose_file, encoding='utf-8') as file:
     compose_content = file.read()

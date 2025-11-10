@@ -7,7 +7,7 @@ build-backend = "uv_build"
 
 [project]
 name = "seto"
-version = "3.7.0"
+version = "3.8.0"
 description = "A Docker Swarm Deployment Manager"
 keywords = ["docker", "swarm", "manager"]
 authors = [{ name = "Sébastien Demanou", email = "demsking@gmail.com" }]

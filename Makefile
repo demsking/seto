@@ -9,6 +9,7 @@ env:
 	git secret reveal -f
 
 install:
+	uv venv --clear
 	uv sync
 
 outdated:

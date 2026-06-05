@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented in this file.
 
+## 4.0.1 - 2026-06-05
+
+### Fixes
+
+- Replaced `exec()` usage with `run()` for `Shell` compatibility.
+- Removed unsupported `split=True` argument from `RemoteShell.run()` calls.
+
 ## 4.0.0 - 2026-06-05
 
 ### Breaking Changes

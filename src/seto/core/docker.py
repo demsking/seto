@@ -59,19 +59,19 @@ class Docker:
     ]
 
   def build(self) -> None:
-    self.localshell.exec(
+    self.localshell.run(
       command=f'docker compose -f - -p {self.driver.stack_id} build --no-cache',
       input=self.resolved_config,
     )
 
   def push(self) -> None:
-    self.localshell.exec(
+    self.localshell.run(
       command=f'docker compose -f - -p {self.driver.stack_id} push',
       input=self.resolved_config,
     )
 
   def pull(self) -> None:
-    self.localshell.exec(
+    self.localshell.run(
       command=f'docker compose -f - -p {self.driver.stack_id} pull --dry-run --ignore-buildable --policy=always',
       input=self.resolved_config,
     )

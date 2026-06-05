@@ -115,11 +115,12 @@ class NFSDriver(Driver):
     self.umount(node, device)
 
   def resolve_compose_volume(self, volume: Volume) -> dict:
+    nfs_options = volume.nfs_options or 'soft,rw'
     return {
       'driver': 'local',
       'driver_opts': {
         'type': 'nfs',
-        'o': f'addr={self.shell.setting.ip},soft,rw',
+        'o': f'addr={self.shell.setting.ip},{nfs_options}',
         'device': f':{self.storage(volume)}',
       },
     }

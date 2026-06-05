@@ -184,6 +184,14 @@ seto --stack my-stack --driver nfs://user:pass@host \
   `nfs://username:password@hostname`
 * Replica connections follow:
   `username:password@hostname`
+* `volumes-nfs` entry format is:
+  `source:target[:mode[:nfs-options]]`
+* `mode` is optional and defaults to `rw`.
+* `nfs-options` is optional and defaults to `soft,rw`.
+* Example entries:
+  `data:/var/lib/mysql`
+  `data:/var/lib/mysql:ro`
+  `data:/var/lib/mysql:rw:hard,noatime`
 * Future versions will support **GlusterFS**, **CephFS**, and **CIFS**.
 
 ## Environment Setup

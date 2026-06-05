@@ -21,3 +21,4 @@ class Volume:
   source: str | None
   target: str
   mount_folder: str
+  nfs_options: str | None = None

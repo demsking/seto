@@ -56,6 +56,30 @@ def parse_volume_entry(entry: str, default_mode='rw') -> tuple[str, str, str]:
   return source, target, mode
 
 
+def parse_nfs_volume_entry(
+  entry: str, default_mode='rw', default_options='soft,rw'
+) -> tuple[str, str, str, str]:
+  """Parse NFS volume entry with format: source:target[:mode[:options]]."""
+  parts = entry.split(':', 3)
+
+  if len(parts) < 2:
+    raise ValueError(
+      f'Invalid volumes-nfs entry "{entry}". Expected format: source:target[:mode[:options]]'
+    )
+
+  source = parts[0]
+  target = parts[1]
+  mode = parts[2] if len(parts) > 2 and parts[2] else default_mode
+  options = parts[3] if len(parts) > 3 and parts[3] else default_options
+
+  # Be permissive: allow source:target:opt1,opt2 when mode is omitted.
+  if len(parts) == 3 and ',' in parts[2] and parts[2] not in ['rw', 'ro', 'norename']:
+    mode = default_mode
+    options = parts[2]
+
+  return source, target, mode, options
+
+
 def parse_local_volumes(
   stack: str, *, service_name: str, service: Service, image_prefix: str
 ) -> None:
@@ -116,7 +140,7 @@ def parse_volumes(
     del service['volumes-nfs']
 
     for volume_entry in service_volumes_nfs:
-      source, target, volume_mode = parse_volume_entry(volume_entry)
+      source, target, volume_mode, nfs_options = parse_nfs_volume_entry(volume_entry)
       target_folder = target
 
       if volume_entry.startswith('~/') or volume_entry.startswith('./'):
@@ -129,9 +153,7 @@ def parse_volumes(
       else:
         device_source = None
         volume_name = source
-
-        if volume_name in compose_volumes:
-          del compose_volumes[volume_name]
+        compose_volumes.pop(volume_name, None)
 
       if volume_mode == 'norename':
         volume_mode = 'rw'
@@ -149,6 +171,7 @@ def parse_volumes(
         source=device_source,
         target=target,
         mount_folder=volume_name,
+        nfs_options=nfs_options,
       )
 
       compose_volumes[volume.name] = driver.resolve_compose_volume(volume)

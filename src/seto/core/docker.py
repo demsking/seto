@@ -129,7 +129,7 @@ class DockerCompose(Docker):
 
   def _exec(self, command: str) -> None:
     if self.hostname == self.nodename:
-      self.shell.run(command=command, input=self.resolved_config, split=True)
+      self.shell.run(command=command, input=self.resolved_config)
     else:
       self._remote_node_run(
         command,

@@ -77,7 +77,7 @@ def resolve(
     driver=driver,
     image_prefix=args.image_prefix,
     stack=args.stack or args.project,
-    default_nfs_mode=args.default_nfs_mode,
+    default_volume_mount_mode=args.default_volume_mount_mode,
     default_nfs_options=args.default_nfs_options,
     execute=parse,
     inject=inject,

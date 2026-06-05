@@ -129,7 +129,7 @@ def parse_volumes(
   service_name: str,
   service: Service,
   *,
-  default_nfs_mode: str = 'rw',
+  default_volume_mount_mode: str = 'rw',
   default_nfs_options: str = 'rw,hard,noatime,nodiratime',
   compose_volumes: dict,
   volumes: list[Volume],
@@ -144,7 +144,7 @@ def parse_volumes(
     for volume_entry in service_volumes_nfs:
       source, target, volume_mode, nfs_options = parse_nfs_volume_entry(
         volume_entry,
-        default_mode=default_nfs_mode,
+        default_mode=default_volume_mount_mode,
         default_options=default_nfs_options,
       )
       target_folder = target
@@ -190,7 +190,7 @@ def resolve_compose_file(
   driver: Driver,
   *,
   compose_data: dict,
-  default_nfs_mode: str = 'rw',
+  default_volume_mount_mode: str = 'rw',
   default_nfs_options: str = 'rw,hard,noatime,nodiratime',
   inject: bool = False,
   mode: list[ResolveMode] | None = None,
@@ -226,7 +226,7 @@ def resolve_compose_file(
       driver=driver,
       service_name=service_name,
       service=service,
-      default_nfs_mode=default_nfs_mode,
+      default_volume_mount_mode=default_volume_mount_mode,
       default_nfs_options=default_nfs_options,
       compose_volumes=compose_volumes,
       volumes=volumes,
@@ -356,7 +356,7 @@ def parse_services(
   driver: Driver,
   stack: str,
   *,
-  default_nfs_mode: str = 'rw',
+  default_volume_mount_mode: str = 'rw',
   default_nfs_options: str = 'rw,hard,noatime,nodiratime',
   execute: Callable[[dict, list], None] | None = None,
   mode: list[ResolveMode] | None = None,
@@ -387,7 +387,7 @@ def parse_services(
     resolved_compose_data, volumes = resolve_compose_file(
       driver=driver,
       compose_data=compose_data,
-      default_nfs_mode=default_nfs_mode,
+      default_volume_mount_mode=default_volume_mount_mode,
       default_nfs_options=default_nfs_options,
       inject=inject,
       mode=[x_mode],

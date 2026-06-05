@@ -224,8 +224,12 @@ def run() -> None:
     print(exception)
     sys.exit(40)
 
-  # Configure default NFS options from environment for volumes-nfs entries
-  setattr(args, 'default_nfs_mode', os.getenv('SETO_DEFAULT_NFS_MODE', 'rw'))
+  # Configure default volume mount values from environment for volumes-nfs entries
+  setattr(
+    args,
+    'default_volume_mount_mode',
+    os.getenv('SETO_DEFAULT_VOLUME_MOUNT_MODE', 'rw'),
+  )
   setattr(
     args,
     'default_nfs_options',

@@ -48,10 +48,10 @@ These options apply to all subcommands:
 
 ## Environment Variables
 
-| Variable                   | Description                                                                      | Default                       |
-|----------------------------|----------------------------------------------------------------------------------|-------------------------------|
-| `SETO_DEFAULT_NFS_MODE`    | Default `volumes-nfs` mount mode when mode is omitted in compose entries.        | `rw`                          |
-| `SETO_DEFAULT_NFS_OPTIONS` | Default `volumes-nfs` mount options when options are omitted in compose entries. | `rw,hard,noatime,nodiratime`  |
+| Variable                          | Description                                                                       | Default                       |
+|-----------------------------------|-----------------------------------------------------------------------------------|-------------------------------|
+| `SETO_DEFAULT_VOLUME_MOUNT_MODE`  | Default volume mount mode used when mode is omitted in `volumes-nfs` entries.     | `rw`                          |
+| `SETO_DEFAULT_NFS_OPTIONS`        | Default `volumes-nfs` mount options when options are omitted in compose entries.  | `rw,hard,noatime,nodiratime`  |
 
 
 ## Subcommands

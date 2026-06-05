@@ -1,4 +1,4 @@
-# Copyright 2024-2025 Sébastien Demanou. All Rights Reserved.
+# Copyright 2024-2026 Sébastien Demanou. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -77,6 +77,7 @@ def resolve(
     driver=driver,
     image_prefix=args.image_prefix,
     stack=args.stack or args.project,
+    default_nfs_options=args.default_nfs_options,
     execute=parse,
     inject=inject,
     mode=['compose'] if args.compose else ['swarm'],

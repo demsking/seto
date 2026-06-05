@@ -47,6 +47,13 @@ These options apply to all subcommands:
 | `--stack`    | Stack name for grouping resources.   | `--stack my-stack`                |
 | `--driver`   | Driver URI for shared storage.       | `--driver nfs://user:pass@host`   |
 
+## Environment Variables
+
+| Variable                   | Description                                                                      | Default   | Example                                 |
+|----------------------------|----------------------------------------------------------------------------------|-----------|-----------------------------------------|
+| `SETO_DEFAULT_NFS_OPTIONS` | Default `volumes-nfs` mount options when options are omitted in compose entries. | `soft,rw` | `SETO_DEFAULT_NFS_OPTIONS=hard,noatime` |
+
+
 ## Subcommands
 
 ### 1. Compose Command

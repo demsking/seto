@@ -1,4 +1,4 @@
-# Copyright 2024-2025 Sébastien Demanou. All Rights Reserved.
+# Copyright 2024-2026 Sébastien Demanou. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -97,10 +97,11 @@ def deploy_seto_stack(args, driver: Driver, replica: list[Setting]) -> None:
   }
 
   # Resolving compose local volumes
-  resolved_compose_data, volumes = resolve_compose_file(
+  resolved_compose_data, _ = resolve_compose_file(
     driver=driver,
     image_prefix=args.image_prefix,
     compose_data=internal_stack,
+    default_nfs_options=args.default_nfs_options,
     inject=True,
   )
 
@@ -150,6 +151,7 @@ def deploy_project_stack(args, driver: Driver, replica: list[Setting]) -> None:
     driver=driver,
     image_prefix=args.image_prefix,
     compose_data=internal_stack,
+    default_nfs_options=args.default_nfs_options,
     inject=True,
   )
 

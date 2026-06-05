@@ -1,4 +1,4 @@
-# Copyright 2024-2025 Sébastien Demanou. All Rights Reserved.
+# Copyright 2024-2026 Sébastien Demanou. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,8 +27,8 @@ from .commands.setup import execute_setup_command
 from .commands.setup import print_ssh_copy_id_commands
 from .commands.umount import execute_umount_volumes_command
 from .commands.volumes import execute_create_volumes_command
-from .core.package import APP_NAME
 from .core.package import APP_DESCRIPTION
+from .core.package import APP_NAME
 from .core.package import APP_VERSION
 from .core.shell import Setting
 from .drivers.nfs import NFSDriver
@@ -224,7 +224,10 @@ def run() -> None:
     print(exception)
     sys.exit(40)
 
-  driver_name, connection_string = args.manager
+  # Configure default NFS options from environment for volumes-nfs entries
+  setattr(args, 'default_nfs_options', os.getenv('SETO_DEFAULT_NFS_OPTIONS', 'soft,rw'))
+
+  _, connection_string = args.manager
   setting = Setting.from_connection_string(connection_string)
   create_shell = LocalShell if setting.local else RemoteShell
   create_driver = NFSDriver

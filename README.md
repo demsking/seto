@@ -51,6 +51,7 @@ These options apply to all subcommands:
 
 | Variable                   | Description                                                                      | Default   | Example                                 |
 |----------------------------|----------------------------------------------------------------------------------|-----------|-----------------------------------------|
+| `SETO_DEFAULT_NFS_MODE`    | Default `volumes-nfs` mount mode when mode is omitted in compose entries.        | `rw`      | `SETO_DEFAULT_NFS_MODE=ro`              |
 | `SETO_DEFAULT_NFS_OPTIONS` | Default `volumes-nfs` mount options when options are omitted in compose entries. | `soft,rw` | `SETO_DEFAULT_NFS_OPTIONS=hard,noatime` |
 
 

@@ -225,6 +225,7 @@ def run() -> None:
     sys.exit(40)
 
   # Configure default NFS options from environment for volumes-nfs entries
+  setattr(args, 'default_nfs_mode', os.getenv('SETO_DEFAULT_NFS_MODE', 'rw'))
   setattr(args, 'default_nfs_options', os.getenv('SETO_DEFAULT_NFS_OPTIONS', 'soft,rw'))
 
   _, connection_string = args.manager

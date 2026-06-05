@@ -101,6 +101,7 @@ def deploy_seto_stack(args, driver: Driver, replica: list[Setting]) -> None:
     driver=driver,
     image_prefix=args.image_prefix,
     compose_data=internal_stack,
+    default_nfs_mode=args.default_nfs_mode,
     default_nfs_options=args.default_nfs_options,
     inject=True,
   )
@@ -151,6 +152,7 @@ def deploy_project_stack(args, driver: Driver, replica: list[Setting]) -> None:
     driver=driver,
     image_prefix=args.image_prefix,
     compose_data=internal_stack,
+    default_nfs_mode=args.default_nfs_mode,
     default_nfs_options=args.default_nfs_options,
     inject=True,
   )

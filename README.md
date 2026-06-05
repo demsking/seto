@@ -21,10 +21,9 @@ custom orchestrations that depend on synchronized shared storage.
 
 Ṣeto has been **tested and validated** on the following Linux distributions:
 
-| Distribution | Versions Tested                | Package Manager | Status       |
-|--------------|--------------------------------|-----------------|--------------|
-| **Debian**   | 11 (Bullseye), 12 (Bookworm)   | `apt-get`       | ✅ Supported |
-| **Fedora**   | 39, 40                         | `dnf`           | ✅ Supported |
+| Distribution | Versions Tested  | Status       |
+|--------------|------------------|--------------|
+| **Fedora**   | 41, 42, 43, 44   |✅ Supported  |
 
 > **Note:** Other Linux distributions (RHEL, Ubuntu, AlmaLinux) may work but are
 > not officially tested. All remote nodes must have **SSH**, **Docker**, and
@@ -199,8 +198,7 @@ seto --stack my-stack --driver nfs://user:pass@host \
 * Example entries:
   `data:/var/lib/mysql`
   `data:/var/lib/mysql:ro`
-  `data:/var/lib/mysql:rw:hard,noatime`
-* Future versions will support **GlusterFS**, **CephFS**, and **CIFS**.
+  `data:/var/lib/mysql:rw:hard,noatime`.
 
 ## Environment Setup
 

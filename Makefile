@@ -31,7 +31,8 @@ watch:
 	nodemon -e py -w src/seto -V -x make package
 
 publish: package
-	git commit pyproject.toml -m "Release $(APP_VERSION)"
+	git add pyproject.toml uv.lock CHANGELOG.md
+	git commit -m "Release $(APP_VERSION)"
 	git tag v$(APP_VERSION)
 	twine upload --verbose dist/*
 	git push --tags origin main

@@ -57,7 +57,7 @@ def parse_volume_entry(entry: str, default_mode='rw') -> tuple[str, str, str]:
 
 
 def parse_nfs_volume_entry(
-  entry: str, default_mode='rw', default_options='soft,rw'
+  entry: str, default_mode='rw', default_options='rw,hard,noatime,nodiratime'
 ) -> tuple[str, str, str, str]:
   """Parse NFS volume entry with format: source:target[:mode[:options]]."""
   parts = entry.split(':', 3)
@@ -130,7 +130,7 @@ def parse_volumes(
   service: Service,
   *,
   default_nfs_mode: str = 'rw',
-  default_nfs_options: str = 'soft,rw',
+  default_nfs_options: str = 'rw,hard,noatime,nodiratime',
   compose_volumes: dict,
   volumes: list[Volume],
 ) -> None:
@@ -191,7 +191,7 @@ def resolve_compose_file(
   *,
   compose_data: dict,
   default_nfs_mode: str = 'rw',
-  default_nfs_options: str = 'soft,rw',
+  default_nfs_options: str = 'rw,hard,noatime,nodiratime',
   inject: bool = False,
   mode: list[ResolveMode] | None = None,
   image_prefix: str,
@@ -357,7 +357,7 @@ def parse_services(
   stack: str,
   *,
   default_nfs_mode: str = 'rw',
-  default_nfs_options: str = 'soft,rw',
+  default_nfs_options: str = 'rw,hard,noatime,nodiratime',
   execute: Callable[[dict, list], None] | None = None,
   mode: list[ResolveMode] | None = None,
   inject: bool = False,

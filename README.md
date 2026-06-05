@@ -48,10 +48,10 @@ These options apply to all subcommands:
 
 ## Environment Variables
 
-| Variable                   | Description                                                                      | Default   | Example                                 |
-|----------------------------|----------------------------------------------------------------------------------|-----------|-----------------------------------------|
-| `SETO_DEFAULT_NFS_MODE`    | Default `volumes-nfs` mount mode when mode is omitted in compose entries.        | `rw`      | `SETO_DEFAULT_NFS_MODE=ro`              |
-| `SETO_DEFAULT_NFS_OPTIONS` | Default `volumes-nfs` mount options when options are omitted in compose entries. | `soft,rw` | `SETO_DEFAULT_NFS_OPTIONS=hard,noatime` |
+| Variable                   | Description                                                                      | Default                       |
+|----------------------------|----------------------------------------------------------------------------------|-------------------------------|
+| `SETO_DEFAULT_NFS_MODE`    | Default `volumes-nfs` mount mode when mode is omitted in compose entries.        | `rw`                          |
+| `SETO_DEFAULT_NFS_OPTIONS` | Default `volumes-nfs` mount options when options are omitted in compose entries. | `rw,hard,noatime,nodiratime`  |
 
 
 ## Subcommands
@@ -194,7 +194,7 @@ seto --stack my-stack --driver nfs://user:pass@host \
 * `volumes-nfs` entry format is:
   `source:target[:mode[:nfs-options]]`
 * `mode` is optional and defaults to `rw`.
-* `nfs-options` is optional and defaults to `soft,rw`.
+* `nfs-options` is optional and defaults to `rw,hard,noatime,nodiratime`.
 * Example entries:
   `data:/var/lib/mysql`
   `data:/var/lib/mysql:ro`

@@ -1,4 +1,4 @@
-# Copyright 2024-2025 Sébastien Demanou. All Rights Reserved.
+# Copyright 2024-2026 Sébastien Demanou. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -115,7 +115,7 @@ class NFSDriver(Driver):
     self.umount(node, device)
 
   def resolve_compose_volume(self, volume: Volume) -> dict:
-    nfs_options = volume.nfs_options or 'soft,rw'
+    nfs_options = volume.nfs_options or 'rw,hard,noatime,nodiratime'
     return {
       'driver': 'local',
       'driver_opts': {

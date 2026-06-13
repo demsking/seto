@@ -1,4 +1,4 @@
-# Copyright 2024-2025 Sébastien Demanou. All Rights Reserved.
+# Copyright 2024-2026 Sébastien Demanou. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,12 +28,14 @@ class Driver:
     stack: str,
     *,
     project: str,
-    shell: Shell,
+    host: Shell,
+    manager: Shell,
     debug: bool = False,
   ) -> None:
     self.stack: str | None = stack
     self.project = project
-    self.shell = shell
+    self.host = host
+    self.manager = manager
     self.debug = debug
 
   @property
@@ -74,7 +76,7 @@ class Driver:
     return f'{self.brick}/{volume.mount_folder}'
 
   def connect(self) -> None:
-    self.shell.connect()
+    self.manager.connect()
 
   def create_seto_user(self, node: Shell) -> None:
     # if node.check_user_exists(self.setouser):
@@ -102,7 +104,7 @@ class Driver:
       authorized_keys.chmod('600')
 
   def setup_manager(self, replica: list[Setting], force: bool = False) -> None:
-    self.create_seto_user(self.shell)
+    self.create_seto_user(self.manager)
 
   def apply_manager_changes(self) -> None:
     raise NotImplementedError()
@@ -118,7 +120,7 @@ class Driver:
     for node_setting in clients:
       print(f'\nConnecting to {self.driver_name} node {node_setting.hostname}...')
 
-      shell = Driver.get_shell(node_setting, self.shell.key_file_path)
+      shell = Driver.get_shell(node_setting, self.manager.key_file_path)
       shell.connect()
 
       print(f'\nSetting {self.driver_name} client {node_setting.hostname}...')
@@ -140,7 +142,7 @@ class Driver:
   def mount_volumes(self, *, clients: list[Setting], volumes: list[Volume]) -> None:
     if len(volumes) > 0:
       for node_setting in clients:
-        node = Driver.get_shell(node_setting, self.shell.key_file_path)
+        node = Driver.get_shell(node_setting, self.manager.key_file_path)
         node.connect()
         fstab = node.file('/etc/fstab')
         self.mount_node_volumes(node, volumes, fstab)
@@ -170,7 +172,7 @@ class Driver:
   def umount_volumes(self, *, clients: list[Setting], volumes: list[Volume]) -> None:
     if len(volumes) > 0:
       for node_setting in clients:
-        node = Driver.get_shell(node_setting, self.shell.key_file_path)
+        node = Driver.get_shell(node_setting, self.manager.key_file_path)
         node.connect()
         self.umount_node_volumes(node, volumes)
         node.close()
@@ -188,4 +190,4 @@ class Driver:
 
   def terminate(self) -> None:
     # Close the SSH connection
-    self.shell.close()
+    self.manager.close()

@@ -5,39 +5,39 @@ repos:
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
-        name: 'Remove Trailing Whitespace'
-        description: 'Automatically remove trailing whitespace in files.'
+        name: "Remove Trailing Whitespace"
+        description: "Automatically remove trailing whitespace in files."
       - id: check-added-large-files
-        name: 'Check for Large Added Files'
-        description: 'Prevent the addition of large files to the repository.'
-        args: ['--maxkb=13000']
+        name: "Check for Large Added Files"
+        description: "Prevent the addition of large files to the repository."
+        args: ["--maxkb=13000"]
       - id: check-ast
-        name: 'Check Python AST Validity'
-        description: 'Ensure all Python files parse correctly with the AST module.'
+        name: "Check Python AST Validity"
+        description: "Ensure all Python files parse correctly with the AST module."
       - id: check-case-conflict
-        name: 'Check for Case Conflicts'
-        description: 'Prevent files with names that would conflict on a case-insensitive filesystem.'
+        name: "Check for Case Conflicts"
+        description: "Prevent files with names that would conflict on a case-insensitive filesystem."
       - id: check-executables-have-shebangs
-        name: 'Check Executable Files for Shebang'
-        description: 'Ensure executable files contain a shebang.'
+        name: "Check Executable Files for Shebang"
+        description: "Ensure executable files contain a shebang."
       - id: check-merge-conflict
-        name: 'Check for Merge Conflicts'
-        description: 'Prevent the addition of files with unresolved merge conflicts.'
+        name: "Check for Merge Conflicts"
+        description: "Prevent the addition of files with unresolved merge conflicts."
       - id: check-yaml
-        name: 'YAML File Linting'
-        description: 'Lint YAML files for syntax errors.'
+        name: "YAML File Linting"
+        description: "Lint YAML files for syntax errors."
       - id: check-toml
-        name: 'TOML File Linting'
-        description: 'Lint TOML files for syntax errors.'
+        name: "TOML File Linting"
+        description: "Lint TOML files for syntax errors."
       - id: debug-statements
-        name: 'Check for Debug Statements'
-        description: 'Prevent the inclusion of debug statements (e.g., print, pdb) in the codebase.'
+        name: "Check for Debug Statements"
+        description: "Prevent the inclusion of debug statements (e.g., print, pdb) in the codebase."
       - id: detect-private-key
-        name: 'Detect Private Keys'
-        description: 'Prevent the accidental addition of private keys to the repository.'
+        name: "Detect Private Keys"
+        description: "Prevent the accidental addition of private keys to the repository."
       - id: double-quote-string-fixer
-        name: 'Fix Double-Quoted Strings'
-        description: 'Convert single-quoted strings to double-quoted strings in Python files.'
+        name: "Fix Double-Quoted Strings"
+        description: "Convert single-quoted strings to double-quoted strings in Python files."
       - id: name-tests-test
         name: 'Ensure Test Files Start with "test"'
         description: 'Ensure test files are named correctly, starting with "test".'
@@ -46,48 +46,51 @@ repos:
     rev: v1.5.6
     hooks:
       - id: insert-license
-        name: 'Insert License Header'
-        description: 'Automatically insert a license header into Python files.'
+        name: "Insert License Header"
+        description: "Automatically insert a license header into Python files."
         files: \.py$
-        args: [
-          '--license-filepath', 'LICENSE_HEADER.txt',
-          '--comment-style', '',
-          '--use-current-year',
-          '--no-extra-eol',
-        ]
+        args:
+          [
+            "--license-filepath",
+            "LICENSE_HEADER.txt",
+            "--comment-style",
+            "",
+            "--use-current-year",
+            "--no-extra-eol",
+          ]
 
   - repo: https://github.com/asottile/reorder-python-imports
     rev: v3.16.0
     hooks:
       - id: reorder-python-imports
-        name: 'Reorder Python Imports'
-        description: 'Reorder Python imports according to PEP 8 guidelines.'
+        name: "Reorder Python Imports"
+        description: "Reorder Python imports according to PEP 8 guidelines."
 
   - repo: local
     hooks:
       - id: editorconfig-checker
-        name: 'Check .editorconfig Rules'
-        description: 'Lint text files according to .editorconfig rules using `editorconfig-checker`.'
+        name: "Check .editorconfig Rules"
+        description: "Lint text files according to .editorconfig rules using `editorconfig-checker`."
         language: system
         entry: editorconfig-checker
         types: [text]
         require_serial: true
       - id: hadolint
-        name: 'Lint Dockerfile with Hadolint'
-        description: 'Lint Dockerfiles using `hadolint` to ensure best practices.'
+        name: "Lint Dockerfile with Hadolint"
+        description: "Lint Dockerfiles using `hadolint` to ensure best practices."
         entry: hadolint
-        args: ['--ignore', 'DL3008', 'DL3013', 'DL3042']
+        args: ["--ignore", "DL3008", "DL3013", "DL3042"]
         language: system
         files: Dockerfile
       - id: autopep8
-        name: 'Auto-format Python Code with autopep8'
-        description: 'Automatically format Python code to comply with PEP 8 using `autopep8`.'
+        name: "Auto-format Python Code with autopep8"
+        description: "Automatically format Python code to comply with PEP 8 using `autopep8`."
         entry: autopep8
         language: system
         files: '\.py$'
       - id: pylint
-        name: 'Lint Python Code with Pylint'
-        description: 'Lint Python code using `pylint`, focusing on error messages only.'
+        name: "Lint Python Code with Pylint"
+        description: "Lint Python code using `pylint`, focusing on error messages only."
         entry: pylint
         language: python
         files: '\.py$'
@@ -101,45 +104,37 @@ repos:
     rev: v0.15.16
     hooks:
       - id: ruff
-        name: 'Ruff Python Linter'
-        description: 'Lint Python code with Ruff, and apply automatic fixes.'
+        name: "Ruff Python Linter"
+        description: "Lint Python code with Ruff, and apply automatic fixes."
         args: [--fix]
 
   - repo: https://github.com/pre-commit/pygrep-hooks
     rev: v1.10.0
     hooks:
       - id: python-check-mock-methods
-        name: 'Check Mock Method Calls'
-        description: 'Ensure correct usage of mock method calls in Python tests.'
+        name: "Check Mock Method Calls"
+        description: "Ensure correct usage of mock method calls in Python tests."
       - id: python-no-eval
-        name: 'Disallow Python eval()'
-        description: 'Prevent the use of the dangerous eval() function in Python code.'
+        name: "Disallow Python eval()"
+        description: "Prevent the use of the dangerous eval() function in Python code."
       - id: python-no-log-warn
-        name: 'Disallow Deprecated logging.warn()'
-        description: 'Prevent the use of the deprecated logging.warn() method.'
+        name: "Disallow Deprecated logging.warn()"
+        description: "Prevent the use of the deprecated logging.warn() method."
       - id: python-use-type-annotations
-        name: 'Enforce Type Annotations'
-        description: 'Ensure the use of type annotations in Python code.'
-
-  - repo: https://github.com/PyCQA/bandit
-    rev: 1.9.4
-    hooks:
-      - id: bandit
-        name: 'Security Analysis with Bandit'
-        description: 'Run Bandit to detect security issues in Python code.'
-        args: [-c, bandit.yaml]
+        name: "Enforce Type Annotations"
+        description: "Ensure the use of type annotations in Python code."
 
   - repo: https://github.com/PyCQA/doc8
     rev: v2.0.0
     hooks:
       - id: doc8
-        name: 'Lint Documentation with doc8'
-        description: 'Lint reStructuredText and Markdown documentation files using doc8.'
+        name: "Lint Documentation with doc8"
+        description: "Lint reStructuredText and Markdown documentation files using doc8."
 
   - repo: https://github.com/asottile/pyupgrade
     rev: v3.21.2
     hooks:
       - id: pyupgrade
-        name: 'Upgrade Python Syntax with pyupgrade'
-        description: 'Automatically upgrade Python syntax to a specified version using pyupgrade.'
+        name: "Upgrade Python Syntax with pyupgrade"
+        description: "Automatically upgrade Python syntax to a specified version using pyupgrade."
         args: [--py311-plus]

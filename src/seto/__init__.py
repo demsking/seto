@@ -90,7 +90,8 @@ def run() -> None:
 
   # add version argument
   parser.add_argument(
-    '-v', '--version',
+    '-v',
+    '--version',
     action='version',
     version=f'{APP_NAME} {APP_VERSION}',
     help='Show the version number and exit',
@@ -238,12 +239,22 @@ def run() -> None:
 
   _, connection_string = args.manager
   setting = Setting.from_connection_string(connection_string)
-  create_shell = LocalShell if setting.local else RemoteShell
-  create_driver = NFSDriver
-  shell = create_shell(setting, args.key)
-  driver = create_driver(args.stack, project=args.project, shell=shell, debug=args.debug)
+  locale_setting = (
+    setting
+    if setting.local
+    else Setting(hostname='localhost', local=True, ip='127.0.0.1', username=None, password=None)
+  )
 
-  shell.connect()
+  manager_shell = LocalShell(setting, args.key) if setting.local else RemoteShell(setting, args.key)
+  local_shell = LocalShell(locale_setting, args.key)
+
+  driver = NFSDriver(
+    stack=args.stack,
+    project=args.project,
+    host=local_shell,
+    manager=manager_shell,
+    debug=args.debug,
+  )
 
   # Call the function associated with the selected subcommand
   if hasattr(args, 'func'):

@@ -37,14 +37,14 @@ class NFSDriver(Driver):
   def setup_manager(self, replica: list[Setting], force: bool = False) -> None:
     super().setup_manager(replica, force)
 
-    fresh_installed = self.shell.install('nfs-kernel-server')
+    fresh_installed = self.manager.install('nfs-kernel-server')
 
     if fresh_installed:
-      self.shell.run('systemctl start nfs-server', sudo=True)
-      self.shell.run('systemctl enable nfs-kernel-server', sudo=True)
+      self.manager.run('systemctl start nfs-server', sudo=True)
+      self.manager.run('systemctl enable nfs-kernel-server', sudo=True)
 
   def apply_manager_changes(self) -> None:
-    self.shell.run('exportfs -rav', sudo=True)
+    self.manager.run('exportfs -rav', sudo=True)
 
   def setup_node(self, shell: Shell, force: bool = False) -> None:
     shell.install('nfs-common')
@@ -57,7 +57,7 @@ class NFSDriver(Driver):
     force: bool = False,
   ) -> None:
     # Read existing export paths from /etc/exports on the remote server
-    exports = self.shell.file('/etc/exports')
+    exports = self.manager.file('/etc/exports')
 
     self.add_exports_entry(
       f'/{self.project}',
@@ -71,8 +71,10 @@ class NFSDriver(Driver):
 
       if force or is_new_entry:
         print(f'Initializing volume {volume.name}...')
-        self.shell.copy_volume(volume, self.brick)
-        self.shell.run(f'chown -R nobody:nogroup {self.brick}', sudo=True, stdout=False, quiet=True)
+        self.manager.copy_volume(volume, self.brick)
+        self.manager.run(
+          f'chown -R nobody:nogroup {self.brick}', sudo=True, stdout=False, quiet=True
+        )
 
   def add_exports_entry(
     self,
@@ -84,10 +86,15 @@ class NFSDriver(Driver):
     print(f'\nSetting NFS volume {volume_storage}{options}')
     options_str = ','.join(options)
 
-    self.shell.mkdir(volume_storage)
+    self.manager.mkdir(volume_storage)
 
     if 'letsencrypt' in volume_storage:
-      self.shell.run(f'[ -n "$(ls -A x 2>/dev/null)" ] && chmod 600 {volume_storage}/*', sudo=True, stdout=False, quiet=True)
+      self.manager.run(
+        f'[ -n "$(ls -A x 2>/dev/null)" ] && chmod 600 {volume_storage}/*',
+        sudo=True,
+        stdout=False,
+        quiet=True,
+      )
 
     return exports.append(f'{volume_storage}\t*({options_str})', key=f'{volume_storage}\t')
 
@@ -104,7 +111,7 @@ class NFSDriver(Driver):
     self.mount(node, self.brick, device=device, fstab=fstab)
 
   def mount(self, node: Shell, storage: str, *, device: str, fstab: File) -> None:
-    host_storage = f'{self.shell.setting.ip}:{storage}'
+    host_storage = f'{self.manager.setting.ip}:{storage}'
     node.run(f'mount -t nfs {host_storage} {device}')
     fstab.append(f'{host_storage}\t{device}\tnfs\tauto,nofail,noatime,intr,tcp,actimeo=1800 0 0')
 
@@ -120,7 +127,7 @@ class NFSDriver(Driver):
       'driver': 'local',
       'driver_opts': {
         'type': 'nfs',
-        'o': f'addr={self.shell.setting.ip},{nfs_options}',
+        'o': f'addr={self.manager.setting.ip},{nfs_options}',
         'device': f':{self.storage(volume)}',
       },
     }

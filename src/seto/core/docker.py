@@ -1,4 +1,4 @@
-# Copyright 2024-2025 Sébastien Demanou. All Rights Reserved.
+# Copyright 2024-2026 Sébastien Demanou. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ class Docker:
 
   @property
   def shell(self) -> Shell:
-    return self.driver.shell
+    return self.driver.host
 
   @property
   def resolved_config(self) -> str:
@@ -138,7 +138,7 @@ class DockerCompose(Docker):
       )
 
   def info(self) -> None:
-    if self.driver.debug:
+    if self.driver.manager:
       command = f'docker compose -p {self.driver.stack_id} -f - config'
     else:
       command = f'docker compose -p {self.driver.stack_id} -f - config --no-env-resolution --skip-interpolation'
@@ -167,7 +167,7 @@ class DockerSwarm(Docker):
     )
 
   def info(self) -> None:
-    if self.driver.debug:
+    if self.driver.manager:
       command = 'docker stack config -c -'
     else:
       command = 'docker stack config -c - --skip-interpolation'

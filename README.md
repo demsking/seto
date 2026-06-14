@@ -21,9 +21,9 @@ custom orchestrations that depend on synchronized shared storage.
 
 Ṣeto has been **tested and validated** on the following Linux distributions:
 
-| Distribution | Versions Tested  | Status       |
-|--------------|------------------|--------------|
-| **Fedora**   | 41, 42, 43, 44   |✅ Supported  |
+| Distribution | Versions Tested | Status       |
+| ------------ | --------------- | ------------ |
+| **Fedora**   | 41, 42, 43, 44  | ✅ Supported |
 
 > **Note:** Other Linux distributions (RHEL, Ubuntu, AlmaLinux) may work but are
 > not officially tested. All remote nodes must have **SSH**, **Docker**, and
@@ -41,18 +41,17 @@ custom orchestrations that depend on synchronized shared storage.
 
 These options apply to all subcommands:
 
-| Option       | Description                          | Example                           |
-|--------------|--------------------------------------|-----------------------------------|
-| `--stack`    | Stack name for grouping resources.   | `--stack my-stack`                |
-| `--driver`   | Driver URI for shared storage.       | `--driver nfs://user:pass@host`   |
+| Option     | Description                        | Example                         |
+| ---------- | ---------------------------------- | ------------------------------- |
+| `--stack`  | Stack name for grouping resources. | `--stack my-stack`              |
+| `--driver` | Driver URI for shared storage.     | `--driver nfs://user:pass@host` |
 
 ## Environment Variables
 
-| Variable                          | Description                                                                       | Default                       |
-|-----------------------------------|-----------------------------------------------------------------------------------|-------------------------------|
-| `SETO_DEFAULT_VOLUME_MOUNT_MODE`  | Default volume mount mode used when mode is omitted in `volumes-nfs` entries.     | `rw`                          |
-| `SETO_DEFAULT_NFS_OPTIONS`        | Default `volumes-nfs` mount options when options are omitted in compose entries.  | `rw,hard,noatime,nodiratime`  |
-
+| Variable                         | Description                                                                      | Default                      |
+| -------------------------------- | -------------------------------------------------------------------------------- | ---------------------------- |
+| `SETO_DEFAULT_VOLUME_MOUNT_MODE` | Default volume mount mode used when mode is omitted in `volumes-nfs` entries.    | `rw`                         |
+| `SETO_DEFAULT_NFS_OPTIONS`       | Default `volumes-nfs` mount options when options are omitted in compose entries. | `rw,hard,noatime,nodiratime` |
 
 ## Subcommands
 
@@ -62,7 +61,7 @@ Resolves Docker Compose files before deployment.
 
 ```bash
 seto --stack <stack-name> --driver <driver-uri> compose
-````
+```
 
 **Example**
 
@@ -80,7 +79,7 @@ seto --stack <stack-name> --driver <driver-uri> \
 ```
 
 | Option      | Description                                          |
-|-------------|------------------------------------------------------|
+| ----------- | ---------------------------------------------------- |
 | `--replica` | Required. Replica connections: `user:pass@hostname`. |
 
 **Example**
@@ -100,7 +99,7 @@ seto --stack <stack-name> --driver <driver-uri> \
 ```
 
 | Option      | Description                          |
-|-------------|--------------------------------------|
+| ----------- | ------------------------------------ |
 | `--replica` | Required. Nodes for volume creation. |
 | `--force`   | Optional. Forces re-synchronization. |
 
@@ -180,25 +179,43 @@ seto --stack my-stack --driver nfs://user:pass@host \
 
 Ṣeto provides reliable error handling:
 
-* Missing or invalid arguments exit with a **non-zero status**.
-* Remote errors are captured and clearly reported.
-* Commands are **idempotent** — safe to re-run if interrupted.
-* Execution stops immediately on critical errors.
+- Missing or invalid arguments exit with a **non-zero status**.
+- Remote errors are captured and clearly reported.
+- Commands are **idempotent** — safe to re-run if interrupted.
+- Execution stops immediately on critical errors.
 
 ## Notes
 
-* NFS authentication uses the URI:
+- NFS authentication uses the URI:
   `nfs://username:password@hostname`
-* Replica connections follow:
+- Replica connections follow:
   `username:password@hostname`
-* `volumes-nfs` entry format is:
+- `volumes-nfs` entry format is:
   `source:target[:mode[:nfs-options]]`
-* `mode` is optional and defaults to `rw`.
-* `nfs-options` is optional and defaults to `rw,hard,noatime,nodiratime`.
-* Example entries:
+- `mode` is optional and defaults to `rw`.
+- `nfs-options` is optional and defaults to `rw,hard,noatime,nodiratime`.
+- Example entries:
   `data:/var/lib/mysql`
   `data:/var/lib/mysql:ro`
   `data:/var/lib/mysql:rw:hard,noatime`.
+
+## Custom Compose Extensions (x-\*)
+
+Ṣeto supports custom top-level extension fields in compose files to control the deployment mode and target host placements:
+
+- **`x-mode`** (`string`): Deployment orchestration mode. Must be either `swarm` (default) or `compose`. `compose` mode runs deployments using `docker compose` directly on target nodes, which is useful as a workaround for hardware/device mapping support on swarm.
+- **`x-placement-hostnames`** (`list`): Target hostnames to deploy compose stacks on. Must be a YAML list of strings. Exclusive with `x-placement-hostname` and `x-placement`.
+- **`x-placement-hostname`** (`string`): Target hostname to deploy compose stacks on. Must be a single hostname string. Exclusive with `x-placement-hostnames` and `x-placement`.
+- **`x-placement`** (`string` or `list`): Placement label selector query (e.g. `node.labels.device == gpu`). Hostnames of all Swarm nodes matching the query will be targeted. Exclusive with `x-placement-hostnames` and `x-placement-hostname`.
+
+### Targeting Multiple Hosts
+
+When using `x-mode: compose`, Ṣeto allows targeting **more than one host** for compose deployments:
+
+- **Multiple Hostnames**: Define multiple hostnames using YAML list formatting in `x-placement-hostnames`. Alternatively, a single target hostname string can be defined in `x-placement-hostname`.
+- **Placement Queries**: Supply a label selector in `x-placement` that matches multiple Swarm nodes. Ṣeto dynamically retrieves hostnames for all matching nodes and deploys to all of them.
+
+During deployment, lifecycle, status, logging, or removal commands, Ṣeto loops over each target host to perform the action.
 
 ## Environment Setup
 

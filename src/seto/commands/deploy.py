@@ -60,7 +60,7 @@ def parse_compose_config(
   swarm_config: dict,
   *,
   compose_config: dict,
-  placement: str,
+  placement: str | list[str],
   composes: list[DockerCompose],
 ) -> None:
   if compose_config['services']:

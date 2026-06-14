@@ -15,6 +15,7 @@
 import functools
 import json
 import socket
+from typing import Any
 
 from docker import DockerClient
 
@@ -94,30 +95,109 @@ class Docker:
 
 class DockerCompose(Docker):
   @property
+  def placement_hostnames(self) -> list[str] | None:
+    return self.config.get('x-placement-hostnames', None)
+
+  @property
   def placement_hostname(self) -> str | None:
     return self.config.get('x-placement-hostname', None)
 
   @property
-  def placement(self) -> str:
+  def placement(self) -> str | list[str]:
     return self.config.get('x-placement', '')
 
   @property
   @functools.lru_cache(maxsize=128)
-  def nodename(self) -> str:
+  def nodenames(self) -> list[str]:
+    specified = []
+    if self.placement_hostnames is not None:
+      specified.append('x-placement-hostnames')
     if self.placement_hostname:
-      return self.placement_hostname
+      specified.append('x-placement-hostname')
+    if self.placement:
+      specified.append('x-placement')
+
+    if len(specified) > 1:
+      raise ValueError(
+        f"Only one of 'x-placement-hostnames', 'x-placement-hostname', or 'x-placement' can be specified. Got: {', '.join(specified)}"
+      )
+
+    # 1. Parse x-placement-hostnames / x-placement-hostname
+    hosts = []
+    if self.placement_hostnames is not None:
+      if not isinstance(self.placement_hostnames, list):
+        raise ValueError('x-placement-hostnames must be a list of strings')
+      for h in self.placement_hostnames:
+        if not isinstance(h, str):
+          raise ValueError('x-placement-hostnames must be a list of strings')
+        hosts.append(h.strip())
+    elif self.placement_hostname:
+      host = str(self.placement_hostname).strip()
+      if host:
+        hosts.append(host)
+
+    if hosts:
+      return list(dict.fromkeys(hosts))
+
+    # 2. Parse x-placement
+    placements = []
+    if self.placement:
+      if isinstance(self.placement, list):
+        for p in self.placement:
+          if p:
+            placements.append(p)
+      else:
+        placements.extend(self._parse_placement_string(self.placement))
+
+    if not placements:
+      raise ValueError('Missing required x-placement or x-placement-hostname field')
 
     nodes = self.client.nodes.list()
+    matched_nodes = []
 
-    label_key, label_value = self.placement.split('==')
-    label_key = f'{label_key}'.strip()
-    value = f'{label_value}'.strip()
+    for placement in placements:
+      if not placement or '==' not in placement:
+        continue
+      label_key, label_value = placement.split('==', 1)
+      label_key = label_key.strip()
+      value = label_value.strip()
 
-    for node in nodes:
-      if node.attrs and node.attrs['Spec']['Labels'].get(label_key) == value:
-        return node.attrs['Description']['Hostname']
+      for node in nodes:
+        if node.attrs and node.attrs['Spec']['Labels'].get(label_key) == value:
+          hostname = node.attrs['Description']['Hostname']
+          if hostname not in matched_nodes:
+            matched_nodes.append(hostname)
 
-    raise ValueError(f'Unable to found node for placement "{self.placement}"')
+    if not matched_nodes:
+      raise ValueError(f'Unable to found node for placement "{self.placement}"')
+
+    return matched_nodes
+
+  @property
+  def nodename(self) -> str:
+    names = self.nodenames
+    if not names:
+      raise ValueError('No target nodes found')
+    return names[0]
+
+  def _parse_hostname_string(self, value: Any) -> list[str]:
+    if not value:
+      return []
+    raw = str(value).strip()
+    if ',' in raw:
+      return [h.strip() for h in raw.split(',') if h.strip()]
+    elif ' ' in raw:
+      return [h.strip() for h in raw.split() if h.strip()]
+    else:
+      return [raw]
+
+  def _parse_placement_string(self, value: Any) -> list[str]:
+    if not value:
+      return []
+    raw = str(value).strip()
+    if ',' in raw:
+      return [p.strip() for p in raw.split(',') if p.strip()]
+    return [raw]
 
   def _remote_node_run(self, command: str, *, hostname: str, input: str) -> None:
     setting = Setting.from_connection_string(f'{Driver.setouser}@{hostname}')
@@ -127,13 +207,13 @@ class DockerCompose(Docker):
     node.run(command, input=input)
     node.close()
 
-  def _exec(self, command: str) -> None:
-    if self.hostname == self.nodename:
+  def _exec(self, command: str, nodename: str) -> None:
+    if self.hostname == nodename:
       self.shell.run(command=command, input=self.resolved_config)
     else:
       self._remote_node_run(
         command,
-        hostname=self.nodename,
+        hostname=nodename,
         input=self.resolved_config,
       )
 
@@ -143,20 +223,31 @@ class DockerCompose(Docker):
     else:
       command = f'docker compose -p {self.driver.stack_id} -f - config --no-env-resolution --skip-interpolation'
 
-    self._exec(command)
+    for nodename in self.nodenames:
+      self._exec(command, nodename)
 
   def deploy(self) -> None:
-    print(f'Deploying on {self.nodename}...')
-    self._exec(f'docker compose -p {self.driver.stack_id} -f - up -d --remove-orphans')
+    for nodename in self.nodenames:
+      print(f'Deploying on {nodename}...')
+      self._exec(
+        f'docker compose -p {self.driver.stack_id} -f - up -d --remove-orphans',
+        nodename,
+      )
 
   def ps(self) -> None:
-    self._exec(f'docker compose -p {self.driver.stack_id} -f - ps')
+    for nodename in self.nodenames:
+      print(f'--- Services on {nodename} ---')
+      self._exec(f'docker compose -p {self.driver.stack_id} -f - ps', nodename)
 
   def logs(self) -> None:
-    self._exec(f'docker compose -p {self.driver.stack_id} -f - logs -n 10')
+    for nodename in self.nodenames:
+      print(f'--- Logs on {nodename} ---')
+      self._exec(f'docker compose -p {self.driver.stack_id} -f - logs -n 10', nodename)
 
   def down(self) -> None:
-    self._exec(f'docker compose -p {self.driver.stack_id} -f - down')
+    for nodename in self.nodenames:
+      print(f'Removing stack from {nodename}...')
+      self._exec(f'docker compose -p {self.driver.stack_id} -f - down', nodename)
 
 
 class DockerSwarm(Docker):

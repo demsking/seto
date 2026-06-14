@@ -22,30 +22,37 @@ Deploying containerized applications across multiple servers (using Docker Swarm
 
 ```mermaid
 flowchart TD
-    subgraph Local Environment
+    subgraph Swarm Manager / Deploy Host
         CLI[Seto CLI]
+        Orchestrator["Swarm Manager (Orchestrator)"]
     end
     subgraph Storage Infrastructure
         SN["Storage Node (NFS Server / Source of Truth)"]
         SR["Storage Replicas (Redundant Sync Targets)"]
     end
     subgraph Application Cluster
-        C1[Client Node 1]
-        C2[Client Node 2]
+        C1["Client Node 1 (Swarm Managed Node)"]
+        C2["Client Node 2 (Specific Compose Node)"]
     end
 
     CLI -- "1. Setup & Provision" --> SN
     CLI -- "2. Sync Volumes" --> SR
-    CLI -- "3. Mount Volumes" --> C1
-    CLI -- "3. Mount Volumes" --> C2
-    C1 -- "NFS Mount" --> SN
-    C2 -- "NFS Mount" --> SN
+
+    C1 -- "Auto NFS Mount (via Docker)" --> SN
+    C2 -- "Auto NFS Mount (via Docker)" --> SN
     SR -- "SSH Sync" --> SN
+
+    CLI -. "mount-volumes (CLI helper)" .-> C1
+    CLI -. "mount-volumes (CLI helper)" .-> C2
+
+    CLI -- "deploy (x-mode: swarm)" --> Orchestrator
+    Orchestrator -- "Schedules Containers" --> C1
+    CLI -- "deploy (x-mode: compose)" --> C2
 ```
 
 - **Storage Node**: The single source of truth acting as the central NFS Server. It hosts the root folders for all shared volumes.
 - **Storage Replicas**: Secondary storage targets configured to sync/replicate volume directories to maintain data availability and redundancy.
-- **Client Nodes**: The execution/worker hosts running your application containers. They mount NFS exports from the Storage Node dynamically at runtime.
+- **Client Nodes**: The execution/worker hosts running your application containers. While Docker automatically mounts the NFS volumes inside containers at startup, the CLI mount/unmount commands act as helpers to mount the volume root directly on the client host's filesystem (e.g. for manual inspection or file management).
 
 ### Key Capabilities
 
@@ -178,16 +185,19 @@ seto --project my-project --stack my-stack \
 
 ### 4. Mount Volumes Command
 
-Mounts shared NFS volumes on client nodes.
+A helper command that manually mounts the root shared NFS volume directory onto the client hosts' local filesystems (at `/mnt/{brickname}`).
+
+> [!NOTE]
+> This command is not required for application containers. Docker automatically mounts the NFS volumes inside the containers when the stack is deployed. This command is a helper for host-level management and manual file access.
 
 ```bash
 seto --project <project-name> --stack <stack-name> \
   mount-volumes --clients <client-strings>
 ```
 
-| Option      | Description                                               |
-| :---------- | :-------------------------------------------------------- |
-| `--clients` | Required. Client nodes where the volumes will be mounted. |
+| Option      | Description                                                       |
+| :---------- | :---------------------------------------------------------------- |
+| `--clients` | Required. Client hosts where the NFS volume root will be mounted. |
 
 **Example:**
 
@@ -200,16 +210,16 @@ seto --project my-project --stack my-stack \
 
 ### 5. Unmount Volumes Command
 
-Unmounts shared NFS volumes from client nodes.
+A helper command that manually unmounts the root shared NFS volume directory from the client hosts' filesystems.
 
 ```bash
 seto --project <project-name> --stack <stack-name> \
   unmount-volumes --clients <client-strings>
 ```
 
-| Option      | Description                                                 |
-| :---------- | :---------------------------------------------------------- |
-| `--clients` | Required. Client nodes where the volumes will be unmounted. |
+| Option      | Description                                                         |
+| :---------- | :------------------------------------------------------------------ |
+| `--clients` | Required. Client hosts where the NFS volume root will be unmounted. |
 
 **Example:**
 
@@ -223,6 +233,9 @@ seto --project my-project --stack my-stack \
 ### 6. Deploy Command
 
 Deploys a stack to the Swarm cluster or to multiple nodes via Compose (if `x-mode: compose` is set).
+
+> [!IMPORTANT]
+> The `deploy` command must be run on the **Swarm Manager** node to perform Swarm service orchestration.
 
 ```bash
 seto --project <project-name> --stack <stack-name> \

@@ -338,20 +338,8 @@ seto --project my-project --stack my-stack \
     --storage-replicas user:pass@replica1 user:pass@replica2 \
     --clients user:pass@client1 user:pass@client2
 
-# 2. Create and sync volumes
-seto --project my-project --stack my-stack \
-  create-volumes --sync
-
-# 3. Mount volumes for usage
-seto --project my-project --stack my-stack \
-  mount-volumes --clients user:pass@client1 user:pass@client2
-
-# 4. Deploy stack after mounting
+# 2. Deploy stack: will automatically create volumes
 seto --project my-project --stack my-stack deploy
-
-# 5. Unmount volumes when finished/tearing down
-seto --project my-project --stack my-stack \
-  unmount-volumes --clients user:pass@client1 user:pass@client2
 ```
 
 ## Error Handling

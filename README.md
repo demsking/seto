@@ -14,6 +14,7 @@
   - [Key Capabilities](#key-capabilities)
 - [Supported Operating Systems](#supported-operating-systems)
 - [Features](#features)
+- [Installation](#installation)
 - [Usage](#usage)
   - [Configuration & Command Dependencies](#configuration--command-dependencies)
   - [Global Options](#global-options)
@@ -149,6 +150,26 @@ All remote nodes must have **SSH**, **Docker**, and **NFS client utilities** ins
 - **`deploy` Command** – Deploys or updates Compose/Swarm stacks.
 - **`down` Command** – Stops and removes containers, networks, and resources.
 - **`check` Command** – Verifies and lists nodes matching placement constraints.
+
+## Installation
+
+Ṣeto can be installed from PyPI using standard Python package managers:
+
+### Using `pipx` (Recommended for CLI tools)
+
+To isolate Ṣeto from other system-wide Python packages:
+
+```bash
+pipx install seto
+```
+
+### Using `uv`
+
+If you are using the modern `uv` Python packaging tool, you can install it as a global tool:
+
+```bash
+uv tool install seto
+```
 
 ## Usage
 

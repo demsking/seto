@@ -400,9 +400,9 @@ volumes-nfs:
   - source:target[:mode[:nfs-options]]
 ```
 
-- **`source`**: Can be a local host directory/file (prefixed with `./` or `~/`) or a named Docker volume.
+- **`source`**: Can be a local host directory/file (prefixed with `./` or `~/`) or a named Docker volume. Prefix the source with `@` (e.g., `@shared-data` or `@./data/shared`) to define it as a **shared volume** across multiple services (this prevents Ṣeto from scoping the volume with the service name prefix).
 - **`target`**: The destination path inside the container.
-- **`mode`** _(optional)_: Mount permissions, either `rw` (read-write), `ro` (read-only), or `norename`. Defaults to `rw` (or the value of the environment variable `SETO_DEFAULT_VOLUME_MOUNT_MODE`).
+- **`mode`** _(optional)_: Mount permissions, either `rw` (read-write) or `ro` (read-only). Defaults to `rw` (or the value of the environment variable `SETO_DEFAULT_VOLUME_MOUNT_MODE`). Legacy option `norename` is also supported for backward compatibility (but `@` source prefix is preferred).
 - **`nfs-options`** _(optional)_: Custom NFS mount options. Defaults to `rw,hard,noatime,nodiratime` (or the value of the environment variable `SETO_DEFAULT_NFS_OPTIONS`).
 
 #### **Examples**
@@ -420,6 +420,17 @@ services:
 
       # Mounts a local directory with custom NFS options
       - ./config:/app/config:rw:rw,soft,noatime
+
+  # Example of sharing the same NFS volume between services
+  app:
+    image: myapp:latest
+    volumes-nfs:
+      - @shared-data:/app/data:rw
+
+  worker:
+    image: myworker:latest
+    volumes-nfs:
+      - @shared-data:/app/data:ro
 ```
 
 #### **How It Works Under the Hood**

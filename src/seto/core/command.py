@@ -29,4 +29,11 @@ def parse_volumes_args(args, driver: Driver) -> list[Volume]:
     image_prefix=args.image_prefix,
   )
 
-  return all_volumes
+  seen = set()
+  unique_volumes = []
+  for vol in all_volumes:
+    if vol.name not in seen:
+      seen.add(vol.name)
+      unique_volumes.append(vol)
+
+  return unique_volumes

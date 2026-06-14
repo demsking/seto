@@ -238,6 +238,12 @@ def parse_volumes(
         default_mode=default_volume_mount_mode,
         default_options=default_nfs_options,
       )
+
+      is_norename = False
+      if source.startswith('@'):
+        is_norename = True
+        source = source[1:]
+
       # Resolve source path
       if source.startswith('~/'):
         device_source = os.path.expanduser(source)
@@ -269,7 +275,9 @@ def parse_volumes(
 
       if volume_mode == 'norename':
         volume_mode = 'rw'
-      elif service_name not in volume_name:
+        is_norename = True
+
+      if not is_norename and service_name not in volume_name:
         volume_name = f'{service_name}-{volume_name}'
 
       if device_source and os.path.isfile(device_source):

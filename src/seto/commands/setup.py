@@ -58,6 +58,7 @@ def execute_setup_command(args, driver: Driver) -> None:
     'driver': driver.slug,
     'manager': {
       'hostname': driver.manager.setting.hostname,
+      'username': driver.manager.setting.username,
       'ip': driver.manager.setting.ip,
       'local': driver.manager.setting.local,
     },

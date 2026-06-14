@@ -183,29 +183,35 @@ def run() -> None:
   )
 
   #
-  # Create Volumes command
-  create_volumes_parser = subparsers.add_parser(
-    'create-volumes', description='Create and sync shared volumes'
+  # Volumes command group
+  volumes_parser = subparsers.add_parser(
+    'volumes', description='Manage shared volumes'
   )
-  create_volumes_parser.set_defaults(func=execute_create_volumes_command)
+  volumes_subparsers = volumes_parser.add_subparsers(dest='volumes_command')
+  volumes_subparsers.required = True
 
-  create_volumes_parser.add_argument(
+  # volumes create
+  volumes_create_parser = volumes_subparsers.add_parser(
+    'create', description='Create and sync shared volumes'
+  )
+  volumes_create_parser.set_defaults(func=execute_create_volumes_command)
+  volumes_create_parser.add_argument(
     '--sync',
     action='store_true',
     help='Sync volumes data',
   )
 
-  #
-  # Mount Volumes command
-  mount_volumes_parser = subparsers.add_parser('mount-volumes', description='Mount shared volumes')
-  mount_volumes_parser.set_defaults(func=execute_mount_volumes_command)
-
-  #
-  # Unmount Volumes command
-  umount_volumes_parser = subparsers.add_parser(
-    'unmount-volumes', description='Unmount shared volumes'
+  # volumes mount
+  volumes_mount_parser = volumes_subparsers.add_parser(
+    'mount', description='Mount shared volumes'
   )
-  umount_volumes_parser.set_defaults(func=execute_umount_volumes_command)
+  volumes_mount_parser.set_defaults(func=execute_mount_volumes_command)
+
+  # volumes unmount
+  volumes_unmount_parser = volumes_subparsers.add_parser(
+    'unmount', description='Unmount shared volumes'
+  )
+  volumes_unmount_parser.set_defaults(func=execute_umount_volumes_command)
 
   #
   # Config command

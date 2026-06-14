@@ -53,14 +53,8 @@ help-compose:
 help-setup:
 	@uv run seto setup -h
 
-help-create-volumes:
-	@uv run seto create-volumes -h
-
-help-mount-volumes:
-	@uv run seto mount-volumes -h
-
-help-umount-volumes:
-	@uv run seto umount-volumes -h
+help-volumes:
+	@uv run seto volumes -h
 
 help-deploy:
 	@uv run seto deploy -h
@@ -123,14 +117,14 @@ volumes:
 	    --debug \
 	    --namespace $(STACK_NAME) \
 	    --stack $(STACK_NAME) \
-	  create-volumes
+	  volumes create
 
 volumes--sync:
 	@uv run seto \
 	    --debug \
 	    --namespace $(STACK_NAME) \
 	    --stack $(STACK_NAME) \
-	  create-volumes \
+	  volumes create \
 	    --sync
 
 mount:
@@ -138,14 +132,14 @@ mount:
 	    --debug \
 	    --namespace $(STACK_NAME) \
 	    --stack $(STACK_NAME) \
-	  mount-volumes
+	  volumes mount
 
 umount:
 	@uv run seto \
 	    --debug \
 	    --namespace $(STACK_NAME) \
 	    --stack $(STACK_NAME) \
-	  unmount-volumes
+	  volumes unmount
 
 ps:
 	docker stack ps $(STACK_NAME)

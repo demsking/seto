@@ -1,4 +1,4 @@
-# Copyright 2024-2025 Sébastien Demanou. All Rights Reserved.
+# Copyright 2024-2026 Sébastien Demanou. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,12 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
+import logging
 import sys
 
 import paramiko
 
 from ..core.shell import Setting
 from ..core.shell import Shell
+
+logger = logging.getLogger(__name__)
 
 
 class RemoteShell(Shell):
@@ -37,7 +40,7 @@ class RemoteShell(Shell):
     if self.key_file_path:
       private_key = paramiko.RSAKey.from_private_key_file(self.key_file_path)
 
-    print(f'\nConnecting to {self.setting.username}@{self.setting.hostname}...')
+    logger.info('\nConnecting to %s@%s...', self.setting.username, self.setting.hostname)
     self.ssh.connect(
       hostname=self.setting.hostname,
       username=self.setting.username,
@@ -58,7 +61,7 @@ class RemoteShell(Shell):
     stdout=True,
     stderr=False,
     quiet=False,
-    input: str | None = None,
+    input: str | None = None,  # pylint: disable=redefined-builtin
   ) -> str:
     if sudo:
       command = f"sudo sh -c '{command}'"
@@ -78,13 +81,13 @@ class RemoteShell(Shell):
     stderr_output = stderr_output.read().decode('utf-8')
 
     if stdout_output and stdout:
-      print(stdout_output)
+      logger.info(stdout_output)
 
     if stderr_output:
       if stderr:
-        raise Exception(stderr_output)
+        raise Exception(stderr_output)  # pylint: disable=broad-exception-raised
 
-      print(stderr_output)
+      logger.error(stderr_output)
 
       if stderr:
         sys.exit(1)

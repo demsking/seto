@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
+import logging
+
 from ..core.shell import File
 from ..core.shell import Setting
 from ..core.shell import Shell
@@ -19,7 +21,10 @@ from ..core.volume import Volume
 from ..shells.local import LocalShell
 from ..shells.remote import RemoteShell
 
+logger = logging.getLogger(__name__)
 
+
+# pylint: disable=too-many-public-methods
 class Driver:
   setouser = 'setouser'
 
@@ -122,12 +127,12 @@ class Driver:
 
   def setup_nodes(self, clients: list[Setting], force: bool = False) -> None:
     for node_setting in clients:
-      print(f'\nConnecting to {self.driver_name} node {node_setting.hostname}...')
+      logger.info('\nConnecting to %s node %s...', self.driver_name, node_setting.hostname)
 
       shell = Driver.get_shell(node_setting, self.manager.key_file_path)
       shell.connect()
 
-      print(f'\nSetting {self.driver_name} client {node_setting.hostname}...')
+      logger.info('\nSetting %s client %s...', self.driver_name, node_setting.hostname)
       self.create_seto_user(shell)
       self.setup_node(shell, force)
 
@@ -159,7 +164,7 @@ class Driver:
     fstab: File,
   ) -> None:
     for volume in volumes:
-      print(f'\nMounting volume {node.hostname}:{self.mount_point(volume.mount_folder)}')
+      logger.info('\nMounting volume %s:%s', node.hostname, self.mount_point(volume.mount_folder))
       self.mount_volume(node, volume, fstab)
 
   def mount_volume(self, node: Shell, volume: Volume, fstab: File) -> None:
@@ -183,7 +188,7 @@ class Driver:
 
   def umount_node_volumes(self, node: Shell, volumes: list[Volume]) -> None:
     for volume in volumes:
-      print(f'\nUnmounting volume {node.hostname}:{self.mount_point(volume.mount_folder)}')
+      logger.info('\nUnmounting volume %s:%s', node.hostname, self.mount_point(volume.mount_folder))
       self.umount(node, volume.mount_folder)
 
   def umount(self, node: Shell, device: str) -> None:

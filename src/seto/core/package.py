@@ -1,4 +1,4 @@
-# Copyright 2025 Sébastien Demanou. All Rights Reserved.
+# Copyright 2025-2026 Sébastien Demanou. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-from importlib.metadata import metadata, PackageNotFoundError
+from importlib.metadata import metadata
+from importlib.metadata import PackageNotFoundError
 
 try:
   dist_meta = metadata('seto')
@@ -20,6 +21,6 @@ try:
   APP_DESCRIPTION = dist_meta['Summary']
   APP_VERSION = dist_meta['Version']
 except PackageNotFoundError:
-  APP_NAME = "seto"
-  APP_DESCRIPTION = "A Docker Swarm Deployment Manager"
-  APP_VERSION = "0.0.0"
+  APP_NAME = 'seto'
+  APP_DESCRIPTION = 'A Docker Swarm Deployment Manager'
+  APP_VERSION = '0.0.0'

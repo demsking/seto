@@ -13,7 +13,7 @@
 # limitations under the License.
 # ==============================================================================
 from .driver import Driver
-from .parser import parse_services
+from .parser import parse_services  # pylint: disable=deprecated-module
 from .volume import Volume
 
 

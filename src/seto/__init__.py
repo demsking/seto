@@ -15,6 +15,7 @@
 import argparse
 import glob
 import json
+import logging
 import os
 import socket
 import sys
@@ -82,6 +83,37 @@ def nodes_type(value: str) -> list[Setting]:
     raise argparse.ArgumentTypeError(
       f'{value} is not a nodes value (username:password@hostname)'
     ) from exception
+
+
+logger = logging.getLogger(__name__)
+
+
+def setup_logging(debug: bool = False) -> None:
+  log_level = logging.DEBUG if debug else logging.INFO
+  formatter = logging.Formatter('%(levelname)s: %(message)s' if debug else '%(message)s')
+
+  # Stdout handler for INFO and DEBUG
+  stdout_handler = logging.StreamHandler(sys.stdout)
+  stdout_handler.setLevel(log_level)
+  stdout_handler.setFormatter(formatter)
+
+  # Limit stdout to INFO level and below
+  class MaxLevelFilter(logging.Filter):
+    def filter(self, record):
+      return record.levelno <= logging.INFO
+
+  stdout_handler.addFilter(MaxLevelFilter())
+
+  # Stderr handler for WARNING, ERROR, and CRITICAL
+  stderr_handler = logging.StreamHandler(sys.stderr)
+  stderr_handler.setLevel(logging.WARNING)
+  stderr_handler.setFormatter(formatter)
+
+  root_logger = logging.getLogger()
+  root_logger.setLevel(log_level)
+  root_logger.handlers = []
+  root_logger.addHandler(stdout_handler)
+  root_logger.addHandler(stderr_handler)
 
 
 def run() -> None:
@@ -237,8 +269,11 @@ def run() -> None:
   try:
     args = parser.parse_args()
   except (Exception, argparse.ArgumentError) as exception:
-    print(exception)
+    setup_logging(False)
+    logger.error(exception)
     sys.exit(40)
+
+  setup_logging(args.debug)
 
   # Configure default volume mount values from environment for volumes-nfs entries
   setattr(
@@ -287,8 +322,9 @@ def run() -> None:
 
       if needs_nfs:
         if not os.path.exists(config_path):
-          print(
-            f"Error: Configuration file '{config_path}' not found. The setup command has not yet been performed."
+          logger.error(
+            "Error: Configuration file '%s' not found. The setup command has not yet been performed.",
+            config_path,
           )
           sys.exit(40)
 
@@ -306,7 +342,7 @@ def run() -> None:
             password=None,
           )
         except Exception as exception:
-          print(f'Error: Failed to load configuration file. {exception}')
+          logger.error('Error: Failed to load configuration file. %s', exception)
           sys.exit(40)
       else:
         # Fallback setting when NFS is not needed/used, so config file is not required.
@@ -339,7 +375,7 @@ def run() -> None:
         debug=args.debug,
       )
     else:
-      print(f"Error: Unknown driver type '{driver_type}'")
+      logger.error("Error: Unknown driver type '%s'", driver_type)
       sys.exit(40)
 
     if args.debug:
@@ -348,11 +384,11 @@ def run() -> None:
       try:
         args.func(args, driver)
       except AuthenticationException as exception:
-        print(f'\nError: {exception}')
+        logger.error('\nError: %s', exception)
         print_ssh_copy_id_commands(args)
         sys.exit(41)
       except Exception as exception:
-        print(exception)
+        logger.error(exception)
         sys.exit(50)
   else:
     parser.print_help()

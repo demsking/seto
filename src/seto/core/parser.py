@@ -13,6 +13,7 @@
 # limitations under the License.
 # ==============================================================================
 import glob
+import logging
 import os
 import re
 import subprocess
@@ -28,6 +29,9 @@ import yaml
 from .driver import Driver
 from .permissions import parse_permission_mode
 from .volume import Volume
+
+logger = logging.getLogger(__name__)
+
 
 ResolveMode = Literal['compose', 'swarm']
 Service = dict[str, Any]
@@ -393,7 +397,7 @@ def parse_services(
     x_mode = compose_data.get('x-mode', 'swarm')
 
     if x_mode not in ['compose', 'swarm']:
-      print('x-mode must be either "compose" or "warm"')
+      logger.error('x-mode must be either "compose" or "swarm"')
       sys.exit(42)
 
     if mode:

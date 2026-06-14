@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
+import logging
 import re
 from typing import Any
 
@@ -25,6 +26,8 @@ from ..core.network import resolve_networks
 from ..core.parser import resolve_compose_file
 from ..core.shell import Setting
 from .config import resolve
+
+logger = logging.getLogger(__name__)
 
 
 # Define the regular expression pattern to match {{ .Node.Hostname }} with optional spaces
@@ -81,14 +84,14 @@ def deploy_seto_stack(args, driver: Driver, replica: list[Setting]) -> None:
   # Building seto config
   client = DockerClient.from_env()
 
-  print('Configuring seto agent...')
+  logger.info('Configuring seto agent...')
   internal_stack = {
     'networks': GLOBAL_NETWORKS,
     'services': {
       'agent': {
         'image': 'busybox',
         'command': ['sleep', 'infinity'],
-        'networks': [name for name in GLOBAL_NETWORKS.keys()],
+        'networks': list(GLOBAL_NETWORKS.keys()),
         'deploy': {
           'mode': 'global',
         },
@@ -106,7 +109,7 @@ def deploy_seto_stack(args, driver: Driver, replica: list[Setting]) -> None:
     inject=True,
   )
 
-  print('Deploying seto services...')
+  logger.info('Deploying seto services...')
   swarm = DockerSwarm(
     client=client,
     driver=driver,
@@ -132,14 +135,14 @@ def deploy_project_stack(args, driver: Driver, replica: list[Setting]) -> None:
   client = DockerClient.from_env()
   project_networks = resolve_networks(args.project)
 
-  print('Configuring seto project agent...')
+  logger.info('Configuring seto project agent...')
   internal_stack = {
     'networks': project_networks,
     'services': {
       'agent': {
         'image': 'busybox',
         'command': ['sleep', 'infinity'],
-        'networks': [name for name in project_networks.keys()],
+        'networks': list(project_networks.keys()),
         'deploy': {
           'mode': 'global',
         },
@@ -157,10 +160,10 @@ def deploy_project_stack(args, driver: Driver, replica: list[Setting]) -> None:
     inject=True,
   )
 
-  print('Creating seto project volumes...')
+  logger.info('Creating seto project volumes...')
   driver.create_volumes(replica=replica, volumes=volumes, force=args.force)
 
-  print('Deploying seto project services...')
+  logger.info('Deploying seto project services...')
   swarm = DockerSwarm(
     client=client,
     driver=driver,
@@ -180,7 +183,7 @@ def deploy_project_stack(args, driver: Driver, replica: list[Setting]) -> None:
 def execute_deploy_command(args, driver: Driver) -> None:
   client = DockerClient.from_env()
 
-  print(f'Resolving {driver.stack_id} services...')
+  logger.info('Resolving %s services...', driver.stack_id)
   setattr(args, 'compose', False)
   swarm_config = resolve(args, driver)
 
@@ -210,31 +213,43 @@ def execute_deploy_command(args, driver: Driver) -> None:
     ),
   )
 
-  print(f'Building {driver.stack_id} swarm images...')
+  logger.info('Building %s swarm images...', driver.stack_id)
   swarm.build()
 
-  print(f'Pushing {driver.stack_id} images...')
+  logger.info('Pushing %s images...', driver.stack_id)
   swarm.push()
 
-  print(f'Deploying {driver.stack_id} swarm environment...')
-  swarm.info()
+  logger.info('Deploying %s swarm environment...', driver.stack_id)
+
+  if logger.level == logging.DEBUG:
+    swarm.info()
+
   swarm.deploy()
-  swarm.ps()
-  swarm.logs()
+
+  if logger.level == logging.DEBUG:
+    swarm.ps()
+    swarm.logs()
 
   if composes_items:
-    print(f'Building {driver.stack_id} compose images...')
+    logger.info('Building %s compose images...', driver.stack_id)
+
     for compose in composes_items:
       compose.build()
       compose.push()
 
-    print(f'Pulling {driver.stack_id} compose images...')
+    logger.info('Pulling %s compose images...', driver.stack_id)
+
     for compose in composes_items:
-      compose.info()
+      if logger.level == logging.DEBUG:
+        compose.info()
+
       compose.pull()
 
-    print(f'Deploying {driver.stack_id} compose environment...')
+    logger.info('Deploying %s compose environment...', driver.stack_id)
+
     for compose in composes_items:
       compose.deploy()
-      compose.ps()
-      compose.logs()
+
+      if logger.level == logging.DEBUG:
+        compose.ps()
+        compose.logs()

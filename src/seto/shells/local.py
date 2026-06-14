@@ -1,4 +1,4 @@
-# Copyright 2024-2025 Sébastien Demanou. All Rights Reserved.
+# Copyright 2024-2026 Sébastien Demanou. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,10 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
+import logging
 import subprocess
 import sys
 
 from ..core.shell import Shell
+
+logger = logging.getLogger(__name__)
 
 
 class LocalShell(Shell):
@@ -30,7 +33,7 @@ class LocalShell(Shell):
     stdout=True,
     stderr=False,
     quiet=False,
-    input: str | None = None,
+    input: str | None = None,  # pylint: disable=redefined-builtin
     env: dict | None = None,
   ):
     if sudo:
@@ -43,7 +46,7 @@ class LocalShell(Shell):
     if not quiet:
       self.print(f"echo '...' | {command}" if input else command)
 
-    process = subprocess.Popen(
+    process = subprocess.Popen(  # pylint: disable=consider-using-with
       command,
       stdin=subprocess.PIPE if has_input else None,
       stdout=subprocess.PIPE,
@@ -57,13 +60,13 @@ class LocalShell(Shell):
     std_output, stderr_output = process.communicate(input=input)
 
     if stdout and std_output:
-      print(std_output)
+      logger.info(std_output)
 
     if stderr_output:
       if stderr:
-        raise Exception(stderr_output)
+        raise Exception(stderr_output)  # pylint: disable=broad-exception-raised
 
-      print(stderr_output, file=sys.stderr)
+      logger.error(stderr_output)
 
       if stderr:
         sys.exit(process.returncode)
@@ -78,7 +81,7 @@ class LocalShell(Shell):
     stdout=True,
     stderr=False,
     quiet=False,
-    input: str | None = None,
+    input: str | None = None,  # pylint: disable=redefined-builtin
     env: dict | None = None,
   ) -> str:
     if sudo:
@@ -98,19 +101,20 @@ class LocalShell(Shell):
       shell=True,
       env=env,
       executable=shell_exec,
+      check=False,
     )
 
     std_output = result.stdout.strip()
     stderr_output = result.stderr.strip()
 
     if stdout and std_output:
-      print(std_output)
+      logger.info(std_output)
 
     if stderr_output:
       if stderr:
-        raise Exception(stderr_output)
+        raise Exception(stderr_output)  # pylint: disable=broad-exception-raised
 
-      print(stderr_output, file=sys.stderr)
+      logger.error(stderr_output)
 
       if stderr:
         sys.exit(result.returncode)

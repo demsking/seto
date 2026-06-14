@@ -1,4 +1,4 @@
-# Copyright 2024-2025 Sébastien Demanou. All Rights Reserved.
+# Copyright 2024-2026 Sébastien Demanou. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,9 +16,9 @@ import sys
 import tomllib
 
 with open('pyproject.toml', 'rb') as file:
-  value = tomllib.load(file)['project'][sys.argv[1]]
+  VALUE = tomllib.load(file)['project'][sys.argv[1]]
 
-if isinstance(value, list):
-  value = ', '.join(value)
+if isinstance(VALUE, list):
+  VALUE = ', '.join(VALUE)
 
-print(value)
+print(VALUE)

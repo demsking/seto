@@ -12,11 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
+import logging
+
 from docker import DockerClient
 
 from ..core.docker import DockerCompose
 from ..core.driver import Driver
 from .config import resolve
+
+logger = logging.getLogger(__name__)
 
 
 def execute_check_command(args, driver: Driver) -> None:
@@ -33,9 +37,9 @@ def execute_check_command(args, driver: Driver) -> None:
       config=compose_config,
     )
     nodes = compose.nodenames
-    print(f'Nodes matching constraint {args.constraint}:')
+    logger.info('Nodes matching constraint %s:', args.constraint)
     for node in nodes:
-      print(f'  - {node}')
+      logger.info('  - %s', node)
   else:
     # Resolve placement from compose file
     setattr(args, 'compose', True)
@@ -59,17 +63,17 @@ def execute_check_command(args, driver: Driver) -> None:
     )
 
     if not composes_items:
-      print('No compose services or placement constraints found in stack.')
+      logger.info('No compose services or placement constraints found in stack.')
       return
 
     for compose in composes_items:
-      print(f'Target placement constraints: {compose.placement}')
+      logger.info('Target placement constraints: %s', compose.placement)
 
       try:
         nodes = compose.nodenames
-        print('Matched and verified nodes:')
+        logger.info('Matched and verified nodes:')
 
         for node in nodes:
-          print(f'  - {node}')
+          logger.info('  - %s', node)
       except Exception as exception:
-        print(f'Error matching nodes: {exception}')
+        logger.error('Error matching nodes: %s', exception)

@@ -14,17 +14,21 @@
 # ==============================================================================
 import functools
 import json
+import logging
 import socket
 from typing import Any
 
-from docker import DockerClient
+from docker import DockerClient  # pylint: disable=import-self
 
 from .driver import Driver
-from .parser import resolve_env_vars
+from .parser import resolve_env_vars  # pylint: disable=deprecated-module
 from .shell import Setting
 from .shell import Shell
 
+logger = logging.getLogger(__name__)
 
+
+# pylint: disable=no-else-return,too-many-return-statements,invalid-name,no-else-break,consider-using-in
 class Docker:
   def __init__(
     self,
@@ -185,9 +189,9 @@ class DockerCompose(Docker):
           groups.append([p.strip()])
 
     if self.driver.debug:
-      print(f'[DEBUG] Placement constraints: {self.placement}')
-      print(f'[DEBUG] Constraint groups resolved: {groups}')
-      print('[DEBUG] Listing Swarm nodes...')
+      logger.debug('Placement constraints: %s', self.placement)
+      logger.debug('Constraint groups resolved: %s', groups)
+      logger.debug('Listing Swarm nodes...')
 
     nodes = self.client.nodes.list()
     matched_nodes = []
@@ -195,21 +199,21 @@ class DockerCompose(Docker):
     for node in nodes:
       if not node.attrs:
         if self.driver.debug:
-          print(f'[DEBUG] Node has no attributes: {node}')
+          logger.debug('Node has no attributes: %s', node)
         continue
 
       hostname = node.attrs.get('Description', {}).get('Hostname', 'unknown')
 
       if self.driver.debug:
-        print(f"[DEBUG] Evaluating node '{hostname}'")
-        print(f'  Role: {node.attrs.get("Spec", {}).get("Role")}')
-        print(f'  Labels: {node.attrs.get("Spec", {}).get("Labels")}')
+        logger.debug("Evaluating node '%s'", hostname)
+        logger.debug('  Role: %s', node.attrs.get('Spec', {}).get('Role'))
+        logger.debug('  Labels: %s', node.attrs.get('Spec', {}).get('Labels'))
 
       # Check if this node matches at least one group (OR between groups)
       for group in groups:
         match_all = True
         if self.driver.debug:
-          print(f'  Checking group: {group}')
+          logger.debug('  Checking group: %s', group)
 
         for constraint in group:
           label_key, label_value = constraint.split('==', 1)
@@ -218,7 +222,7 @@ class DockerCompose(Docker):
 
           matched = match_node_constraint(node, label_key, value)
           if self.driver.debug:
-            print(f'    Constraint: {label_key} == {value} -> {"MATCHED" if matched else "FAILED"}')
+            logger.debug('    Constraint: %s == %s -> %s', label_key, value, 'MATCHED' if matched else 'FAILED')
 
           if not matched:
             match_all = False
@@ -226,25 +230,25 @@ class DockerCompose(Docker):
 
         if match_all:
           if self.driver.debug:
-            print(f"  Node '{hostname}' matched group constraints.")
+            logger.debug("  Node '%s' matched group constraints.", hostname)
           if hostname not in matched_nodes:
             matched_nodes.append(hostname)
           break  # Already matched, move to next node
         else:
           if self.driver.debug:
-            print(f"  Node '{hostname}' failed group constraints.")
+            logger.debug("  Node '%s' failed group constraints.", hostname)
 
     if self.driver.debug:
-      print(f'[DEBUG] Matched nodes (before physical device checks): {matched_nodes}')
+      logger.debug('Matched nodes (before physical device checks): %s', matched_nodes)
 
     if not matched_nodes:
       raise ValueError(f'Unable to found node for placement "{self.placement}"')
 
     supported_device_checks = {
-      'gpu': r'(test -c /dev/nvidiactl || test -c /dev/nvidia0) && (docker info 2>/dev/null | grep -iq nvidia || which nvidia-smi >/dev/null 2>&1) && echo "OK" || (echo "GPU device not found or not configured for Docker" >&2; exit 1)',
-      'bluetooth': r'(ls -d /sys/class/bluetooth/hci* >/dev/null 2>&1 || hciconfig 2>/dev/null | grep -q "hci") && echo "OK" || (echo "No active Bluetooth controller found" >&2; exit 1)',
+      'gpu': r'(test -c /dev/nvidiactl || test -c /dev/nvidia0) && (docker info 2>/dev/null | grep -iq nvidia || which nvidia-smi >/dev/null 2>&1) && echo "OK" || (echo "GPU device not found or not configured for Docker" >&2; exit 1)',  # pylint: disable=line-too-long
+      'bluetooth': r'(ls -d /sys/class/bluetooth/hci* >/dev/null 2>&1 || hciconfig 2>/dev/null | grep -q "hci") && echo "OK" || (echo "No active Bluetooth controller found" >&2; exit 1)',  # pylint: disable=line-too-long
       'camera': r'ls /dev/video* >/dev/null 2>&1 && echo "OK" || (echo "No video capture device (camera) found" >&2; exit 1)',
-      'coral': r'(test -e /dev/apex_0 || lsusb 2>/dev/null | grep -E -iq "Google|Global Unichip") && echo "OK" || (echo "Google Coral Edge TPU not found" >&2; exit 1)',
+      'coral': r'(test -e /dev/apex_0 || lsusb 2>/dev/null | grep -E -iq "Google|Global Unichip") && echo "OK" || (echo "Google Coral Edge TPU not found" >&2; exit 1)',  # pylint: disable=line-too-long
       'zigbee': r'(test -e /dev/ttyUSB0 || test -e /dev/ttyACM0 || test -d /dev/serial) && echo "OK" || (echo "Zigbee device not found" >&2; exit 1)',
       'zwave': r'(test -e /dev/ttyUSB0 || test -e /dev/ttyACM0 || test -d /dev/serial) && echo "OK" || (echo "ZWave device not found" >&2; exit 1)',
     }
@@ -287,13 +291,15 @@ class DockerCompose(Docker):
       # Run the physical checks on the node
       has_all_devices = True
       if self.driver.debug and device_checks:
-        print(f"[DEBUG] Running physical device verification for node '{nodename}'...")
+        logger.debug("Running physical device verification for node '%s'...", nodename)
 
       for device_name, expected_val in device_checks:
         if str(expected_val).lower().strip() in ('false', '0'):
           if self.driver.debug:
-            print(
-              f"  Skipping physical check for '{device_name}' because expected value is '{expected_val}'"
+            logger.debug(
+              "  Skipping physical check for '%s' because expected value is '%s'",
+              device_name,
+              expected_val,
             )
           continue
 
@@ -304,7 +310,7 @@ class DockerCompose(Docker):
         )
 
         if self.driver.debug:
-          print(f"  Checking device '{device_name}' on '{nodename}' using command: '{check_cmd}'")
+          logger.debug("  Checking device '%s' on '%s' using command: '%s'", device_name, nodename, check_cmd)
 
         try:
           if self.hostname == nodename:
@@ -316,12 +322,15 @@ class DockerCompose(Docker):
             remote_shell.run(check_cmd, quiet=True, stdout=False, stderr=True)
             remote_shell.close()
           if self.driver.debug:
-            print(f"  Device '{device_name}' verified successfully on '{nodename}'")
+            logger.debug("  Device '%s' verified successfully on '%s'", device_name, nodename)
         except Exception as e:
           if self.driver.debug:
-            print(f"  Physical verification failed for device '{device_name}' on '{nodename}': {e}")
-          print(
-            f"WARNING: Node '{nodename}' matched label constraints but physical check failed for device '{device_name}': {e}. Excluding node."
+            logger.debug("  Physical verification failed for device '%s' on '%s': %s", device_name, nodename, e)
+          logger.warning(
+            "WARNING: Node '%s' matched label constraints but physical check failed for device '%s': %s. Excluding node.",
+            nodename,
+            device_name,
+            e,
           )
           has_all_devices = False
           break
@@ -367,7 +376,7 @@ class DockerCompose(Docker):
 
     return [raw]
 
-  def _remote_node_run(self, command: str, *, hostname: str, input: str) -> None:
+  def _remote_node_run(self, command: str, *, hostname: str, input: str) -> None:  # pylint: disable=redefined-builtin
     setting = Setting.from_connection_string(f'{Driver.setouser}@{hostname}')
     node = Driver.get_shell(setting, self.shell.key_file_path)
 
@@ -396,7 +405,7 @@ class DockerCompose(Docker):
 
   def deploy(self) -> None:
     for nodename in self.nodenames:
-      print(f'Deploying on {nodename}...')
+      logger.info('Deploying on %s...', nodename)
       self._exec(
         f'docker compose -p {self.driver.stack_id} -f - up -d --remove-orphans',
         nodename,
@@ -404,17 +413,17 @@ class DockerCompose(Docker):
 
   def ps(self) -> None:
     for nodename in self.nodenames:
-      print(f'--- Services on {nodename} ---')
+      logger.info('--- Services on %s ---', nodename)
       self._exec(f'docker compose -p {self.driver.stack_id} -f - ps', nodename)
 
   def logs(self) -> None:
     for nodename in self.nodenames:
-      print(f'--- Logs on {nodename} ---')
+      logger.info('--- Logs on %s ---', nodename)
       self._exec(f'docker compose -p {self.driver.stack_id} -f - logs -n 10', nodename)
 
   def down(self) -> None:
     for nodename in self.nodenames:
-      print(f'Removing stack from {nodename}...')
+      logger.info('Removing stack from %s...', nodename)
       self._exec(f'docker compose -p {self.driver.stack_id} -f - down', nodename)
 
 

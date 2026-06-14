@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
+import logging
 from uuid import uuid4
 
 from ..core.driver import Driver
@@ -19,6 +20,8 @@ from ..core.shell import File
 from ..core.shell import Setting
 from ..core.shell import Shell
 from ..core.volume import Volume
+
+logger = logging.getLogger(__name__)
 
 
 class NFSDriver(Driver):
@@ -70,7 +73,7 @@ class NFSDriver(Driver):
       is_new_entry = self.add_exports_entry(volume_storage, exports=exports)
 
       if force or is_new_entry:
-        print(f'Initializing volume {volume.name}...')
+        logger.info('Initializing volume %s...', volume.name)
         self.manager.copy_volume(volume, self.brick)
         self.manager.run(
           f'chown -R nobody:nogroup {self.brick}', sudo=True, stdout=False, quiet=True
@@ -83,7 +86,7 @@ class NFSDriver(Driver):
     exports: File,
     options=('rw', 'sync', 'no_subtree_check', 'no_root_squash'),
   ) -> bool:
-    print(f'\nSetting NFS volume {volume_storage}{options}')
+    logger.info('\nSetting NFS volume %s%s', volume_storage, options)
     options_str = ','.join(options)
 
     self.manager.mkdir(volume_storage)
@@ -106,7 +109,7 @@ class NFSDriver(Driver):
   ) -> None:
     device = self.mount_point()
 
-    print(f'Mounting volume {node.hostname}:{device}')
+    logger.info('Mounting volume %s:%s', node.hostname, device)
     node.mkdir(device)
     self.mount(node, self.brick, device=device, fstab=fstab)
 
@@ -118,7 +121,7 @@ class NFSDriver(Driver):
   def umount_node_volumes(self, node: Shell, volumes: list[Volume]) -> None:
     device = self.mount_point()
 
-    print(f'Unmounting volume {node.hostname}:{device}')
+    logger.info('Unmounting volume %s:%s', node.hostname, device)
     self.umount(node, device)
 
   def resolve_compose_volume(self, volume: Volume) -> dict:

@@ -1,4 +1,4 @@
-# Copyright 2024-2025 Sébastien Demanou. All Rights Reserved.
+# Copyright 2024-2026 Sébastien Demanou. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
+import logging
 import os
 import socket
 import sys
@@ -21,7 +22,10 @@ from functools import lru_cache
 from .dns import resolve_hostname
 from .volume import Volume
 
+logger = logging.getLogger(__name__)
 
+
+# pylint: disable=invalid-name
 @dataclass(kw_only=True)
 class Setting:
   hostname: str
@@ -135,7 +139,7 @@ class Shell:
     return username in ouput
 
   def print(self, message: str) -> None:
-    print(f'{self.prompt} {message}')
+    logger.info('%s %s', self.prompt, message)
 
   def install(self, package_name: str, *, user: str = 'nobody', group: str = 'nogroup') -> bool:
     """
@@ -164,7 +168,7 @@ class Shell:
     result = self.run(check_cmd, sudo=True, quiet=True, stdout=False)
 
     if package_name not in result:
-      print(f'Installing {package_name} on {self.setting.hostname}...')
+      logger.info('Installing %s on %s...', package_name, self.setting.hostname)
 
       if pkg_manager == 'apt':
         self.run(
@@ -179,7 +183,7 @@ class Shell:
 
       return True
 
-    print(f'{package_name} is already installed on {self.setting.hostname}')
+    logger.info('%s is already installed on %s', package_name, self.setting.hostname)
 
     return False
 
@@ -202,7 +206,7 @@ class Shell:
     stdout=True,
     stderr=False,
     quiet=False,
-    input: str | None = None,
+    input: str | None = None,  # pylint: disable=redefined-builtin
   ) -> str:
     raise NotImplementedError()
 
@@ -214,7 +218,7 @@ class Shell:
       try:
         self.copy_file(local_path=local_path, remote_path=remote_path)
       except Exception as error:
-        print(error)
+        logger.error(error)
         sys.exit(2)
     elif os.path.isdir(local_path):
       for root, _dirs, files in os.walk(local_path):
@@ -230,7 +234,7 @@ class Shell:
             remote_path=remote_file_path,
           )
     else:
-      print('WARN:', local_path, remote_path)
+      logger.warning('WARN: %s %s', local_path, remote_path)
 
   def copy_volume(self, volume: Volume, dest: str) -> None:
     target = os.path.join(dest, volume.target)

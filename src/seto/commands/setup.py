@@ -13,12 +13,15 @@
 # limitations under the License.
 # ==============================================================================
 import json
+import logging
 import os
 
 from ..core.driver import Driver
 from ..core.shell import Setting
 from .deploy import deploy_project_stack
 from .deploy import deploy_seto_stack
+
+logger = logging.getLogger(__name__)
 
 
 def execute_setup_command(args, driver: Driver) -> None:
@@ -63,7 +66,7 @@ def execute_setup_command(args, driver: Driver) -> None:
   with open(config_path, 'w', encoding='utf-8') as file:
     json.dump(config_data, file, indent=2)
 
-  print(f'Configuration file generated at {config_path}\n')
+  logger.info('Configuration file generated at %s\n', config_path)
 
   driver.terminate()
 
@@ -77,9 +80,9 @@ def generate_ssh_keys(args, driver: Driver) -> None:
     if not os.path.exists(key_file_dir):
       driver.shell.mkdir(key_file_dir)
 
-    print(f'Generating SSH key pair at {key_file_path}')
+    logger.info('Generating SSH key pair at %s', key_file_path)
     driver.shell.run(f'ssh-keygen -t rsa -b 4096 -f {key_file_path}')
-    print('SSH key pair generated.\n')
+    logger.info('SSH key pair generated.\n')
     print_ssh_copy_id_commands(args)
 
 
@@ -89,14 +92,14 @@ def print_ssh_copy_id_commands(args) -> None:
   clients: list[Setting] = [items[0] for items in args.clients]
   remotes = replica + [item for item in clients if not any(item == setting for setting in replica)]
 
-  print('Please run the following command for each server to copy your public key:\n')
+  logger.info('Please run the following command for each server to copy your public key:\n')
 
   if remotes:
     for setting in remotes:
-      print(f'\tssh-copy-id -i {pub_key_file_path} {Driver.setouser}@{setting.hostname}')
+      logger.info('\tssh-copy-id -i %s %s@%s', pub_key_file_path, Driver.setouser, setting.hostname)
   else:
-    print(f'\tssh-copy-id -i {pub_key_file_path} {Driver.setouser}@server1')
-    print(f'\tssh-copy-id -i {pub_key_file_path} {Driver.setouser}@server2')
-    print(f'\tssh-copy-id -i {pub_key_file_path} {Driver.setouser}@server3')
+    logger.info('\tssh-copy-id -i %s %s@server1', pub_key_file_path, Driver.setouser)
+    logger.info('\tssh-copy-id -i %s %s@server2', pub_key_file_path, Driver.setouser)
+    logger.info('\tssh-copy-id -i %s %s@server3', pub_key_file_path, Driver.setouser)
 
-  print('\nAfter copying the SSH keys, re-run the command to try again.')
+  logger.info('\nAfter copying the SSH keys, re-run the command to try again.')

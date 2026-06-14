@@ -1,5 +1,9 @@
 # Ṣeto
 
+<p align="center">
+  <img src="assets/logo.png" alt="Ṣeto Logo" width="300" />
+</p>
+
 Ṣeto is a robust **command-line orchestration tool** designed to automate the configuration, provisioning, and synchronization of shared storage volumes using an **NFS driver**. It provides a unified, developer-friendly workflow for managing **multi-host stack-based deployments** (supporting both Docker Swarm and multi-host Docker Compose)—taking care of everything from NFS server/client setup and directory synchronization to volume mounting, health verification, and container lifecycle.
 
 ## Table of Contents

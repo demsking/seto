@@ -1,33 +1,65 @@
 # Ṣeto
 
-Ṣeto is a **command-line orchestration tool** that automates the setup,
-management, and synchronization of shared storage volumes using an **NFS
-driver**. It provides a simple workflow for managing **stack-based deployments**
-across multiple hosts — from setup to mounting and unmounting volumes.
+Ṣeto is a robust **command-line orchestration tool** designed to automate the configuration, provisioning, and synchronization of shared storage volumes using an **NFS driver**. It provides a unified, developer-friendly workflow for managing **multi-host stack-based deployments** (supporting both Docker Swarm and multi-host Docker Compose)—taking care of everything from NFS server/client setup and directory synchronization to volume mounting, health verification, and container lifecycle.
+
+## Why Ṣeto?
+
+Deploying containerized applications across multiple servers (using Docker Swarm or Docker Compose) introduces two major challenges that Ṣeto is built to solve:
+
+1. **The Shared Persistent Storage Dilemma**:
+   When running a service cluster, containers on different hosts often need to access or modify the same files (e.g., config files, logs, shared uploads, or media directories). Setting up a central NFS server, exporting directories, configuring client-side utilities, mounting paths, updating `/etc/fstab`, and keeping local/remote directories synced is complex, tedious, and prone to configuration drift.
+
+   **How Ṣeto solves it**: It provides a declarative `volumes-nfs` extension. You write simple paths in your Compose file, and Ṣeto automatically installs the NFS server/clients, configures `/etc/exports`, handles dynamic sync, and mounts the volumes cluster-wide.
+
+2. **The Swarm Hardware Limitation**:
+   Docker Swarm is excellent for simple stateless microservices but natively struggles with direct hardware mapping. If your containers need to access physical host resources—such as a specific GPU, a USB controller (like Zigbee or Zwave sticks), Bluetooth, cameras, or Edge TPUs—Swarm makes it extremely difficult to map these resources directly.
+
+   **How Ṣeto solves it**: It introduces `x-mode: compose` alongside hardware validation. Ṣeto evaluates custom placement constraints (e.g., `host.device.gpu == true`), physically verifies device drivers on remote nodes over SSH, and deploys services directly via Docker Compose on the target machines—while preserving communication across unified Docker overlay networks.
 
 ## Overview
 
-Ṣeto streamlines distributed storage management by automating:
+Ṣeto simplifies distributed, multi-host application architecture by orchestrating three key roles:
 
-- Remote setup of **storage node** and **storage replica** nodes.
-- Creation and synchronization of **shared volumes**.
-- Automated **mounting/unmounting** of NFS volumes.
-- Resolution of **Docker Compose stacks** before deployment.
+```mermaid
+flowchart TD
+    subgraph Local Environment
+        CLI[Seto CLI]
+    end
+    subgraph Storage Infrastructure
+        SN["Storage Node (NFS Server / Source of Truth)"]
+        SR["Storage Replicas (Redundant Sync Targets)"]
+    end
+    subgraph Application Cluster
+        C1[Client Node 1]
+        C2[Client Node 2]
+    end
 
-This tool is ideal for environments using Docker Swarm, Compose stacks, or
-custom orchestrations that depend on synchronized shared storage.
+    CLI -- "1. Setup & Provision" --> SN
+    CLI -- "2. Sync Volumes" --> SR
+    CLI -- "3. Mount Volumes" --> C1
+    CLI -- "3. Mount Volumes" --> C2
+    C1 -- "NFS Mount" --> SN
+    C2 -- "NFS Mount" --> SN
+    SR -- "SSH Sync" --> SN
+```
+
+- **Storage Node**: The single source of truth acting as the central NFS Server. It hosts the root folders for all shared volumes.
+- **Storage Replicas**: Secondary storage targets configured to sync/replicate volume directories to maintain data availability and redundancy.
+- **Client Nodes**: The execution/worker hosts running your application containers. They mount NFS exports from the Storage Node dynamically at runtime.
+
+### Key Capabilities
+
+- **Automated Infrastructure Setup**: Configures SSH, NFS server utilities on the Storage Node, installs client packages, and sets up SSH keys on all nodes.
+- **Declarative Storage Management**: Synchronizes local project folders to remote storage locations and handles volume mounting/unmounting lifecycle transparently.
+- **Advanced YAML Extensions**: Extends standard Docker Compose files with `volumes-nfs` (for automatic cluster-wide NFS configuration) and `volumes-image` (for baking static assets directly into target images).
+- **Flexible Execution Modes**: Deploys services using Docker Swarm (default) or falls back to multi-host Docker Compose (`x-mode: compose`) when direct hardware access (e.g., GPUs, USB devices, cameras) is required.
 
 ## Supported Operating Systems
 
-Ṣeto has been **tested and validated** on the following Linux distributions:
+Ṣeto has been **tested and validated** on **Fedora 44, 45**.
 
-| Distribution | Versions Tested | Status       |
-| ------------ | --------------- | ------------ |
-| **Fedora**   | 41, 42, 43, 44  | ✅ Supported |
-
-> **Note:** Other Linux distributions (RHEL, Ubuntu, AlmaLinux) may work but are
-> not officially tested. All remote nodes must have **SSH**, **Docker**, and
-> **NFS client utilities** installed.
+Other Linux distributions (RHEL, Ubuntu, AlmaLinux) may work but are not officially tested.
+All remote nodes must have **SSH**, **Docker**, and **NFS client utilities** installed.
 
 ## Features
 

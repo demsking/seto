@@ -215,14 +215,89 @@ seto --stack my-stack --driver nfs://user:pass@host \
   `nfs://username:password@hostname`
 - Replica connections follow:
   `username:password@hostname`
-- `volumes-nfs` entry format is:
-  `source:target[:mode[:nfs-options]]`
-- `mode` is optional and defaults to `rw`.
-- `nfs-options` is optional and defaults to `rw,hard,noatime,nodiratime`.
-- Example entries:
-  `data:/var/lib/mysql`
-  `data:/var/lib/mysql:ro`
-  `data:/var/lib/mysql:rw:hard,noatime`.
+
+## Custom Volume Extensions
+
+Ṣeto provides two custom volume extensions in Docker Compose/Swarm stack files to simplify shared storage and file deployment: **`volumes-nfs`** and **`volumes-image`**.
+
+These extensions are declared at the service level in your YAML compose configurations. During compilation (e.g., `seto compose` or deployment), Ṣeto parses these keys, translates them into standard Docker/Docker Compose configurations, and handles the necessary backend setups.
+
+---
+
+### 1. NFS Shared Volumes (`volumes-nfs`)
+
+#### **Purpose**
+The `volumes-nfs` extension is designed for **shared, dynamic, multi-host persistent storage**. When running services across multiple nodes in Docker Swarm or multi-host Compose, containers on different nodes often need to read and write to the same directory. `volumes-nfs` automates:
+- Configuring the manager node as an NFS server.
+- Generating proper NFS volume driver configurations in Docker.
+- Syncing local file/directory contents from the local development system to the NFS share.
+- Mounting/unmounting the NFS share on all replica worker nodes automatically.
+
+#### **Usage & Format**
+```yaml
+volumes-nfs:
+  - source:target[:mode[:nfs-options]]
+```
+- **`source`**: Can be a local host directory/file (prefixed with `./` or `~/`) or a named Docker volume.
+- **`target`**: The destination path inside the container.
+- **`mode`** *(optional)*: Mount permissions, either `rw` (read-write), `ro` (read-only), or `norename`. Defaults to `rw` (or the value of the environment variable `SETO_DEFAULT_VOLUME_MOUNT_MODE`).
+- **`nfs-options`** *(optional)*: Custom NFS mount options. Defaults to `rw,hard,noatime,nodiratime` (or the value of the environment variable `SETO_DEFAULT_NFS_OPTIONS`).
+
+#### **Examples**
+```yaml
+services:
+  web:
+    image: nginx:alpine
+    volumes-nfs:
+      # Mounts the local ./data/static folder to /usr/share/nginx/html on the NFS server with default mode and options
+      - ./data/static:/usr/share/nginx/html
+
+      # Mounts a named volume as read-only
+      - db-data:/var/lib/mysql:ro
+
+      # Mounts a local directory with custom NFS options
+      - ./config:/app/config:rw:rw,soft,noatime
+```
+
+#### **How It Works Under the Hood**
+1. **Compilation/Translation**: During `seto compose`, Ṣeto strips the `volumes-nfs` block from the service definition, adds a top-level `volumes` definition in the output compose file configured to use the NFS volume driver pointing to the manager node's IP address, and mounts this NFS volume to the service's `volumes` block.
+2. **Synchronization**: The `create-volumes` command synchronizes any local source directories (e.g., `./data/static`) to the NFS share directory on the manager node via SSH.
+3. **Mounting**: The `mount-volumes` command installs NFS client utilities and mounts the NFS export on the replicas.
+
+---
+
+### 2. Image-embedded Volumes (`volumes-image`)
+
+#### **Purpose**
+The `volumes-image` extension is designed for **static, read-only content** that should be baked directly into the Docker image rather than mounted at runtime. This avoids the latency, security, and setup overhead of mounting an NFS share when a service only needs static files (such as code, configs, or assets that do not change during container execution).
+
+#### **Usage & Format**
+```yaml
+volumes-image:
+  - source:target
+```
+- **`source`**: The local directory or file on the build/deploy host.
+- **`target`**: The destination directory/file inside the container image.
+
+#### **Example**
+```yaml
+services:
+  portal:
+    image: nginx:alpine
+    volumes-image:
+      # Bakes the local folder ./data/static directly into the image at /usr/share/nginx/html
+      - ./data/static:/usr/share/nginx/html
+```
+
+#### **How It Works Under the Hood**
+1. **Dockerfile Generation**: When Ṣeto parses `volumes-image`, it removes it from the service definition and automatically creates a new Dockerfile under the `images/` directory named `{stack_name}-{service_name}.dockerfile` with the following structure:
+   ```dockerfile
+   FROM <original_service_image>
+   COPY <source> <target>
+   ```
+2. **Variable Resolution**: Ṣeto runs `envsubst` to resolve any environment variables in the generated Dockerfile.
+3. **Compose/Swarm Translation**: It modifies the service's `image` tag to point to a custom image (`{image_prefix}{stack_name}-{service_name}:{image_version}`) and defines a `build` block targeting the generated Dockerfile.
+4. **Build and Deployment**: When the stack is built/deployed, the custom image is built with the embedded assets and deployed to the target nodes.
 
 ## Compose-Specific Deployments (x-mode: compose)
 

@@ -264,14 +264,18 @@ Deploys a stack to the Swarm cluster or to multiple nodes via Compose (if `x-mod
 > [!IMPORTANT]
 > The `deploy` command must be run on the **Swarm Manager** node to perform Swarm service orchestration.
 
+> [!NOTE]
+> If any shared NFS volumes (`volumes-nfs`) are defined in the stack services, the `deploy` command will automatically connect to the storage node, create and synchronize the volumes, and update the exports configuration before the services are started.
+
 ```bash
 seto --project <project-name> --stack <stack-name> \
-  deploy [--image-prefix <prefix>]
+  deploy [--image-prefix <prefix>] [--force]
 ```
 
 | Option           | Description                                                           |
 | :--------------- | :-------------------------------------------------------------------- |
 | `--image-prefix` | Optional. Prefix added to the image namespace of custom built images. |
+| `--force`        | Optional. Force synchronization of shared volumes data.               |
 
 **Example:**
 

@@ -18,6 +18,7 @@ from typing import Any
 
 from docker import DockerClient
 
+from ..core.command import parse_volumes_args
 from ..core.docker import DockerCompose
 from ..core.docker import DockerSwarm
 from ..core.driver import Driver
@@ -182,6 +183,15 @@ def deploy_project_stack(args, driver: Driver, storage_replicas: list[Setting]) 
 
 def execute_deploy_command(args, driver: Driver) -> None:
   client = DockerClient.from_env()
+  all_volumes = parse_volumes_args(args, driver)
+
+  if all_volumes:
+    logger.info('Automatically creating shared volumes...')
+
+    driver.connect()
+    driver.create_volumes(volumes=all_volumes, force=getattr(args, 'force', False))
+    driver.apply_storage_node_changes()
+    driver.terminate()
 
   logger.info('Resolving %s services...', driver.stack_id)
   setattr(args, 'compose', False)

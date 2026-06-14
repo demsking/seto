@@ -109,7 +109,7 @@ class NFSDriver(Driver):
 
   def mount(self, node: Shell, storage: str, *, device: str, fstab: File) -> None:
     host_storage = f'{self.storage_node.setting.ip}:{storage}'
-    node.run(f'mount -t nfs {host_storage} {device}')
+    node.run(f'mount -t nfs {host_storage} {device}', sudo=True)
     fstab.append(f'{host_storage}\t{device}\tnfs\tauto,nofail,noatime,intr,tcp,actimeo=1800 0 0')
 
   def umount_node_volumes(self, node: Shell, volumes: list[Volume]) -> None:

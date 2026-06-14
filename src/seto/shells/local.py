@@ -14,6 +14,7 @@
 # ==============================================================================
 import logging
 import subprocess
+import sys
 
 from ..core.shell import Shell
 
@@ -57,7 +58,12 @@ class LocalShell(Shell):
       executable=shell_exec,
     )
 
-    std_output, stderr_output = process.communicate(input=input)
+    try:
+      std_output, stderr_output = process.communicate(input=input)
+    except KeyboardInterrupt:
+      process.kill()
+      process.wait()
+      sys.exit(0)
 
     if stdout and std_output:
       logger.info(std_output)
@@ -96,19 +102,26 @@ class LocalShell(Shell):
     if not quiet:
       self.print(f"echo '...' | {command}" if input else command)
 
-    result = subprocess.run(
+    process = subprocess.Popen(  # pylint: disable=consider-using-with
       command,
-      input=input,
-      capture_output=True,
+      stdin=subprocess.PIPE if input is not None else None,
+      stdout=subprocess.PIPE,
+      stderr=subprocess.PIPE,
       text=True,
       shell=True,
       env=env,
       executable=shell_exec,
-      check=False,
     )
 
-    std_output = result.stdout.strip()
-    stderr_output = result.stderr.strip()
+    try:
+      std_output, stderr_output = process.communicate(input=input)
+    except KeyboardInterrupt:
+      process.kill()
+      process.wait()
+      sys.exit(0)
+
+    std_output = std_output.strip()
+    stderr_output = stderr_output.strip()
 
     if stdout and std_output:
       logger.info(std_output)
@@ -116,9 +129,9 @@ class LocalShell(Shell):
     if stderr_output:
       logger.error(stderr_output)
 
-    if check and result.returncode != 0:
+    if check and process.returncode != 0:
       raise Exception(  # pylint: disable=broad-exception-raised
-        f"Command '{command}' failed with exit code {result.returncode}"
+        f"Command '{command}' failed with exit code {process.returncode}"
       )
 
     if stderr and stderr_output:

@@ -14,11 +14,9 @@
 # ==============================================================================
 from ..core.command import parse_volumes_args
 from ..core.driver import Driver
-from ..core.shell import Setting
 
 
 def execute_umount_volumes_command(args, driver: Driver) -> None:
-  clients: list[Setting] = [items[0] for items in args.clients]
   all_volumes = parse_volumes_args(args, driver)
 
-  driver.umount_volumes(clients=clients, volumes=all_volumes)
+  driver.umount_volumes(volumes=all_volumes)

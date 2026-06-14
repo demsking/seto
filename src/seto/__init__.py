@@ -199,13 +199,6 @@ def run() -> None:
   # Mount Volumes command
   mount_volumes_parser = subparsers.add_parser('mount-volumes', description='Mount shared volumes')
   mount_volumes_parser.set_defaults(func=execute_mount_volumes_command)
-  mount_volumes_parser.add_argument(
-    '--clients',
-    type=nodes_type,
-    nargs='+',
-    required=True,
-    help='Client nodes on which volumes will be mounted',
-  )
 
   #
   # Unmount Volumes command
@@ -213,13 +206,6 @@ def run() -> None:
     'unmount-volumes', description='Unmount shared volumes'
   )
   umount_volumes_parser.set_defaults(func=execute_umount_volumes_command)
-  umount_volumes_parser.add_argument(
-    '--clients',
-    type=nodes_type,
-    nargs='+',
-    required=True,
-    help='Client nodes on which volumes will be unmounted',
-  )
 
   #
   # Config command

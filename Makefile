@@ -138,16 +138,14 @@ mount:
 	    --debug \
 	    --project $(STACK_NAME) \
 	    --stack $(STACK_NAME) \
-	  mount-volumes \
-	    --clients $(SETO_MOUNT_NODES)
+	  mount-volumes
 
 umount:
 	@uv run seto \
 	    --debug \
 	    --project $(STACK_NAME) \
 	    --stack $(STACK_NAME) \
-	  unmount-volumes \
-	    --clients $(SETO_MOUNT_NODES)
+	  unmount-volumes
 
 ps:
 	docker stack ps $(STACK_NAME)

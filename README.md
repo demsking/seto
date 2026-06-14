@@ -80,8 +80,8 @@ flowchart TD
     C2 -- "Auto NFS Mount (via Docker)" --> SN
     SR -- "SSH Sync" --> SN
 
-    CLI -. "mount-volumes (CLI helper)" .-> C1
-    CLI -. "mount-volumes (CLI helper)" .-> C2
+    C1 -. "mount-volumes (runs locally)" .-> C1
+    C2 -. "mount-volumes (runs locally)" .-> C2
 
     CLI -- "deploy (x-mode: swarm)" --> Orchestrator
     Orchestrator -- "Schedules Containers" --> C1
@@ -90,7 +90,7 @@ flowchart TD
 
 - **Storage Node**: The single source of truth acting as the central NFS Server. It hosts the root folders for all shared volumes.
 - **Storage Replicas**: Secondary storage targets configured to sync/replicate volume directories to maintain data availability and redundancy.
-- **Client Nodes**: The execution/worker hosts running your application containers. While Docker automatically mounts the NFS volumes inside containers at startup, the CLI mount/unmount commands act as helpers to mount the volume root directly on the client host's filesystem (e.g. for manual inspection or file management).
+- **Client Nodes**: The execution/worker hosts running your application containers. While Docker automatically mounts the NFS volumes inside containers at startup, the CLI mount/unmount commands can be run directly on any node as helpers to mount the volume root on that node's local filesystem (e.g. for manual inspection or file management).
 
 ### Key Capabilities
 
@@ -111,8 +111,8 @@ All remote nodes must have **SSH**, **Docker**, and **NFS client utilities** ins
 - **`config` Command** – Parses, resolves, and renders compose files.
 - **`setup` Command** – Configures storage node and storage replica nodes.
 - **`create-volumes` Command** – Creates and synchronizes NFS volumes.
-- **`mount-volumes` Command** – Mounts volumes on replica nodes.
-- **`unmount-volumes` Command** – Safely detaches shared volumes.
+- **`mount-volumes` Command** – Mounts volumes locally.
+- **`unmount-volumes` Command** – Safely detaches shared volumes locally.
 - **`deploy` Command** – Deploys or updates Compose/Swarm stacks.
 - **`down` Command** – Stops and removes containers, networks, and resources.
 - **`check` Command** – Verifies and lists nodes matching placement constraints.
@@ -216,45 +216,35 @@ seto --project my-project --stack my-stack \
 
 ### 4. Mount Volumes Command
 
-A helper command that manually mounts the root shared NFS volume directory onto the client hosts' local filesystems (at `/mnt/{brickname}`).
+A helper command that manually mounts the root shared NFS volume directory onto the local filesystem (at `/mnt/{brickname}`) of the node where the command is executed.
 
 > [!NOTE]
 > This command is not required for application containers. Docker automatically mounts the NFS volumes inside the containers when the stack is deployed. This command is a helper for host-level management and manual file access.
 
 ```bash
 seto --project <project-name> --stack <stack-name> \
-  mount-volumes --clients <client-strings>
+  mount-volumes
 ```
-
-| Option      | Description                                                       |
-| :---------- | :---------------------------------------------------------------- |
-| `--clients` | Required. Client hosts where the NFS volume root will be mounted. |
 
 **Example:**
 
 ```bash
-seto --project my-project --stack my-stack \
-  mount-volumes --clients user:pass@client1 user:pass@client2
+seto --project my-project --stack my-stack mount-volumes
 ```
 
 ### 5. Unmount Volumes Command
 
-A helper command that manually unmounts the root shared NFS volume directory from the client hosts' filesystems.
+A helper command that manually unmounts the root shared NFS volume directory from the local filesystem of the node where the command is executed.
 
 ```bash
 seto --project <project-name> --stack <stack-name> \
-  unmount-volumes --clients <client-strings>
+  unmount-volumes
 ```
-
-| Option      | Description                                                         |
-| :---------- | :------------------------------------------------------------------ |
-| `--clients` | Required. Client hosts where the NFS volume root will be unmounted. |
 
 **Example:**
 
 ```bash
-seto --project my-project --stack my-stack \
-  unmount-volumes --clients user:pass@client1 user:pass@client2
+seto --project my-project --stack my-stack unmount-volumes
 ```
 
 ### 6. Deploy Command
@@ -412,7 +402,7 @@ services:
 
 1. **Compilation/Translation**: During `seto compose`, Ṣeto strips the `volumes-nfs` block from the service definition, adds a top-level `volumes` definition in the output compose file configured to use the NFS volume driver pointing to the storage node's IP address, and mounts this NFS volume to the service's `volumes` block.
 2. **Synchronization**: The `create-volumes` command synchronizes any local source directories (e.g., `./data/static`) to the NFS share directory on the storage node via SSH.
-3. **Mounting**: The `mount-volumes` command installs NFS client utilities and mounts the NFS export on the storage replica nodes.
+3. **Mounting**: The `mount-volumes` command installs NFS client utilities and mounts the NFS export locally.
 
 ### 2. Image-embedded Volumes (`volumes-image`)
 

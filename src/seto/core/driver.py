@@ -142,14 +142,11 @@ class Driver:
   def create_volumes(self, *, volumes: list[Volume], sync: bool = False) -> None:
     raise NotImplementedError()
 
-  def mount_volumes(self, *, clients: list[Setting], volumes: list[Volume]) -> None:
+  def mount_volumes(self, *, volumes: list[Volume]) -> None:
     if len(volumes) > 0:
-      for node_setting in clients:
-        node = Driver.get_shell(node_setting, self.storage_node.key_file_path)
-        node.connect()
-        fstab = node.file('/etc/fstab')
-        self.mount_node_volumes(node, volumes, fstab)
-        node.close()
+      node = self.host
+      fstab = node.file('/etc/fstab')
+      self.mount_node_volumes(node, volumes, fstab)
 
   def mount_node_volumes(
     self,
@@ -172,13 +169,10 @@ class Driver:
   def mount(self, node: Shell, storage: str, *, device: str, fstab: File) -> None:
     raise NotImplementedError()
 
-  def umount_volumes(self, *, clients: list[Setting], volumes: list[Volume]) -> None:
+  def umount_volumes(self, *, volumes: list[Volume]) -> None:
     if len(volumes) > 0:
-      for node_setting in clients:
-        node = Driver.get_shell(node_setting, self.storage_node.key_file_path)
-        node.connect()
-        self.umount_node_volumes(node, volumes)
-        node.close()
+      node = self.host
+      self.umount_node_volumes(node, volumes)
 
   def umount_node_volumes(self, node: Shell, volumes: list[Volume]) -> None:
     for volume in volumes:
@@ -186,7 +180,7 @@ class Driver:
       self.umount(node, volume.mount_folder)
 
   def umount(self, node: Shell, device: str) -> None:
-    node.run(f'umount {device}')
+    node.run(f'umount {device}', sudo=True)
 
   def resolve_compose_volume(self, volume: Volume) -> dict:
     raise NotImplementedError()

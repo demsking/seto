@@ -124,17 +124,16 @@ volumes--sync:
 	    --debug \
 	    --namespace $(STACK_NAME) \
 	    --stack $(STACK_NAME) \
-	  volumes create \
-	    --sync
+	  volumes sync
 
-mount:
+volumes--mount:
 	@uv run seto \
 	    --debug \
 	    --namespace $(STACK_NAME) \
 	    --stack $(STACK_NAME) \
 	  volumes mount
 
-umount:
+volumes--umount:
 	@uv run seto \
 	    --debug \
 	    --namespace $(STACK_NAME) \

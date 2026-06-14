@@ -31,6 +31,7 @@ from .commands.setup import execute_setup_command
 from .commands.setup import print_ssh_copy_id_commands
 from .commands.umount import execute_umount_volumes_command
 from .commands.volumes import execute_create_volumes_command
+from .commands.volumes import execute_sync_volumes_command
 from .core.package import APP_DESCRIPTION
 from .core.package import APP_NAME
 from .core.package import APP_VERSION
@@ -120,8 +121,8 @@ def run() -> None:
   parser = argparse.ArgumentParser(APP_NAME, description=APP_DESCRIPTION)
   subparsers = parser.add_subparsers()
 
-  parser.add_argument('--namespace', help='Namespace name')
-  parser.add_argument('--stack', help='Stack name')
+  parser.add_argument('--namespace', default=os.getenv('SETO_NAMESPACE'), help='Namespace name')
+  parser.add_argument('--stack', default=os.getenv('SETO_STACK'), help='Stack name')
 
   # add version argument
   parser.add_argument(
@@ -192,14 +193,15 @@ def run() -> None:
 
   # volumes create
   volumes_create_parser = volumes_subparsers.add_parser(
-    'create', description='Create and sync shared volumes'
+    'create', description='Create shared volumes'
   )
   volumes_create_parser.set_defaults(func=execute_create_volumes_command)
-  volumes_create_parser.add_argument(
-    '--sync',
-    action='store_true',
-    help='Sync volumes data',
+
+  # volumes sync
+  volumes_sync_parser = volumes_subparsers.add_parser(
+    'sync', description='Synchronize shared volumes data'
   )
+  volumes_sync_parser.set_defaults(func=execute_sync_volumes_command)
 
   # volumes mount
   volumes_mount_parser = volumes_subparsers.add_parser(
@@ -308,6 +310,7 @@ def run() -> None:
 
       if args.func in (
         execute_create_volumes_command,
+        execute_sync_volumes_command,
         execute_mount_volumes_command,
         execute_umount_volumes_command,
       ):

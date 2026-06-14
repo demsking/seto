@@ -162,7 +162,7 @@ def deploy_project_stack(args, driver: Driver, storage_replicas: list[Setting]) 
   )
 
   logger.info('Creating seto project volumes...')
-  driver.create_volumes(storage_replicas=storage_replicas, volumes=volumes, force=args.force)
+  driver.create_volumes(volumes=volumes, sync=args.sync)
 
   logger.info('Deploying seto project services...')
   swarm = DockerSwarm(
@@ -189,7 +189,7 @@ def execute_deploy_command(args, driver: Driver) -> None:
     logger.info('Automatically creating shared volumes...')
 
     driver.connect()
-    driver.create_volumes(volumes=all_volumes, force=getattr(args, 'force', False))
+    driver.create_volumes(volumes=all_volumes, sync=getattr(args, 'sync', False))
     driver.apply_storage_node_changes()
     driver.terminate()
 

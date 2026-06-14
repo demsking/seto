@@ -190,9 +190,9 @@ def run() -> None:
   create_volumes_parser.set_defaults(func=execute_create_volumes_command)
 
   create_volumes_parser.add_argument(
-    '--force',
+    '--sync',
     action='store_true',
-    help='Force volumes data sync',
+    help='Sync volumes data',
   )
 
   #
@@ -246,9 +246,9 @@ def run() -> None:
   )
 
   deploy_parser.add_argument(
-    '--force',
+    '--sync',
     action='store_true',
-    help='Force volumes data sync before deploying',
+    help='Sync volumes data before deploying',
   )
 
   #

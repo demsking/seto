@@ -200,18 +200,18 @@ Creates and synchronizes shared NFS volumes across target storage replica nodes.
 
 ```bash
 seto --project <project-name> --stack <stack-name> \
-  create-volumes [--force]
+  create-volumes [--sync]
 ```
 
-| Option    | Description                                      |
-| :-------- | :----------------------------------------------- |
-| `--force` | Optional. Forces synchronization of volume data. |
+| Option   | Description                                      |
+| :------- | :----------------------------------------------- |
+| `--sync` | Optional. Forces synchronization of volume data. |
 
 **Example:**
 
 ```bash
 seto --project my-project --stack my-stack \
-  create-volumes --force
+  create-volumes --sync
 ```
 
 ### 4. Mount Volumes Command
@@ -269,13 +269,13 @@ Deploys a stack to the Swarm cluster or to multiple nodes via Compose (if `x-mod
 
 ```bash
 seto --project <project-name> --stack <stack-name> \
-  deploy [--image-prefix <prefix>] [--force]
+  deploy [--image-prefix <prefix>] [--sync]
 ```
 
 | Option           | Description                                                           |
 | :--------------- | :-------------------------------------------------------------------- |
 | `--image-prefix` | Optional. Prefix added to the image namespace of custom built images. |
-| `--force`        | Optional. Force synchronization of shared volumes data.               |
+| `--sync`         | Optional. Force synchronization of shared volumes data.               |
 
 **Example:**
 
@@ -340,7 +340,7 @@ seto --project my-project --stack my-stack \
 
 # 2. Create and sync volumes
 seto --project my-project --stack my-stack \
-  create-volumes --force
+  create-volumes --sync
 
 # 3. Mount volumes for usage
 seto --project my-project --stack my-stack \

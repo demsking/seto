@@ -52,7 +52,7 @@ class NFSDriver(Driver):
   def setup_node(self, shell: Shell, force: bool = False) -> None:
     shell.install('nfs-common')
 
-  def create_volumes(self, *, volumes: list[Volume], force: bool = False) -> None:
+  def create_volumes(self, *, volumes: list[Volume], sync: bool = False) -> None:
     # Read existing export paths from /etc/exports on the remote server
     exports = self.storage_node.file('/etc/exports')
 
@@ -66,7 +66,7 @@ class NFSDriver(Driver):
       volume_storage = self.storage(volume)
       is_new_entry = self.add_exports_entry(volume_storage, exports=exports)
 
-      if force or is_new_entry:
+      if sync or is_new_entry:
         logger.info('Initializing volume %s...', volume.name)
         self.storage_node.copy_volume(volume, self.brick)
         self.storage_node.run(

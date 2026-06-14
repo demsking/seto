@@ -125,13 +125,13 @@ volumes:
 	    --stack $(STACK_NAME) \
 	  create-volumes
 
-volumes--force:
+volumes--sync:
 	@uv run seto \
 	    --debug \
 	    --project $(STACK_NAME) \
 	    --stack $(STACK_NAME) \
 	  create-volumes \
-	    --force
+	    --sync
 
 mount:
 	@uv run seto \

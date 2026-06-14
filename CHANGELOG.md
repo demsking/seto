@@ -2,6 +2,33 @@
 
 All notable changes to this project are documented in this file.
 
+## 5.0.0-b1 - 2026-06-14
+
+### Breaking Changes
+
+- Grouped volume-related commands (`create`, `sync`, `mount`, `unmount`) under a nested `volumes` subcommand group (e.g., `seto volumes {create,sync,mount,unmount}`).
+- Renamed the `--project` CLI flag to `--namespace` to better align with orchestration terminology.
+- Renamed the SSH key CLI flag from `--key` to `--ssh-key` and added environment variable support (`SETO_SSH_KEY`).
+- Replaced the global `--manager` CLI flag with a persistent, localized configuration file (`.seto/config.json`).
+- Refactored storage architecture terminology: replaced "manager/replica" with "storage-node/storage-replicas".
+- Simplified the `volumes mount` and `volumes unmount` commands by removing the `--clients` flag so they execute strictly on the local node.
+- Removed the `--storage-replicas` flag from the volume creation command.
+
+### Features
+
+- Added multi-host deployment support to Docker Compose mode.
+- Added a `check` command to verify placement constraints across nodes.
+- Automatically create/provision shared volumes during `deploy` before stack deployment.
+- Added support for sharing NFS volumes across multiple services using the `@` prefix.
+- Added dynamic detection of the `nobody` group (e.g. `nogroup` vs `nobody`) based on the target Linux distribution.
+
+### Improvements
+
+- Replaced standard `print()` statements with standard Python structured `logging`.
+- Automatically resolve relative volume paths against the compose file location.
+- Improved command error handling with process exit code verification in the remote shell.
+- Overhauled project documentation and README with an architecture diagram, workflows, logo, and table of contents.
+
 ## 4.1.0 - 2026-06-14
 
 ### Improvements

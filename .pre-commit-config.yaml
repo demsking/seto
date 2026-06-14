@@ -90,7 +90,6 @@ repos:
         description: "Lint Python code using `pylint`, focusing on error messages only."
         entry: pylint
         language: system
-        #args: ["--msg-template", "{path}:{line}:{column}: {msg_id} {msg}"]
 
   - repo: https://github.com/charliermarsh/ruff-pre-commit
     rev: v0.15.16

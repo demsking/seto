@@ -76,10 +76,7 @@ class Docker:
     )
 
   def pull(self) -> None:
-    self.localshell.run(
-      command=f'docker compose -f - -p {self.driver.stack_id} pull --dry-run --ignore-buildable --policy=always',
-      input=self.resolved_config,
-    )
+    raise NotImplementedError()
 
   def info(self) -> None:
     raise NotImplementedError()
@@ -222,7 +219,9 @@ class DockerCompose(Docker):
 
           matched = match_node_constraint(node, label_key, value)
           if self.driver.debug:
-            logger.debug('    Constraint: %s == %s -> %s', label_key, value, 'MATCHED' if matched else 'FAILED')
+            logger.debug(
+              '    Constraint: %s == %s -> %s', label_key, value, 'MATCHED' if matched else 'FAILED'
+            )
 
           if not matched:
             match_all = False
@@ -310,7 +309,9 @@ class DockerCompose(Docker):
         )
 
         if self.driver.debug:
-          logger.debug("  Checking device '%s' on '%s' using command: '%s'", device_name, nodename, check_cmd)
+          logger.debug(
+            "  Checking device '%s' on '%s' using command: '%s'", device_name, nodename, check_cmd
+          )
 
         try:
           if self.hostname == nodename:
@@ -325,7 +326,9 @@ class DockerCompose(Docker):
             logger.debug("  Device '%s' verified successfully on '%s'", device_name, nodename)
         except Exception as e:
           if self.driver.debug:
-            logger.debug("  Physical verification failed for device '%s' on '%s': %s", device_name, nodename, e)
+            logger.debug(
+              "  Physical verification failed for device '%s' on '%s': %s", device_name, nodename, e
+            )
           logger.warning(
             "WARNING: Node '%s' matched label constraints but physical check failed for device '%s': %s. Excluding node.",
             nodename,
@@ -394,6 +397,10 @@ class DockerCompose(Docker):
         input=self.resolved_config,
       )
 
+  def pull(self) -> None:
+    for nodename in self.nodenames:
+      self._exec(f'docker compose -p {self.driver.stack_id} -f - pull', nodename)
+
   def info(self) -> None:
     if self.driver.manager:
       command = f'docker compose -p {self.driver.stack_id} -f - config'
@@ -437,6 +444,9 @@ class DockerSwarm(Docker):
     return Driver.get_shell(
       Setting.from_connection_string(self.hostname),
     )
+
+  def pull(self) -> None:
+    pass
 
   def info(self) -> None:
     if self.driver.manager:

@@ -404,6 +404,10 @@ class DockerCompose(Docker):
       self._exec(command, nodename)
 
   def deploy(self) -> None:
+    for service in self.config.get('services', {}).values():
+      if 'build' in service:
+        del service['build']
+
     for nodename in self.nodenames:
       logger.info('Deploying on %s...', nodename)
       self._exec(
@@ -443,6 +447,10 @@ class DockerSwarm(Docker):
     self.shell.run(command, input=self.resolved_config)
 
   def deploy(self) -> None:
+    for service in self.config.get('services', {}).values():
+      if 'build' in service:
+        del service['build']
+
     self.shell.run(
       command=f'docker stack deploy --prune --detach=true --resolve-image=always -c - {self.driver.stack_id}',
       input=self.resolved_config,

@@ -115,8 +115,9 @@ def parse_local_volumes(
             )
 
           source = str(expanded)
+          local_volumes.append((source, target))
         # If source is a relative path, resolve against compose_dir
-        elif not os.path.isabs(source):
+        elif source.startswith('./') or source.startswith('../'):
           resolved_source = (compose_dir / source).resolve()
 
           if not resolved_source.exists():
@@ -125,7 +126,9 @@ def parse_local_volumes(
             )
 
           source = str(resolved_source)
-        local_volumes.append((source, target))
+          local_volumes.append((source, target))
+        elif os.path.isabs(source):
+          local_volumes.append((source, target))
 
   if len(local_volumes) > 0:
     _, image_version = tuple((service['image'].split(':') + ['latest'])[0:2])
@@ -205,7 +208,7 @@ def parse_volumes(
         if not os.path.exists(expanded):
           raise FileNotFoundError(f'Volume source "{src}" not found (expanded path {expanded})')
         src = expanded
-      elif not os.path.isabs(src):
+      elif src.startswith('./') or src.startswith('../'):
         resolved = (compose_dir / src).resolve()
         if not resolved.exists():
           raise FileNotFoundError(
@@ -238,15 +241,23 @@ def parse_volumes(
       # Resolve source path
       if source.startswith('~/'):
         device_source = os.path.expanduser(source)
+        rel_path = os.path.relpath(device_source, os.path.expanduser('~'))
+        volume_name = rel_path.replace('..', '').replace('/', '-').replace('.', '').lstrip('-')
+      elif source.startswith('./') or source.startswith('../'):
+        resolved = (compose_dir / source).resolve()
+
+        if not resolved.exists():
+          raise FileNotFoundError(
+            f'Volume source "{source}" not found relative to {compose_file_path}'
+          )
+
+        source = str(resolved)
+        device_source = source
+        rel_path = os.path.relpath(device_source, compose_dir)
+        volume_name = rel_path.replace('..', '').replace('/', '-').replace('.', '').lstrip('-')
       else:
-        if not os.path.isabs(source):
-          resolved = (compose_dir / source).resolve()
-          if not resolved.exists():
-            raise FileNotFoundError(
-              f'Volume source "{source}" not found relative to {compose_file_path}'
-            )
-          source = str(resolved)
         device_source = None
+        volume_name = source
 
       target_folder = target
 
@@ -254,7 +265,6 @@ def parse_volumes(
         target_folder = os.path.dirname(target)
         volume_name = os.path.basename(source).replace('/', '-').replace('.', '')
       else:
-        volume_name = source
         compose_volumes.pop(volume_name, None)
 
       if volume_mode == 'norename':

@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented in this file.
 
+## 5.0.0-b2 - 2026-06-14
+
+### Features
+
+- Added explicit image pulling (`docker compose pull`) for Docker Compose deployments before starting services to ensure the latest images are used on target nodes.
+
+### Documentation
+
+- Added detailed installation instructions in README using `pipx` and `uv`.
+
 ## 5.0.0-b1 - 2026-06-14
 
 ### Breaking Changes

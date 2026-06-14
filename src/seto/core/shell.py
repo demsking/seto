@@ -134,7 +134,7 @@ class Shell:
     raise NotImplementedError()
 
   def check_user_exists(self, username: str) -> bool:
-    ouput = self.run(f'getent passwd {username}', sudo=True, stdout=False, quiet=True)
+    ouput = self.run(f'getent passwd {username}', sudo=True, stdout=False, quiet=True, check=False)
 
     return username in ouput
 
@@ -149,11 +149,11 @@ class Shell:
     # Detect package manager
     pkg_manager = None
 
-    if 'apt-get' in self.run('command -v apt-get', quiet=True, stdout=False):
+    if 'apt-get' in self.run('command -v apt-get', quiet=True, stdout=False, check=False):
       pkg_manager = 'apt'
-    elif 'dnf' in self.run('command -v dnf', quiet=True, stdout=False):
+    elif 'dnf' in self.run('command -v dnf', quiet=True, stdout=False, check=False):
       pkg_manager = 'dnf'
-    elif 'yum' in self.run('command -v yum', quiet=True, stdout=False):
+    elif 'yum' in self.run('command -v yum', quiet=True, stdout=False, check=False):
       pkg_manager = 'yum'
 
     if not pkg_manager:
@@ -165,7 +165,7 @@ class Shell:
       if pkg_manager == 'apt'
       else f"rpm -qa | grep -w {package_name}"
     )
-    result = self.run(check_cmd, sudo=True, quiet=True, stdout=False)
+    result = self.run(check_cmd, sudo=True, quiet=True, stdout=False, check=False)
 
     if package_name not in result:
       logger.info('Installing %s on %s...', package_name, self.setting.hostname)
@@ -207,6 +207,7 @@ class Shell:
     stderr=False,
     quiet=False,
     input: str | None = None,  # pylint: disable=redefined-builtin
+    check=True,
   ) -> str:
     raise NotImplementedError()
 

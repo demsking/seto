@@ -13,7 +13,6 @@
 # limitations under the License.
 # ==============================================================================
 import logging
-import sys
 
 import paramiko
 
@@ -62,6 +61,7 @@ class RemoteShell(Shell):
     stderr=False,
     quiet=False,
     input: str | None = None,  # pylint: disable=redefined-builtin
+    check=True,
   ) -> str:
     if sudo:
       command = f"sudo sh -c '{command}'"
@@ -79,18 +79,21 @@ class RemoteShell(Shell):
 
     stdout_output = std_output.read().decode('utf-8')
     stderr_output = stderr_output.read().decode('utf-8')
+    exit_status = std_output.channel.recv_exit_status()
 
     if stdout_output and stdout:
       logger.info(stdout_output)
 
     if stderr_output:
-      if stderr:
-        raise Exception(stderr_output)  # pylint: disable=broad-exception-raised
-
       logger.error(stderr_output)
 
-      if stderr:
-        sys.exit(1)
+    if check and exit_status != 0:
+      raise Exception(  # pylint: disable=broad-exception-raised
+        f"Command '{command}' failed with exit code {exit_status}"
+      )
+
+    if stderr and stderr_output:
+      raise Exception(stderr_output)  # pylint: disable=broad-exception-raised
 
     return stdout_output
 

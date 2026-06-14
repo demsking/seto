@@ -14,7 +14,6 @@
 # ==============================================================================
 import logging
 import subprocess
-import sys
 
 from ..core.shell import Shell
 
@@ -35,6 +34,7 @@ class LocalShell(Shell):
     quiet=False,
     input: str | None = None,  # pylint: disable=redefined-builtin
     env: dict | None = None,
+    check=True,
   ):
     if sudo:
       command = f"sudo sh -c '{command}'"
@@ -63,13 +63,15 @@ class LocalShell(Shell):
       logger.info(std_output)
 
     if stderr_output:
-      if stderr:
-        raise Exception(stderr_output)  # pylint: disable=broad-exception-raised
-
       logger.error(stderr_output)
 
-      if stderr:
-        sys.exit(process.returncode)
+    if check and process.returncode != 0:
+      raise Exception(  # pylint: disable=broad-exception-raised
+        f"Command '{command}' failed with exit code {process.returncode}"
+      )
+
+    if stderr and stderr_output:
+      raise Exception(stderr_output)  # pylint: disable=broad-exception-raised
 
     return std_output
 
@@ -83,6 +85,7 @@ class LocalShell(Shell):
     quiet=False,
     input: str | None = None,  # pylint: disable=redefined-builtin
     env: dict | None = None,
+    check=True,
   ) -> str:
     if sudo:
       command = f"sudo sh -c '{command}'"
@@ -111,13 +114,15 @@ class LocalShell(Shell):
       logger.info(std_output)
 
     if stderr_output:
-      if stderr:
-        raise Exception(stderr_output)  # pylint: disable=broad-exception-raised
-
       logger.error(stderr_output)
 
-      if stderr:
-        sys.exit(result.returncode)
+    if check and result.returncode != 0:
+      raise Exception(  # pylint: disable=broad-exception-raised
+        f"Command '{command}' failed with exit code {result.returncode}"
+      )
+
+    if stderr and stderr_output:
+      raise Exception(stderr_output)  # pylint: disable=broad-exception-raised
 
     return std_output
 

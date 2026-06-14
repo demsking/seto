@@ -55,6 +55,7 @@ def execute_check_command(args, driver: Driver) -> None:
       driver,
       inject=True,
       execute=parse_config,
+      skip_volumes=True,
     )
 
     if not composes_items:
@@ -70,5 +71,5 @@ def execute_check_command(args, driver: Driver) -> None:
 
         for node in nodes:
           print(f'  - {node}')
-      except Exception as e:
-        print(f'Error matching nodes: {e}')
+      except Exception as exception:
+        print(f'Error matching nodes: {exception}')

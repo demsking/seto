@@ -6,8 +6,7 @@
 .ropeproject/
 .venv/
 build/
-bridges/
-images/
+.seto/
 dist/
 __pycache__/
 *.kate-swp

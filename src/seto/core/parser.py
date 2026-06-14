@@ -100,7 +100,7 @@ def parse_local_volumes(
 
     image_name = f'{stack}-{service_name}'.replace('_', '-')
     service_dockerfile_name = f'{image_name}.dockerfile'
-    service_dockerfile_file = Path('images') / service_dockerfile_name
+    service_dockerfile_file = Path('.seto/images') / service_dockerfile_name
     service_dockerfile_definition = (
       [
         f'FROM {service["image"]}',
@@ -120,6 +120,19 @@ def parse_local_volumes(
     # Ensure parent directory exists before writing
     service_dockerfile_file.parent.mkdir(parents=True, exist_ok=True)
 
+    # Automatically add images/ to .seto/.gitignore
+    gitignore_file = Path('.seto/.gitignore')
+
+    if gitignore_file.exists():
+      content = gitignore_file.read_text(encoding='utf-8')
+
+      if 'images/' not in content.splitlines() and 'images' not in content.splitlines():
+        with gitignore_file.open('a', encoding='utf-8') as file:
+          file.write('images/\n')
+    else:
+      with gitignore_file.open('w', encoding='utf-8') as file:
+        file.write('images/\n')
+
     with service_dockerfile_file.open('w', encoding='utf-8') as dockerfile:
       dockerfile.write(service_dockerfile)
 
@@ -133,6 +146,7 @@ def parse_volumes(
   default_nfs_options: str = 'rw,hard,noatime,nodiratime',
   compose_volumes: dict,
   volumes: list[Volume],
+  skip_volumes: bool = False,
 ) -> None:
   if 'volumes-nfs' in service:
     service_volumes = service.get('volumes', [])
@@ -140,6 +154,9 @@ def parse_volumes(
     service['volumes'] = service_volumes
 
     del service['volumes-nfs']
+
+    if skip_volumes:
+      return
 
     for volume_entry in service_volumes_nfs:
       source, target, volume_mode, nfs_options = parse_nfs_volume_entry(
@@ -195,6 +212,7 @@ def resolve_compose_file(
   inject: bool = False,
   mode: list[ResolveMode] | None = None,
   image_prefix: str,
+  skip_volumes: bool = False,
 ) -> tuple[dict, list]:
   mode_value = mode or ['swarm']
   updated_compose_data = compose_data.copy()
@@ -230,6 +248,7 @@ def resolve_compose_file(
       default_nfs_options=default_nfs_options,
       compose_volumes=compose_volumes,
       volumes=volumes,
+      skip_volumes=skip_volumes,
     )
 
     if 'compose' in mode_value:
@@ -362,6 +381,7 @@ def parse_services(
   mode: list[ResolveMode] | None = None,
   inject: bool = False,
   image_prefix: str,
+  skip_volumes: bool = False,
 ) -> tuple[list, list]:
   services_files = glob.glob(os.path.join(stack, '*.yaml'))
   output_resolved_compose_data = []
@@ -392,6 +412,7 @@ def parse_services(
       inject=inject,
       mode=[x_mode],
       image_prefix=image_prefix,
+      skip_volumes=skip_volumes,
     )
 
     output_resolved_compose_data.append(resolved_compose_data)

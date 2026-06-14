@@ -13,6 +13,8 @@
 # limitations under the License.
 # ==============================================================================
 import argparse
+import glob
+import json
 import os
 import socket
 import sys
@@ -99,13 +101,6 @@ def run() -> None:
   )
 
   parser.add_argument(
-    '--manager',
-    type=manager_type,
-    required=True,
-    help=f'Storage manager URI to use. Can be {DRIVER_EXAMPLES_STR}',
-  )
-
-  parser.add_argument(
     '--key',
     default=os.path.expanduser('~/.ssh/id_rsa'),
     help='Path to the SSH private key file',
@@ -121,6 +116,13 @@ def run() -> None:
   # Setup command
   setup_parser = subparsers.add_parser('setup', description='Setup manager and replica nodes')
   setup_parser.set_defaults(func=execute_setup_command)
+
+  setup_parser.add_argument(
+    '--manager',
+    type=manager_type,
+    required=True,
+    help=f'Storage manager URI to use. Can be {DRIVER_EXAMPLES_STR}',
+  )
 
   setup_parser.add_argument(
     '--replica',
@@ -250,29 +252,95 @@ def run() -> None:
     os.getenv('SETO_DEFAULT_NFS_OPTIONS', 'rw,hard,noatime,nodiratime'),
   )
 
-  _, connection_string = args.manager
-  setting = Setting.from_connection_string(connection_string)
-  locale_setting = (
-    setting
-    if setting.local
-    else Setting(hostname='localhost', local=True, ip='127.0.0.1', username=None, password=None)
-  )
-
-  manager_shell = LocalShell(setting, args.key) if setting.local else RemoteShell(setting, args.key)
-  local_shell = LocalShell(locale_setting, args.key)
-
-  driver = NFSDriver(
-    stack=args.stack,
-    project=args.project,
-    host=local_shell,
-    manager=manager_shell,
-    debug=args.debug,
-  )
-
   # Call the function associated with the selected subcommand
   if hasattr(args, 'func'):
     if not hasattr(args, 'image_prefix'):
       setattr(args, 'image_prefix', '')
+
+    if args.func == execute_setup_command:
+      driver_type, connection_string = args.manager
+      setting = Setting.from_connection_string(connection_string)
+    else:
+      # Determine if the config file is needed (i.e. if volumes-nfs needs parsing)
+      needs_nfs = False
+
+      if args.func in (
+        execute_create_volumes_command,
+        execute_mount_volumes_command,
+        execute_umount_volumes_command,
+      ):
+        needs_nfs = True
+      elif args.func != execute_check_command:
+        stack_dir = args.stack or args.project
+
+        if stack_dir and os.path.isdir(stack_dir):
+          for filepath in glob.glob(os.path.join(stack_dir, '*.yaml')):
+            try:
+              with open(filepath, encoding='utf-8') as file:
+                if 'volumes-nfs' in file.read():
+                  needs_nfs = True
+                  break
+            except Exception:
+              pass
+
+      config_path = os.path.join('.seto', 'config.json')
+
+      if needs_nfs:
+        if not os.path.exists(config_path):
+          print(
+            f"Error: Configuration file '{config_path}' not found. The setup command has not yet been performed."
+          )
+          sys.exit(40)
+
+        try:
+          with open(config_path, encoding='utf-8') as file:
+            config_data = json.load(file)
+
+          manager_cfg = config_data['manager']
+          driver_type = config_data.get('driver', 'nfs')
+          setting = Setting(
+            hostname=manager_cfg['hostname'],
+            ip=manager_cfg['ip'],
+            local=manager_cfg['local'],
+            username=None if manager_cfg['local'] else NFSDriver.setouser,
+            password=None,
+          )
+        except Exception as exception:
+          print(f'Error: Failed to load configuration file. {exception}')
+          sys.exit(40)
+      else:
+        # Fallback setting when NFS is not needed/used, so config file is not required.
+        driver_type = 'nfs'
+        setting = Setting(
+          hostname='localhost',
+          ip='127.0.0.1',
+          local=True,
+          username=None,
+          password=None,
+        )
+
+    locale_setting = (
+      setting
+      if setting.local
+      else Setting(hostname='localhost', local=True, ip='127.0.0.1', username=None, password=None)
+    )
+
+    manager_shell = (
+      LocalShell(setting, args.key) if setting.local else RemoteShell(setting, args.key)
+    )
+    local_shell = LocalShell(locale_setting, args.key)
+
+    if driver_type == 'nfs':
+      driver = NFSDriver(
+        stack=args.stack,
+        project=args.project,
+        host=local_shell,
+        manager=manager_shell,
+        debug=args.debug,
+      )
+    else:
+      print(f"Error: Unknown driver type '{driver_type}'")
+      sys.exit(40)
 
     if args.debug:
       args.func(args, driver)

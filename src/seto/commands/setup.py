@@ -1,4 +1,4 @@
-# Copyright 2024-2025 Sébastien Demanou. All Rights Reserved.
+# Copyright 2024-2026 Sébastien Demanou. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
+import json
 import os
 
 from ..core.driver import Driver
 from ..core.shell import Setting
-from .deploy import deploy_seto_stack
 from .deploy import deploy_project_stack
+from .deploy import deploy_seto_stack
 
 
 def execute_setup_command(args, driver: Driver) -> None:
@@ -31,6 +32,39 @@ def execute_setup_command(args, driver: Driver) -> None:
   driver.setup_manager(replica, args.force)
   driver.setup_nodes(clients, args.force)
   driver.apply_manager_changes()
+
+  config_dir = '.seto'
+  os.makedirs(config_dir, exist_ok=True)
+
+  # Automatically add images/ to .seto/.gitignore
+  gitignore_path = os.path.join(config_dir, '.gitignore')
+
+  if os.path.exists(gitignore_path):
+    with open(gitignore_path, encoding='utf-8') as file:
+      content = file.read()
+
+    if 'images/' not in content.splitlines() and 'images' not in content.splitlines():
+      with open(gitignore_path, 'a', encoding='utf-8') as file:
+        file.write('images/\n')
+  else:
+    with open(gitignore_path, 'w', encoding='utf-8') as file:
+      file.write('images/\n')
+
+  config_path = os.path.join(config_dir, 'config.json')
+  config_data = {
+    'driver': driver.slug,
+    'manager': {
+      'hostname': driver.manager.setting.hostname,
+      'ip': driver.manager.setting.ip,
+      'local': driver.manager.setting.local,
+    },
+  }
+
+  with open(config_path, 'w', encoding='utf-8') as file:
+    json.dump(config_data, file, indent=2)
+
+  print(f'Configuration file generated at {config_path}\n')
+
   driver.terminate()
 
 
@@ -53,9 +87,7 @@ def print_ssh_copy_id_commands(args) -> None:
   pub_key_file_path = args.key + '.pub'
   replica: list[Setting] = [items[0] for items in args.replica]
   clients: list[Setting] = [items[0] for items in args.clients]
-  remotes = replica + [
-    item for item in clients if not any(item == setting for setting in replica)
-  ]
+  remotes = replica + [item for item in clients if not any(item == setting for setting in replica)]
 
   print('Please run the following command for each server to copy your public key:\n')
 

@@ -29,6 +29,7 @@ def resolve(
   *,
   inject: bool = False,
   execute: Callable[[dict, list], None] | None = None,
+  skip_volumes: bool = False,
 ) -> dict:
   config_networks = get_global_external_networks()
   global_networks = resolve_networks(args.project)
@@ -127,6 +128,7 @@ def resolve(
     execute=parse,
     inject=inject,
     mode=['compose'] if args.compose else ['swarm'],
+    skip_volumes=skip_volumes,
   )
 
   if not compose['x-placement']:

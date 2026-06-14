@@ -75,30 +75,22 @@ repos:
         entry: editorconfig-checker
         types: [text]
         require_serial: true
-      - id: hadolint
-        name: "Lint Dockerfile with Hadolint"
-        description: "Lint Dockerfiles using `hadolint` to ensure best practices."
-        entry: hadolint
-        args: ["--ignore", "DL3008", "DL3013", "DL3042"]
-        language: system
-        files: Dockerfile
       - id: autopep8
         name: "Auto-format Python Code with autopep8"
         description: "Automatically format Python code to comply with PEP 8 using `autopep8`."
         entry: autopep8
         language: system
         files: '\.py$'
+
+  - repo: https://github.com/pycqa/pylint
+    rev: v4.0.5
+    hooks:
       - id: pylint
         name: "Lint Python Code with Pylint"
         description: "Lint Python code using `pylint`, focusing on error messages only."
         entry: pylint
-        language: python
-        files: '\.py$'
-        args:
-          - "-rn" # Only display messages
-          - "--errors-only"
-          - "--ignore-paths=tests,.vscode,.gitlab"
-          - "--ignore-patterns=.*_test\\.py"
+        language: system
+        #args: ["--msg-template", "{path}:{line}:{column}: {msg_id} {msg}"]
 
   - repo: https://github.com/charliermarsh/ruff-pre-commit
     rev: v0.15.16

@@ -172,7 +172,7 @@ These options apply globally to the `seto` CLI tool and must be specified before
 | :------------------- | :-------- | :--------------------------------------------------------------------------- | :------------------------- |
 | `--namespace <name>` | **Yes\*** | Namespace for grouping resources (optional for `check` with `--constraint`). | `--namespace my-namespace` |
 | `--stack <name>`     | No        | Stack name for grouping services and volumes.                                | `--stack my-stack`         |
-| `--key <path>`       | No        | Path to the SSH private key file (defaults to `~/.ssh/id_rsa`).              | `--key ~/.ssh/id_rsa`      |
+| `--ssh-key <path>`   | No        | Path to the SSH private key file (defaults to `~/.ssh/id_rsa`).              | `--ssh-key ~/.ssh/id_rsa`  |
 | `--debug`            | No        | Enables verbose debug logging.                                               | `--debug`                  |
 | `-v, --version`      | No        | Show the version number and exit.                                            | `-v`                       |
 
@@ -182,6 +182,7 @@ These options apply globally to the `seto` CLI tool and must be specified before
 | -------------------------------- | -------------------------------------------------------------------------------- | ---------------------------- |
 | `SETO_NAMESPACE`                 | Default namespace name.                                                          | None                         |
 | `SETO_STACK`                     | Default stack name.                                                              | None                         |
+| `SETO_SSH_KEY`                   | Default path to the SSH private key file.                                        | `~/.ssh/id_rsa`              |
 | `SETO_DEFAULT_VOLUME_MOUNT_MODE` | Default volume mount mode used when mode is omitted in `volumes-nfs` entries.    | `rw`                         |
 | `SETO_DEFAULT_NFS_OPTIONS`       | Default `volumes-nfs` mount options when options are omitted in compose entries. | `rw,hard,noatime,nodiratime` |
 

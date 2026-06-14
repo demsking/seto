@@ -64,23 +64,23 @@ help-down:
 
 resolved-compose.yaml:
 	@uv run seto \
-	  --namespace $(STACK_NAME) \
-	  --stack $(STACK_NAME) \
+	  --namespace $(SETO_STACK) \
+	  --stack $(SETO_STACK) \
 	  --debug \
 	  config
 
 config:
 	@uv run seto \
 	    --debug \
-	    --namespace $(STACK_NAME) \
-	    --stack $(STACK_NAME) \
+	    --namespace $(SETO_STACK) \
+	    --stack $(SETO_STACK) \
 	  config
 
 config--compose:
 	@uv run seto \
 	    --debug \
-	    --namespace $(STACK_NAME) \
-	    --stack $(STACK_NAME) \
+	    --namespace $(SETO_STACK) \
+	    --stack $(SETO_STACK) \
 	  config \
 	    --compose
 
@@ -88,17 +88,17 @@ deploy:
 	@pkexec echo
 	@uv run seto \
 	    --debug \
-	    --namespace $(STACK_NAME) \
-	    --stack $(STACK_NAME) \
+	    --namespace $(SETO_STACK) \
+	    --stack $(SETO_STACK) \
 	  deploy
 
 setup:
 	@pkexec echo
 	@uv run seto \
 	    --debug \
-	    --namespace $(STACK_NAME) \
-	    --stack $(STACK_NAME) \
-	    --key ~/.ssh/id_rsa \
+	    --namespace $(SETO_STACK) \
+	    --stack $(SETO_STACK) \
+	    --ssh-key ~/.ssh/id_rsa \
 	  setup \
 	    --storage-node $(SETO_STORAGE_NODE) \
 	    --storage-replicas $(SETO_STORAGE_REPLICAS) \
@@ -108,37 +108,37 @@ down:
 	@pkexec echo
 	@uv run seto \
 	    --debug \
-	    --namespace $(STACK_NAME) \
-	    --stack $(STACK_NAME) \
+	    --namespace $(SETO_STACK) \
+	    --stack $(SETO_STACK) \
 	  down
 
 volumes:
 	@uv run seto \
 	    --debug \
-	    --namespace $(STACK_NAME) \
-	    --stack $(STACK_NAME) \
+	    --namespace $(SETO_STACK) \
+	    --stack $(SETO_STACK) \
 	  volumes create
 
 volumes--sync:
 	@uv run seto \
 	    --debug \
-	    --namespace $(STACK_NAME) \
-	    --stack $(STACK_NAME) \
+	    --namespace $(SETO_STACK) \
+	    --stack $(SETO_STACK) \
 	  volumes sync
 
 volumes--mount:
 	@uv run seto \
 	    --debug \
-	    --namespace $(STACK_NAME) \
-	    --stack $(STACK_NAME) \
+	    --namespace $(SETO_STACK) \
+	    --stack $(SETO_STACK) \
 	  volumes mount
 
 volumes--umount:
 	@uv run seto \
 	    --debug \
-	    --namespace $(STACK_NAME) \
-	    --stack $(STACK_NAME) \
+	    --namespace $(SETO_STACK) \
+	    --stack $(SETO_STACK) \
 	  volumes unmount
 
 ps:
-	docker stack ps $(STACK_NAME)
+	docker stack ps $(SETO_STACK)

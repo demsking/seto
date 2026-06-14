@@ -73,7 +73,7 @@ def execute_setup_command(args, driver: Driver) -> None:
 
 
 def generate_ssh_keys(args, driver: Driver) -> None:
-  key_file_path = args.key
+  key_file_path = args.ssh_key
 
   if not os.path.exists(key_file_path):
     key_file_dir = os.path.dirname(key_file_path)
@@ -88,7 +88,7 @@ def generate_ssh_keys(args, driver: Driver) -> None:
 
 
 def print_ssh_copy_id_commands(args) -> None:
-  pub_key_file_path = args.key + '.pub'
+  pub_key_file_path = args.ssh_key + '.pub'
   storage_replicas: list[Setting] = [items[0] for items in args.storage_replicas]
   clients: list[Setting] = [items[0] for items in args.clients]
   remotes = storage_replicas + [

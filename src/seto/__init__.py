@@ -134,8 +134,8 @@ def run() -> None:
   )
 
   parser.add_argument(
-    '--key',
-    default=os.path.expanduser('~/.ssh/id_rsa'),
+    '--ssh-key',
+    default=os.getenv('SETO_SSH_KEY', os.path.expanduser('~/.ssh/id_rsa')),
     help='Path to the SSH private key file',
   )
 
@@ -373,9 +373,9 @@ def run() -> None:
     )
 
     storage_node_shell = (
-      LocalShell(setting, args.key) if setting.local else RemoteShell(setting, args.key)
+      LocalShell(setting, args.ssh_key) if setting.local else RemoteShell(setting, args.ssh_key)
     )
-    local_shell = LocalShell(locale_setting, args.key)
+    local_shell = LocalShell(locale_setting, args.ssh_key)
 
     if driver_type == 'nfs':
       driver = NFSDriver(

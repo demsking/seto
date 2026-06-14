@@ -75,28 +75,7 @@ These options apply globally to the `seto` CLI tool and must be specified before
 
 ## Subcommands
 
-### 1. Config Command
-
-Parses, resolves environment variables, expands custom volumes, and renders the compose file in canonical format. This command depends on the `.seto/config.json` configuration file and requires the `setup` command to be run beforehand if the stack utilizes NFS (`volumes-nfs`) volumes.
-
-```bash
-seto --project <project-name> [--stack <stack-name>] \
-  config [--compose]
-```
-
-| Option      | Description                                                                          |
-| :---------- | :----------------------------------------------------------------------------------- |
-| `--compose` | Optional. Resolves and compiles for standard Docker Compose instead of Docker Swarm. |
-
-**Example:**
-
-```bash
-seto --project my-project --stack my-stack config --compose
-```
-
----
-
-### 2. Setup Command
+### 1. Setup Command
 
 Sets up the **storage node**, **storage replica**, and **client** nodes for NFS synchronization, and generates the `.seto/config.json` base configuration file.
 
@@ -121,9 +100,30 @@ seto --project my-project --stack my-stack \
 
 ---
 
+### 2. Config Command
+
+Parses, resolves environment variables, expands custom volumes, and renders the compose file in canonical format.
+
+```bash
+seto --project <project-name> [--stack <stack-name>] \
+  config [--compose]
+```
+
+| Option      | Description                                                                          |
+| :---------- | :----------------------------------------------------------------------------------- |
+| `--compose` | Optional. Resolves and compiles for standard Docker Compose instead of Docker Swarm. |
+
+**Example:**
+
+```bash
+seto --project my-project --stack my-stack config --compose
+```
+
+---
+
 ### 3. Create Volumes Command
 
-Creates and synchronizes shared NFS volumes across target storage replica nodes. This command depends on the `.seto/config.json` configuration file, meaning the `setup` command must be run prior to executing this command.
+Creates and synchronizes shared NFS volumes across target storage replica nodes.
 
 ```bash
 seto --project <project-name> --stack <stack-name> \
@@ -146,7 +146,7 @@ seto --project my-project --stack my-stack \
 
 ### 4. Mount Volumes Command
 
-Mounts shared NFS volumes on client nodes. This command depends on the `.seto/config.json` configuration file, meaning the `setup` command must be run prior to executing this command.
+Mounts shared NFS volumes on client nodes.
 
 ```bash
 seto --project <project-name> --stack <stack-name> \
@@ -168,7 +168,7 @@ seto --project my-project --stack my-stack \
 
 ### 5. Unmount Volumes Command
 
-Unmounts shared NFS volumes from client nodes. This command depends on the `.seto/config.json` configuration file, meaning the `setup` command must be run prior to executing this command.
+Unmounts shared NFS volumes from client nodes.
 
 ```bash
 seto --project <project-name> --stack <stack-name> \
@@ -190,7 +190,7 @@ seto --project my-project --stack my-stack \
 
 ### 6. Deploy Command
 
-Deploys a stack to the Swarm cluster or to multiple nodes via Compose (if `x-mode: compose` is set). This command depends on the `.seto/config.json` configuration file and requires the `setup` command to be run beforehand if the stack utilizes NFS (`volumes-nfs`) volumes.
+Deploys a stack to the Swarm cluster or to multiple nodes via Compose (if `x-mode: compose` is set).
 
 ```bash
 seto --project <project-name> --stack <stack-name> \
@@ -211,7 +211,7 @@ seto --project my-project --stack my-stack deploy
 
 ### 7. Down Command
 
-Stops and removes containers, networks, and stack resources. This command depends on the `.seto/config.json` configuration file and requires the `setup` command to be run beforehand if the stack utilizes NFS (`volumes-nfs`) volumes.
+Stops and removes containers, networks, and stack resources.
 
 ```bash
 seto --project <project-name> --stack <stack-name> \
@@ -228,7 +228,7 @@ seto --project my-project --stack my-stack down
 
 ### 8. Check Command
 
-Verifies and lists nodes matching placement constraints. This command does not require the `.seto/config.json` configuration file, as it only evaluates placement constraints and skips volume resolution.
+Verifies and lists nodes matching placement constraints.
 
 ```bash
 seto --project <project-name> \
@@ -287,13 +287,6 @@ seto --project my-project --stack my-stack \
 - Remote errors are captured and clearly reported.
 - Commands are **idempotent** — safe to re-run if interrupted.
 - Execution stops immediately on critical errors.
-
-## Notes
-
-- NFS authentication uses the URI:
-  `nfs://username:password@hostname`
-- Storage replica connections follow:
-  `username:password@hostname`
 
 ## Custom Volume Extensions
 

@@ -60,7 +60,9 @@ class Setting:
     if not is_local and not client_user:
       raise ValueError('Unable to determine username from connection string')
 
-    username, password = tuple((client_user.split(':') + [None])[0:2]) if client_user else (None, None)
+    username, password = (
+      tuple((client_user.split(':') + [None])[0:2]) if client_user else (None, None)
+    )
     node_ip = resolve_hostname(node_host)
 
     return Setting(
@@ -109,6 +111,7 @@ class Shell:
     self.setting = setting
     self.key_file_path = key_file_path
     self.pub_key_file_path = f'{key_file_path}.pub' if key_file_path else None
+    self._nobody_group: str | None = None
 
   @property
   def hostname(self) -> str:
@@ -120,7 +123,11 @@ class Shell:
 
   @property
   def prompt(self) -> str:
-    return f'{self.setting.username}@{self.setting.hostname}:~$' if self.setting.username else f'{self.setting.hostname}:~$'
+    return (
+      f'{self.setting.username}@{self.setting.hostname}:~$'
+      if self.setting.username
+      else f'{self.setting.hostname}:~$'
+    )
 
   @property
   @lru_cache
@@ -129,6 +136,17 @@ class Shell:
       with open(self.pub_key_file_path, encoding='utf-8') as key_file:
         return key_file.read()
     return None
+
+  @property
+  def nobody_group(self) -> str:
+    if self._nobody_group is None:
+      try:
+        group = self.run('id -gn nobody', quiet=True, stdout=False, check=False).strip()
+        self._nobody_group = group if group else 'nogroup'
+      except Exception:
+        self._nobody_group = 'nogroup'
+
+    return self._nobody_group
 
   def connect(self):
     raise NotImplementedError()
@@ -161,9 +179,9 @@ class Shell:
 
     # Check if package is already installed
     check_cmd = (
-      f"dpkg -l | grep -w {package_name}"
+      f'dpkg -l | grep -w {package_name}'
       if pkg_manager == 'apt'
-      else f"rpm -qa | grep -w {package_name}"
+      else f'rpm -qa | grep -w {package_name}'
     )
     result = self.run(check_cmd, sudo=True, quiet=True, stdout=False, check=False)
 
@@ -172,14 +190,14 @@ class Shell:
 
       if pkg_manager == 'apt':
         self.run(
-          f"DEBIAN_FRONTEND=noninteractive apt-get install -y --quiet {package_name}",
+          f'DEBIAN_FRONTEND=noninteractive apt-get install -y --quiet {package_name}',
           sudo=True,
           quiet=True,
         )
       elif pkg_manager == 'dnf':
-        self.run(f"dnf install -y {package_name}", sudo=True, quiet=True)
+        self.run(f'dnf install -y {package_name}', sudo=True, quiet=True)
       elif pkg_manager == 'yum':
-        self.run(f"yum install -y {package_name}", sudo=True, quiet=True)
+        self.run(f'yum install -y {package_name}', sudo=True, quiet=True)
 
       return True
 
@@ -187,12 +205,20 @@ class Shell:
 
     return False
 
-  def mkdir(self, path: str, *, user='nobody', group='nogroup', mode: str | int = 'g+w') -> None:
+  def mkdir(
+    self, path: str, *, user: str = 'nobody', group: str | None = None, mode: str | int = 'g+w'
+  ) -> None:
     try:
       self.run(f'ls {path}', sudo=True, quiet=True, stderr=True)
     except Exception:
       if 'letsencrypt' in path:
         mode = 600
+
+      if group is None:
+        if user == 'nobody':
+          group = self.nobody_group
+        else:
+          group = user
 
       self.run(f'mkdir -p {path}', sudo=True, quiet=True)
       self.run(f'chown -R {user}:{group} {path}', sudo=True, quiet=True)

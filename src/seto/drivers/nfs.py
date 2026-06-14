@@ -70,7 +70,7 @@ class NFSDriver(Driver):
         logger.info('Initializing volume %s...', volume.name)
         self.storage_node.copy_volume(volume, self.brick)
         self.storage_node.run(
-          f'chown -R nobody:nogroup {self.brick}', sudo=True, stdout=False, quiet=True
+          f'chown -R nobody:{self.storage_node.nobody_group} {self.brick}', sudo=True, stdout=False, quiet=True
         )
 
   def add_exports_entry(

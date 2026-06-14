@@ -76,7 +76,7 @@ def parse_compose_config(
     composes.append(compose)
 
 
-def deploy_seto_stack(args, driver: Driver, replica: list[Setting]) -> None:
+def deploy_seto_stack(args, driver: Driver, storage_replicas: list[Setting]) -> None:
   # Temporary rewrite driver config
   driver.project = 'seto'
   driver.stack = None
@@ -126,7 +126,7 @@ def deploy_seto_stack(args, driver: Driver, replica: list[Setting]) -> None:
   driver.stack = args.stack
 
 
-def deploy_project_stack(args, driver: Driver, replica: list[Setting]) -> None:
+def deploy_project_stack(args, driver: Driver, storage_replicas: list[Setting]) -> None:
   # Temporary rewrite driver config
   driver.project = f'seto-{args.project}'
   driver.stack = None
@@ -161,7 +161,7 @@ def deploy_project_stack(args, driver: Driver, replica: list[Setting]) -> None:
   )
 
   logger.info('Creating seto project volumes...')
-  driver.create_volumes(replica=replica, volumes=volumes, force=args.force)
+  driver.create_volumes(storage_replicas=storage_replicas, volumes=volumes, force=args.force)
 
   logger.info('Deploying seto project services...')
   swarm = DockerSwarm(

@@ -1,4 +1,4 @@
-# Copyright 2024-2025 Sébastien Demanou. All Rights Reserved.
+# Copyright 2024-2026 Sébastien Demanou. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,10 +18,10 @@ from ..core.shell import Setting
 
 
 def execute_create_volumes_command(args, driver: Driver) -> None:
-  replica: list[Setting] = [items[0] for items in args.replica]
+  storage_replicas: list[Setting] = [items[0] for items in args.storage_replicas]
   all_volumes = parse_volumes_args(args, driver)
 
   driver.connect()
-  driver.create_volumes(replica=replica, volumes=all_volumes, force=args.force)
-  driver.apply_manager_changes()
+  driver.create_volumes(storage_replicas=storage_replicas, volumes=all_volumes, force=args.force)
+  driver.apply_storage_node_changes()
   driver.terminate()

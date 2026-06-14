@@ -37,17 +37,17 @@ class NFSDriver(Driver):
   def mount_point_prefix(self) -> str:
     return f'/mnt/{self.brickname}'
 
-  def setup_manager(self, replica: list[Setting], force: bool = False) -> None:
-    super().setup_manager(replica, force)
+  def setup_storage_node(self, storage_replicas: list[Setting], force: bool = False) -> None:
+    super().setup_storage_node(storage_replicas, force)
 
-    fresh_installed = self.manager.install('nfs-kernel-server')
+    fresh_installed = self.storage_node.install('nfs-kernel-server')
 
     if fresh_installed:
-      self.manager.run('systemctl start nfs-server', sudo=True)
-      self.manager.run('systemctl enable nfs-kernel-server', sudo=True)
+      self.storage_node.run('systemctl start nfs-server', sudo=True)
+      self.storage_node.run('systemctl enable nfs-kernel-server', sudo=True)
 
-  def apply_manager_changes(self) -> None:
-    self.manager.run('exportfs -rav', sudo=True)
+  def apply_storage_node_changes(self) -> None:
+    self.storage_node.run('exportfs -rav', sudo=True)
 
   def setup_node(self, shell: Shell, force: bool = False) -> None:
     shell.install('nfs-common')
@@ -55,12 +55,12 @@ class NFSDriver(Driver):
   def create_volumes(
     self,
     *,
-    replica: list[Setting],
+    storage_replicas: list[Setting],
     volumes: list[Volume],
     force: bool = False,
   ) -> None:
     # Read existing export paths from /etc/exports on the remote server
-    exports = self.manager.file('/etc/exports')
+    exports = self.storage_node.file('/etc/exports')
 
     self.add_exports_entry(
       f'/{self.project}',
@@ -74,8 +74,8 @@ class NFSDriver(Driver):
 
       if force or is_new_entry:
         logger.info('Initializing volume %s...', volume.name)
-        self.manager.copy_volume(volume, self.brick)
-        self.manager.run(
+        self.storage_node.copy_volume(volume, self.brick)
+        self.storage_node.run(
           f'chown -R nobody:nogroup {self.brick}', sudo=True, stdout=False, quiet=True
         )
 
@@ -89,10 +89,10 @@ class NFSDriver(Driver):
     logger.info('\nSetting NFS volume %s%s', volume_storage, options)
     options_str = ','.join(options)
 
-    self.manager.mkdir(volume_storage)
+    self.storage_node.mkdir(volume_storage)
 
     if 'letsencrypt' in volume_storage:
-      self.manager.run(
+      self.storage_node.run(
         f'[ -n "$(ls -A x 2>/dev/null)" ] && chmod 600 {volume_storage}/*',
         sudo=True,
         stdout=False,
@@ -114,7 +114,7 @@ class NFSDriver(Driver):
     self.mount(node, self.brick, device=device, fstab=fstab)
 
   def mount(self, node: Shell, storage: str, *, device: str, fstab: File) -> None:
-    host_storage = f'{self.manager.setting.ip}:{storage}'
+    host_storage = f'{self.storage_node.setting.ip}:{storage}'
     node.run(f'mount -t nfs {host_storage} {device}')
     fstab.append(f'{host_storage}\t{device}\tnfs\tauto,nofail,noatime,intr,tcp,actimeo=1800 0 0')
 
@@ -130,7 +130,7 @@ class NFSDriver(Driver):
       'driver': 'local',
       'driver_opts': {
         'type': 'nfs',
-        'o': f'addr={self.manager.setting.ip},{nfs_options}',
+        'o': f'addr={self.storage_node.setting.ip},{nfs_options}',
         'device': f':{self.storage(volume)}',
       },
     }

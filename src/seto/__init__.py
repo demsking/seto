@@ -48,10 +48,10 @@ driver_examples = [f'{sheme}username:password@hostname' for sheme in driver_shem
 DRIVER_EXAMPLES_STR = ' or '.join(driver_examples)
 
 
-def manager_type(value: str) -> tuple[DriverType, ShellConnectionString]:
+def storage_node_type(value: str) -> tuple[DriverType, ShellConnectionString]:
   if not any(value.startswith(scheme) for scheme in driver_shemes):
     raise argparse.ArgumentTypeError(
-      f'{value} is not a valid manager ({DRIVER_EXAMPLES_STR})',
+      f'{value} is not a valid storage node ({DRIVER_EXAMPLES_STR})',
     )
 
   driver_type, connection_string = value.split('://', 1)
@@ -59,7 +59,7 @@ def manager_type(value: str) -> tuple[DriverType, ShellConnectionString]:
   return driver_type, connection_string
 
 
-def replica_type(value: str) -> list[Setting]:
+def storage_replica_type(value: str) -> list[Setting]:
   connection_strings = value.split(' ')
 
   try:
@@ -68,7 +68,7 @@ def replica_type(value: str) -> list[Setting]:
     raise argparse.ArgumentTypeError(f'{value} - {error}') from error
   except Exception as exception:
     raise argparse.ArgumentTypeError(
-      f'{value} is not a replica value (username:password@hostname). {exception}'
+      f'{value} is not a storage replica value (username:password@hostname). {exception}'
     ) from exception
 
 
@@ -146,22 +146,24 @@ def run() -> None:
 
   #
   # Setup command
-  setup_parser = subparsers.add_parser('setup', description='Setup manager and replica nodes')
+  setup_parser = subparsers.add_parser('setup', description='Setup storage node and storage replica nodes')
   setup_parser.set_defaults(func=execute_setup_command)
 
   setup_parser.add_argument(
-    '--manager',
-    type=manager_type,
+    '--storage-node',
+    dest='storage_node',
+    type=storage_node_type,
     required=True,
-    help=f'Storage manager URI to use. Can be {DRIVER_EXAMPLES_STR}',
+    help=f'Storage node URI to use. Can be {DRIVER_EXAMPLES_STR}',
   )
 
   setup_parser.add_argument(
-    '--replica',
-    type=replica_type,
+    '--storage-replicas',
+    dest='storage_replicas',
+    type=storage_replica_type,
     nargs='+',
     required=True,
-    help='Replica nodes to setup',
+    help='Storage replica nodes to setup',
   )
 
   setup_parser.add_argument(
@@ -185,11 +187,12 @@ def run() -> None:
   )
   create_volumes_parser.set_defaults(func=execute_create_volumes_command)
   create_volumes_parser.add_argument(
-    '--replica',
-    type=replica_type,
+    '--storage-replicas',
+    dest='storage_replicas',
+    type=storage_replica_type,
     nargs='+',
     required=True,
-    help='Nodes where volumes will be created',
+    help='Storage replica nodes where volumes will be created',
   )
 
   create_volumes_parser.add_argument(
@@ -293,7 +296,7 @@ def run() -> None:
       setattr(args, 'image_prefix', '')
 
     if args.func == execute_setup_command:
-      driver_type, connection_string = args.manager
+      driver_type, connection_string = args.storage_node
       setting = Setting.from_connection_string(connection_string)
     else:
       # Determine if the config file is needed (i.e. if volumes-nfs needs parsing)
@@ -332,13 +335,13 @@ def run() -> None:
           with open(config_path, encoding='utf-8') as file:
             config_data = json.load(file)
 
-          manager_cfg = config_data['manager']
+          storage_node_cfg = config_data.get('storage_node') or config_data.get('manager')
           driver_type = config_data.get('driver', 'nfs')
           setting = Setting(
-            hostname=manager_cfg['hostname'],
-            ip=manager_cfg['ip'],
-            local=manager_cfg['local'],
-            username=None if manager_cfg['local'] else NFSDriver.setouser,
+            hostname=storage_node_cfg['hostname'],
+            ip=storage_node_cfg['ip'],
+            local=storage_node_cfg['local'],
+            username=None if storage_node_cfg['local'] else NFSDriver.setouser,
             password=None,
           )
         except Exception as exception:
@@ -361,7 +364,7 @@ def run() -> None:
       else Setting(hostname='localhost', local=True, ip='127.0.0.1', username=None, password=None)
     )
 
-    manager_shell = (
+    storage_node_shell = (
       LocalShell(setting, args.key) if setting.local else RemoteShell(setting, args.key)
     )
     local_shell = LocalShell(locale_setting, args.key)
@@ -371,7 +374,7 @@ def run() -> None:
         stack=args.stack,
         project=args.project,
         host=local_shell,
-        manager=manager_shell,
+        storage_node=storage_node_shell,
         debug=args.debug,
       )
     else:

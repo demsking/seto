@@ -34,13 +34,13 @@ class Driver:
     *,
     project: str,
     host: Shell,
-    manager: Shell,
+    storage_node: Shell,
     debug: bool = False,
   ) -> None:
     self.stack: str | None = stack
     self.project = project
     self.host = host
-    self.manager = manager
+    self.storage_node = storage_node
     self.debug = debug
 
   @property
@@ -85,7 +85,7 @@ class Driver:
     return f'{self.brick}/{volume.mount_folder}'
 
   def connect(self) -> None:
-    self.manager.connect()
+    self.storage_node.connect()
 
   def create_seto_user(self, node: Shell) -> None:
     # if node.check_user_exists(self.setouser):
@@ -112,10 +112,10 @@ class Driver:
       authorized_keys.chown(self.setouser, self.setouser)
       authorized_keys.chmod('600')
 
-  def setup_manager(self, replica: list[Setting], force: bool = False) -> None:
-    self.create_seto_user(self.manager)
+  def setup_storage_node(self, storage_replicas: list[Setting], force: bool = False) -> None:
+    self.create_seto_user(self.storage_node)
 
-  def apply_manager_changes(self) -> None:
+  def apply_storage_node_changes(self) -> None:
     raise NotImplementedError()
 
   @staticmethod
@@ -129,7 +129,7 @@ class Driver:
     for node_setting in clients:
       logger.info('\nConnecting to %s node %s...', self.driver_name, node_setting.hostname)
 
-      shell = Driver.get_shell(node_setting, self.manager.key_file_path)
+      shell = Driver.get_shell(node_setting, self.storage_node.key_file_path)
       shell.connect()
 
       logger.info('\nSetting %s client %s...', self.driver_name, node_setting.hostname)
@@ -142,7 +142,7 @@ class Driver:
   def create_volumes(
     self,
     *,
-    replica: list[Setting],
+    storage_replicas: list[Setting],
     volumes: list[Volume],
     force: bool = False,
   ) -> None:
@@ -151,7 +151,7 @@ class Driver:
   def mount_volumes(self, *, clients: list[Setting], volumes: list[Volume]) -> None:
     if len(volumes) > 0:
       for node_setting in clients:
-        node = Driver.get_shell(node_setting, self.manager.key_file_path)
+        node = Driver.get_shell(node_setting, self.storage_node.key_file_path)
         node.connect()
         fstab = node.file('/etc/fstab')
         self.mount_node_volumes(node, volumes, fstab)
@@ -181,7 +181,7 @@ class Driver:
   def umount_volumes(self, *, clients: list[Setting], volumes: list[Volume]) -> None:
     if len(volumes) > 0:
       for node_setting in clients:
-        node = Driver.get_shell(node_setting, self.manager.key_file_path)
+        node = Driver.get_shell(node_setting, self.storage_node.key_file_path)
         node.connect()
         self.umount_node_volumes(node, volumes)
         node.close()
@@ -199,4 +199,4 @@ class Driver:
 
   def terminate(self) -> None:
     # Close the SSH connection
-    self.manager.close()
+    self.storage_node.close()

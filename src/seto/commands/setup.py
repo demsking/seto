@@ -25,16 +25,16 @@ logger = logging.getLogger(__name__)
 
 
 def execute_setup_command(args, driver: Driver) -> None:
-  replica: list[Setting] = [items[0] for items in args.replica]
+  storage_replicas: list[Setting] = [items[0] for items in args.storage_replicas]
   clients: list[Setting] = [items[0] for items in args.clients]
 
   driver.connect()
-  deploy_seto_stack(args, driver, replica)
-  deploy_project_stack(args, driver, replica)
+  deploy_seto_stack(args, driver, storage_replicas)
+  deploy_project_stack(args, driver, storage_replicas)
   generate_ssh_keys(args, driver)
-  driver.setup_manager(replica, args.force)
+  driver.setup_storage_node(storage_replicas, args.force)
   driver.setup_nodes(clients, args.force)
-  driver.apply_manager_changes()
+  driver.apply_storage_node_changes()
 
   config_dir = '.seto'
   os.makedirs(config_dir, exist_ok=True)
@@ -56,11 +56,17 @@ def execute_setup_command(args, driver: Driver) -> None:
   config_path = os.path.join(config_dir, 'config.json')
   config_data = {
     'driver': driver.slug,
+    'storage_node': {
+      'hostname': driver.storage_node.setting.hostname,
+      'username': driver.storage_node.setting.username,
+      'ip': driver.storage_node.setting.ip,
+      'local': driver.storage_node.setting.local,
+    },
     'manager': {
-      'hostname': driver.manager.setting.hostname,
-      'username': driver.manager.setting.username,
-      'ip': driver.manager.setting.ip,
-      'local': driver.manager.setting.local,
+      'hostname': driver.storage_node.setting.hostname,
+      'username': driver.storage_node.setting.username,
+      'ip': driver.storage_node.setting.ip,
+      'local': driver.storage_node.setting.local,
     },
   }
 
@@ -89,9 +95,9 @@ def generate_ssh_keys(args, driver: Driver) -> None:
 
 def print_ssh_copy_id_commands(args) -> None:
   pub_key_file_path = args.key + '.pub'
-  replica: list[Setting] = [items[0] for items in args.replica]
+  storage_replicas: list[Setting] = [items[0] for items in args.storage_replicas]
   clients: list[Setting] = [items[0] for items in args.clients]
-  remotes = replica + [item for item in clients if not any(item == setting for setting in replica)]
+  remotes = storage_replicas + [item for item in clients if not any(item == setting for setting in storage_replicas)]
 
   logger.info('Please run the following command for each server to copy your public key:\n')
 

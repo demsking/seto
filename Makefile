@@ -70,92 +70,84 @@ help-down:
 
 resolved-compose.yaml:
 	@uv run seto \
+	  --project $(STACK_NAME) \
 	  --stack $(STACK_NAME) \
-	  --manager $(SETO_MANAGER) \
 	  --debug \
 	  config
 
 config:
-	@python -m \
-	  seto \
+	@uv run seto \
 	    --debug \
+	    --project $(STACK_NAME) \
 	    --stack $(STACK_NAME) \
-	    --manager $(SETO_MANAGER) \
 	  config
 
 config--compose:
-	@python -m \
-	  seto \
+	@uv run seto \
 	    --debug \
+	    --project $(STACK_NAME) \
 	    --stack $(STACK_NAME) \
-	    --manager $(SETO_MANAGER) \
 	  config \
 	    --compose
 
 deploy:
 	@pkexec echo
-	@python -m \
-	  seto \
+	@uv run seto \
 	    --debug \
+	    --project $(STACK_NAME) \
 	    --stack $(STACK_NAME) \
-	    --manager $(SETO_MANAGER) \
 	  deploy
 
 setup:
 	@pkexec echo
-	@python -m \
-	  seto \
+	@uv run seto \
 	    --debug \
+	    --project $(STACK_NAME) \
 	    --stack $(STACK_NAME) \
-	    --manager $(SETO_MANAGER) \
 	    --key ~/.ssh/id_rsa \
 	  setup \
-	    --replica $(SETO_REPLICA) \
+	    --storage-node $(SETO_STORAGE_NODE) \
+	    --storage-replicas $(SETO_STORAGE_REPLICAS) \
 	    --clients $(SETO_NODES)
 
 down:
 	@pkexec echo
-	@python -m \
-	  seto \
+	@uv run seto \
 	    --debug \
+	    --project $(STACK_NAME) \
 	    --stack $(STACK_NAME) \
-	    --manager $(SETO_MANAGER) \
 	  down
 
 volumes:
-	@python -m \
-	  seto \
+	@uv run seto \
 	    --debug \
+	    --project $(STACK_NAME) \
 	    --stack $(STACK_NAME) \
-	    --manager $(SETO_MANAGER) \
 	  create-volumes \
-	    --replica $(SETO_REPLICA)
+	    --storage-replicas $(SETO_STORAGE_REPLICAS)
 
 volumes--force:
-	@python -m \
-	  seto \
+	@uv run seto \
 	    --debug \
+	    --project $(STACK_NAME) \
 	    --stack $(STACK_NAME) \
-	    --manager $(SETO_MANAGER) \
 	  create-volumes \
-	    --replica $(SETO_REPLICA) \
+	    --storage-replicas $(SETO_STORAGE_REPLICAS) \
 	    --force
 
 mount:
-	@python -m \
-	  seto \
+	@uv run seto \
 	    --debug \
+	    --project $(STACK_NAME) \
 	    --stack $(STACK_NAME) \
-	    --manager $(SETO_MANAGER) \
 	  mount-volumes \
 	    --clients $(SETO_MOUNT_NODES)
 
 umount:
-	@python -m \
-	  seto \
+	@uv run seto \
 	    --debug \
+	    --project $(STACK_NAME) \
 	    --stack $(STACK_NAME) \
-	    --manager $(SETO_MANAGER) \
 	  unmount-volumes \
 	    --clients $(SETO_MOUNT_NODES)
 

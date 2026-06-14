@@ -120,7 +120,7 @@ def run() -> None:
   parser = argparse.ArgumentParser(APP_NAME, description=APP_DESCRIPTION)
   subparsers = parser.add_subparsers()
 
-  parser.add_argument('--project', required=True, help='Project name')
+  parser.add_argument('--project', help='Project name')
   parser.add_argument('--stack', help='Stack name')
 
   # add version argument
@@ -146,7 +146,9 @@ def run() -> None:
 
   #
   # Setup command
-  setup_parser = subparsers.add_parser('setup', description='Setup storage node and storage replica nodes')
+  setup_parser = subparsers.add_parser(
+    'setup', description='Setup storage node and storage replica nodes'
+  )
   setup_parser.set_defaults(func=execute_setup_command)
 
   setup_parser.add_argument(
@@ -292,6 +294,17 @@ def run() -> None:
 
   # Call the function associated with the selected subcommand
   if hasattr(args, 'func'):
+    if args.func != execute_check_command:
+      if not args.project:
+        parser.error('the following arguments are required: --project')
+    else:
+      if not getattr(args, 'constraint', None):
+        if not args.project:
+          parser.error('the following arguments are required: --project')
+      else:
+        if not args.project:
+          args.project = os.path.basename(os.getcwd())
+
     if not hasattr(args, 'image_prefix'):
       setattr(args, 'image_prefix', '')
 

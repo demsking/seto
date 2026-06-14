@@ -58,13 +58,13 @@ If a dependent command is run before `setup` has generated the configuration fil
 
 These options apply globally to the `seto` CLI tool and must be specified before the subcommand:
 
-| Option             | Required | Description                                                     | Example                |
-| :----------------- | :------- | :-------------------------------------------------------------- | :--------------------- |
-| `--project <name>` | **Yes**  | Project name for grouping resources.                            | `--project my-project` |
-| `--stack <name>`   | No       | Stack name for grouping services and volumes.                   | `--stack my-stack`     |
-| `--key <path>`     | No       | Path to the SSH private key file (defaults to `~/.ssh/id_rsa`). | `--key ~/.ssh/id_rsa`  |
-| `--debug`          | No       | Enables verbose debug logging.                                  | `--debug`              |
-| `-v, --version`    | No       | Show the version number and exit.                               | `-v`                   |
+| Option             | Required  | Description                                                                     | Example                |
+| :----------------- | :-------- | :------------------------------------------------------------------------------ | :--------------------- |
+| `--project <name>` | **Yes\*** | Project name for grouping resources (optional for `check` with `--constraint`). | `--project my-project` |
+| `--stack <name>`   | No        | Stack name for grouping services and volumes.                                   | `--stack my-stack`     |
+| `--key <path>`     | No        | Path to the SSH private key file (defaults to `~/.ssh/id_rsa`).                 | `--key ~/.ssh/id_rsa`  |
+| `--debug`          | No        | Enables verbose debug logging.                                                  | `--debug`              |
+| `-v, --version`    | No        | Show the version number and exit.                                               | `-v`                   |
 
 ### Environment Variables
 
@@ -231,24 +231,27 @@ seto --project my-project --stack my-stack down
 Verifies and lists nodes matching placement constraints.
 
 ```bash
-seto --project <project-name> \
-  check [--constraint <query>]
+seto [--project <project-name>] check [--constraint <query>]
 ```
 
 | Option         | Description                                                                                     |
 | :------------- | :---------------------------------------------------------------------------------------------- |
 | `--constraint` | Optional. A specific placement query to evaluate dynamically (e.g., `host.device.gpu == true`). |
 
-**Example (Compose Stack Fallback):**
+**Example (Compose Stack):**
+
+If the `--constraint` option is not provided, the global `--project` option must be provided to locate the stack's compose files.
 
 ```bash
-seto --project my-project --stack my-stack check
+seto --project my-project check
 ```
 
 **Example (Dynamic CLI Constraints):**
 
+If the `--constraint` option is provided, the global `--project` option is not required.
+
 ```bash
-seto --project my-project check --constraint "host.device.gpu == true"
+seto check --constraint "host.device.gpu == true"
 ```
 
 ## Example Workflow

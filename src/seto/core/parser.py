@@ -467,7 +467,8 @@ def parse_services(
   image_prefix: str,
   skip_volumes: bool = False,
 ) -> tuple[list, list]:
-  services_files = glob.glob(os.path.join(stack, '*.yaml'))
+  search_dir = stack if stack and os.path.isdir(stack) else '.'
+  services_files = glob.glob(os.path.join(search_dir, '*.yaml'))
   output_resolved_compose_data = []
   output_volumes = []
 

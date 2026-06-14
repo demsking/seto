@@ -119,10 +119,12 @@ def resolve(
     if execute:
       execute(resolved_compose_data, placement or [])
 
+  stack = args.stack or args.project
+
   parse_services(
     driver=driver,
     image_prefix=args.image_prefix,
-    stack=args.stack or args.project,
+    stack=stack,
     default_volume_mount_mode=args.default_volume_mount_mode,
     default_nfs_options=args.default_nfs_options,
     execute=parse,

@@ -31,21 +31,27 @@ custom orchestrations that depend on synchronized shared storage.
 
 ## Features
 
-- **Compose Command** – Resolves and validates Docker Compose files.
-- **Setup Command** – Configures manager and replica nodes.
-- **Create Volumes Command** – Creates and synchronizes NFS volumes.
-- **Mount Volumes Command** – Mounts volumes on replicas.
-- **Unmount Volumes Command** – Safely detaches shared volumes.
-- **Check Command** – Verifies and lists nodes matching placement constraints.
+- **`config` Command** – Parses, resolves, and renders compose files.
+- **`setup` Command** – Configures manager and replica nodes.
+- **`create-volumes` Command** – Creates and synchronizes NFS volumes.
+- **`mount-volumes` Command** – Mounts volumes on replica nodes.
+- **`unmount-volumes` Command** – Safely detaches shared volumes.
+- **`deploy` Command** – Deploys or updates Compose/Swarm stacks.
+- **`down` Command** – Stops and removes containers, networks, and resources.
+- **`check` Command** – Verifies and lists nodes matching placement constraints.
 
 ## Global Options
 
-These options apply to all subcommands:
+These options apply globally to the `seto` CLI tool and must be specified before the subcommand:
 
-| Option     | Description                        | Example                         |
-| ---------- | ---------------------------------- | ------------------------------- |
-| `--stack`  | Stack name for grouping resources. | `--stack my-stack`              |
-| `--driver` | Driver URI for shared storage.     | `--driver nfs://user:pass@host` |
+| Option             | Required | Description                                                      | Example                          |
+| :----------------- | :------- | :--------------------------------------------------------------- | :------------------------------- |
+| `--project <name>` | **Yes**  | Project name for grouping resources.                             | `--project my-project`           |
+| `--manager <uri>`  | **Yes**  | Storage manager URI. Format: `nfs://username:password@hostname`. | `--manager nfs://user:pass@host` |
+| `--stack <name>`   | No       | Stack name for grouping services and volumes.                    | `--stack my-stack`               |
+| `--key <path>`     | No       | Path to the SSH private key file (defaults to `~/.ssh/id_rsa`).  | `--key ~/.ssh/id_rsa`            |
+| `--debug`          | No       | Enables verbose debug logging.                                   | `--debug`                        |
+| `-v, --version`    | No       | Show the version number and exit.                                | `-v`                             |
 
 ## Environment Variables
 
@@ -56,123 +62,179 @@ These options apply to all subcommands:
 
 ## Subcommands
 
-### 1. Compose Command
+### 1. Config Command
 
-Resolves Docker Compose files before deployment.
-
-```bash
-seto --stack <stack-name> --driver <driver-uri> compose
-```
-
-**Example**
+Parses, resolves environment variables, expands custom volumes, and renders the compose file in canonical format.
 
 ```bash
-seto --stack my-stack --driver nfs://user:pass@host compose
+seto --project <project-name> --manager <manager-uri> [--stack <stack-name>] \
+  config [--compose]
 ```
+
+| Option      | Description                                                                          |
+| :---------- | :----------------------------------------------------------------------------------- |
+| `--compose` | Optional. Resolves and compiles for standard Docker Compose instead of Docker Swarm. |
+
+**Example:**
+
+```bash
+seto --project my-project --stack my-stack --manager nfs://user:pass@host config --compose
+```
+
+---
 
 ### 2. Setup Command
 
-Sets up **manager** and **replica** nodes for NFS synchronization.
+Sets up the **manager**, **replica**, and **client** nodes for NFS synchronization.
 
 ```bash
-seto --stack <stack-name> --driver <driver-uri> \
-  setup --replica <replica-connection-strings>
+seto --project <project-name> --manager <manager-uri> [--stack <stack-name>] \
+  setup --replica <replica-strings> --clients <client-strings> [--force]
 ```
 
-| Option      | Description                                          |
-| ----------- | ---------------------------------------------------- |
-| `--replica` | Required. Replica connections: `user:pass@hostname`. |
+| Option      | Description                                             |
+| :---------- | :------------------------------------------------------ |
+| `--replica` | Required. Replica nodes to setup: `user:pass@hostname`. |
+| `--clients` | Required. Client nodes to setup: `user:pass@hostname`.  |
+| `--force`   | Optional. Forces re-running setup tasks.                |
 
-**Example**
+**Example:**
 
 ```bash
-seto --stack my-stack --driver nfs://user:pass@host \
-  setup --replica user:pass@replica1 user:pass@replica2
+seto --project my-project --stack my-stack --manager nfs://user:pass@host \
+  setup --replica user:pass@replica1 user:pass@replica2 --clients user:pass@client1 user:pass@client2
 ```
+
+---
 
 ### 3. Create Volumes Command
 
-Creates and synchronizes shared NFS volumes across nodes.
+Creates and synchronizes shared NFS volumes across target replica nodes.
 
 ```bash
-seto --stack <stack-name> --driver <driver-uri> \
+seto --project <project-name> --stack <stack-name> --manager <manager-uri> \
   create-volumes --replica <replica-strings> [--force]
 ```
 
-| Option      | Description                          |
-| ----------- | ------------------------------------ |
-| `--replica` | Required. Nodes for volume creation. |
-| `--force`   | Optional. Forces re-synchronization. |
+| Option      | Description                                            |
+| :---------- | :----------------------------------------------------- |
+| `--replica` | Required. Replica nodes where volumes will be created. |
+| `--force`   | Optional. Forces synchronization of volume data.       |
 
-**Example**
+**Example:**
 
 ```bash
-seto --stack my-stack --driver nfs://user:pass@host \
+seto --project my-project --stack my-stack --manager nfs://user:pass@host \
   create-volumes --replica user:pass@replica1 user:pass@replica2 --force
 ```
 
+---
+
 ### 4. Mount Volumes Command
 
-Mounts shared NFS volumes on replicas.
+Mounts shared NFS volumes on client nodes.
 
 ```bash
-seto --stack <stack-name> --driver <driver-uri> \
-  mount-volumes --replica <replica-strings>
+seto --project <project-name> --stack <stack-name> --manager <manager-uri> \
+  mount-volumes --clients <client-strings>
 ```
 
-| Option      | Description                                |
-| :---------- | :----------------------------------------- |
-| `--replica` | Required. Nodes where volumes are mounted. |
+| Option      | Description                                               |
+| :---------- | :-------------------------------------------------------- |
+| `--clients` | Required. Client nodes where the volumes will be mounted. |
 
-**Example**
+**Example:**
 
 ```bash
-seto --stack my-stack --driver nfs://user:pass@host \
-  mount-volumes --replica user:pass@replica1 user:pass@replica2
+seto --project my-project --stack my-stack --manager nfs://user:pass@host \
+  mount-volumes --clients user:pass@client1 user:pass@client2
 ```
+
+---
 
 ### 5. Unmount Volumes Command
 
-Unmounts shared NFS volumes from replicas.
+Unmounts shared NFS volumes from client nodes.
 
 ```bash
-seto --stack <stack-name> --driver <driver-uri> \
-  unmount-volumes --replica <replica-strings>
+seto --project <project-name> --stack <stack-name> --manager <manager-uri> \
+  unmount-volumes --clients <client-strings>
 ```
 
-| Option      | Description                                  |
-| :---------- | :------------------------------------------- |
-| `--replica` | Required. Nodes where volumes are unmounted. |
+| Option      | Description                                                 |
+| :---------- | :---------------------------------------------------------- |
+| `--clients` | Required. Client nodes where the volumes will be unmounted. |
 
-**Example**
+**Example:**
 
-````bash
-seto --stack my-stack --driver nfs://user:pass@host \
-  unmount-volumes --replica user:pass@replica1 user:pass@replica2
-### 6. Check Command
+```bash
+seto --project my-project --stack my-stack --manager nfs://user:pass@host \
+  unmount-volumes --clients user:pass@client1 user:pass@client2
+```
 
-Verifies and lists nodes matching placement constraints. By default, it resolves constraints from the stack's compose files. Alternatively, dynamic constraints can be passed via the `--constraint` option.
+---
+
+### 6. Deploy Command
+
+Deploys a stack to the Swarm cluster or to multiple nodes via Compose (if `x-mode: compose` is set).
+
+```bash
+seto --project <project-name> --stack <stack-name> --manager <manager-uri> \
+  deploy [--image-prefix <prefix>]
+```
+
+| Option           | Description                                                           |
+| :--------------- | :-------------------------------------------------------------------- |
+| `--image-prefix` | Optional. Prefix added to the image namespace of custom built images. |
+
+**Example:**
+
+```bash
+seto --project my-project --stack my-stack --manager nfs://user:pass@host deploy
+```
+
+---
+
+### 7. Down Command
+
+Stops and removes containers, networks, and stack resources.
+
+```bash
+seto --project <project-name> --stack <stack-name> --manager <manager-uri> \
+  down
+```
+
+**Example:**
+
+```bash
+seto --project my-project --stack my-stack --manager nfs://user:pass@host down
+```
+
+---
+
+### 8. Check Command
+
+Verifies and lists nodes matching placement constraints.
 
 ```bash
 seto --project <project-name> --manager <manager-uri> \
-  check [--constraint <constraint-query>]
-````
+  check [--constraint <query>]
+```
 
-| Option         | Description                                                    |
-| :------------- | :------------------------------------------------------------- |
-| `--constraint` | Optional. A specific constraint query to evaluate dynamically. |
+| Option         | Description                                                                                     |
+| :------------- | :---------------------------------------------------------------------------------------------- |
+| `--constraint` | Optional. A specific placement query to evaluate dynamically (e.g., `host.device.gpu == true`). |
 
-**Example (Compose Stack Fallback)**
+**Example (Compose Stack Fallback):**
 
 ```bash
 seto --project my-project --stack my-stack --manager nfs://user:pass@host check
 ```
 
-**Example (Dynamic CLI Constraints)**
+**Example (Dynamic CLI Constraints):**
 
 ```bash
-seto --project my-project --manager nfs://user:pass@host \
-  check --constraint "host.device.gpu == true"
+seto --project my-project --manager nfs://user:pass@host check --constraint "host.device.gpu == true"
 ```
 
 ## Example Workflow
@@ -180,24 +242,26 @@ seto --project my-project --manager nfs://user:pass@host \
 Typical end-to-end workflow:
 
 ```bash
-# 1. Setup manager and replicas
-seto --stack my-stack --driver nfs://user:pass@host \
-  setup --replica user:pass@replica1 user:pass@replica2
+# 1. Setup manager, replicas, and clients
+seto --project my-project --stack my-stack --manager nfs://user:pass@host \
+  setup \
+    --replica user:pass@replica1 user:pass@replica2 \
+    --clients user:pass@client1 user:pass@client2
 
 # 2. Create and sync volumes
-seto --stack my-stack --driver nfs://user:pass@host \
+seto --project my-project --stack my-stack --manager nfs://user:pass@host \
   create-volumes --replica user:pass@replica1 user:pass@replica2 --force
 
 # 3. Mount volumes for usage
-seto --stack my-stack --driver nfs://user:pass@host \
-  mount-volumes --replica user:pass@replica1 user:pass@replica2
+seto --project my-project --stack my-stack --manager nfs://user:pass@host \
+  mount-volumes --clients user:pass@client1 user:pass@client2
 
 # 4. Deploy stack after mounting
-seto --stack my-stack --manager nfs://user@manager-host deploy
+seto --project my-project --stack my-stack --manager nfs://user:pass@host deploy
 
-# 5. Unmount volumes when finished
-seto --stack my-stack --driver nfs://user:pass@host \
-  unmount-volumes --replica user:pass@replica1 user:pass@replica2
+# 5. Unmount volumes when finished/tearing down
+seto --project my-project --stack my-stack --manager nfs://user:pass@host \
+  unmount-volumes --clients user:pass@client1 user:pass@client2
 ```
 
 ## Error Handling
@@ -227,23 +291,28 @@ These extensions are declared at the service level in your YAML compose configur
 ### 1. NFS Shared Volumes (`volumes-nfs`)
 
 #### **Purpose**
+
 The `volumes-nfs` extension is designed for **shared, dynamic, multi-host persistent storage**. When running services across multiple nodes in Docker Swarm or multi-host Compose, containers on different nodes often need to read and write to the same directory. `volumes-nfs` automates:
+
 - Configuring the manager node as an NFS server.
 - Generating proper NFS volume driver configurations in Docker.
 - Syncing local file/directory contents from the local development system to the NFS share.
 - Mounting/unmounting the NFS share on all replica worker nodes automatically.
 
 #### **Usage & Format**
+
 ```yaml
 volumes-nfs:
   - source:target[:mode[:nfs-options]]
 ```
+
 - **`source`**: Can be a local host directory/file (prefixed with `./` or `~/`) or a named Docker volume.
 - **`target`**: The destination path inside the container.
-- **`mode`** *(optional)*: Mount permissions, either `rw` (read-write), `ro` (read-only), or `norename`. Defaults to `rw` (or the value of the environment variable `SETO_DEFAULT_VOLUME_MOUNT_MODE`).
-- **`nfs-options`** *(optional)*: Custom NFS mount options. Defaults to `rw,hard,noatime,nodiratime` (or the value of the environment variable `SETO_DEFAULT_NFS_OPTIONS`).
+- **`mode`** _(optional)_: Mount permissions, either `rw` (read-write), `ro` (read-only), or `norename`. Defaults to `rw` (or the value of the environment variable `SETO_DEFAULT_VOLUME_MOUNT_MODE`).
+- **`nfs-options`** _(optional)_: Custom NFS mount options. Defaults to `rw,hard,noatime,nodiratime` (or the value of the environment variable `SETO_DEFAULT_NFS_OPTIONS`).
 
 #### **Examples**
+
 ```yaml
 services:
   web:
@@ -260,6 +329,7 @@ services:
 ```
 
 #### **How It Works Under the Hood**
+
 1. **Compilation/Translation**: During `seto compose`, Ṣeto strips the `volumes-nfs` block from the service definition, adds a top-level `volumes` definition in the output compose file configured to use the NFS volume driver pointing to the manager node's IP address, and mounts this NFS volume to the service's `volumes` block.
 2. **Synchronization**: The `create-volumes` command synchronizes any local source directories (e.g., `./data/static`) to the NFS share directory on the manager node via SSH.
 3. **Mounting**: The `mount-volumes` command installs NFS client utilities and mounts the NFS export on the replicas.
@@ -269,17 +339,21 @@ services:
 ### 2. Image-embedded Volumes (`volumes-image`)
 
 #### **Purpose**
+
 The `volumes-image` extension is designed for **static, read-only content** that should be baked directly into the Docker image rather than mounted at runtime. This avoids the latency, security, and setup overhead of mounting an NFS share when a service only needs static files (such as code, configs, or assets that do not change during container execution).
 
 #### **Usage & Format**
+
 ```yaml
 volumes-image:
   - source:target
 ```
+
 - **`source`**: The local directory or file on the build/deploy host.
 - **`target`**: The destination directory/file inside the container image.
 
 #### **Example**
+
 ```yaml
 services:
   portal:
@@ -290,6 +364,7 @@ services:
 ```
 
 #### **How It Works Under the Hood**
+
 1. **Dockerfile Generation**: When Ṣeto parses `volumes-image`, it removes it from the service definition and automatically creates a new Dockerfile under the `images/` directory named `{stack_name}-{service_name}.dockerfile` with the following structure:
    ```dockerfile
    FROM <original_service_image>

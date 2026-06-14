@@ -349,11 +349,12 @@ def run() -> None:
 
           storage_node_cfg = config_data.get('storage_node') or config_data.get('manager')
           driver_type = config_data.get('driver', 'nfs')
+
           setting = Setting(
             hostname=storage_node_cfg['hostname'],
             ip=storage_node_cfg['ip'],
             local=storage_node_cfg['local'],
-            username=None if storage_node_cfg['local'] else NFSDriver.setouser,
+            username=storage_node_cfg['username'],
             password=None,
           )
         except Exception as exception:

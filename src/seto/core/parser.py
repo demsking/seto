@@ -85,7 +85,12 @@ def parse_nfs_volume_entry(
 
 
 def parse_local_volumes(
-  stack: str, *, service_name: str, service: Service, image_prefix: str
+  stack: str,
+  compose_file_path: str,
+  *,
+  service_name: str,
+  service: Service,
+  image_prefix: str,
 ) -> None:
   local_volumes = []
 
@@ -94,9 +99,32 @@ def parse_local_volumes(
 
     del service['volumes-image']
 
+    # Resolve relative sources based on compose file location
+    compose_dir = Path(compose_file_path).parent
+
     for volume_entry in service_volumes_image:
       if isinstance(volume_entry, str):
         source, target, _ = parse_volume_entry(volume_entry)
+        # Expand user home directory if needed
+        if source.startswith('~/'):
+          expanded = os.path.expanduser(source)
+
+          if not os.path.exists(expanded):
+            raise FileNotFoundError(
+              f'Volume source "{source}" not found (expanded path {expanded})'
+            )
+
+          source = str(expanded)
+        # If source is a relative path, resolve against compose_dir
+        elif not os.path.isabs(source):
+          resolved_source = (compose_dir / source).resolve()
+
+          if not resolved_source.exists():
+            raise FileNotFoundError(
+              f'Volume source "{source}" not found relative to {compose_file_path}'
+            )
+
+          source = str(resolved_source)
         local_volumes.append((source, target))
 
   if len(local_volumes) > 0:
@@ -109,7 +137,9 @@ def parse_local_volumes(
       [
         f'FROM {service["image"]}',
       ]
-      + [f'COPY {source} {target}' for source, target in local_volumes]
+      + [
+        f'COPY {os.path.relpath(source, os.getcwd())} {target}' for source, target in local_volumes
+      ]
       + ['']
     )
     service_dockerfile = '\n'.join(service_dockerfile_definition)
@@ -145,6 +175,7 @@ def parse_volumes(
   driver: Driver,
   service_name: str,
   service: Service,
+  compose_file_path: str,
   *,
   default_volume_mount_mode: str = 'rw',
   default_nfs_options: str = 'rw,hard,noatime,nodiratime',
@@ -152,11 +183,47 @@ def parse_volumes(
   volumes: list[Volume],
   skip_volumes: bool = False,
 ) -> None:
-  if 'volumes-nfs' in service:
-    service_volumes = service.get('volumes', [])
-    service_volumes_nfs = service.get('volumes-nfs', [])
-    service['volumes'] = service_volumes
+  """Resolve volume sources relative to the compose YAML location.
 
+  Handles regular bind-mount volumes (service['volumes']), NFS volumes
+  (service['volumes-nfs']), and raises FileNotFoundError when a relative
+  source cannot be resolved.
+  """
+
+  compose_dir = Path(compose_file_path).parent
+
+  # ---------------------------------------------------------------
+  # Resolve regular bind-mount volumes
+  # ---------------------------------------------------------------
+  service_volumes = service.get('volumes', [])
+  resolved_volumes: list[str] = []
+  for vol_entry in service_volumes:
+    if isinstance(vol_entry, str):
+      src, tgt, mode = parse_volume_entry(vol_entry)
+      if src.startswith('~/'):
+        expanded = os.path.expanduser(src)
+        if not os.path.exists(expanded):
+          raise FileNotFoundError(f'Volume source "{src}" not found (expanded path {expanded})')
+        src = expanded
+      elif not os.path.isabs(src):
+        resolved = (compose_dir / src).resolve()
+        if not resolved.exists():
+          raise FileNotFoundError(
+            f'Volume source "{src}" not found relative to {compose_file_path}'
+          )
+        src = str(resolved)
+      resolved_volumes.append(f'{src}:{tgt}:{mode}')
+    else:
+      resolved_volumes.append(vol_entry)
+  service['volumes'] = resolved_volumes
+
+  # ---------------------------------------------------------------
+  # Resolve NFS volumes if present
+  # ---------------------------------------------------------------
+  if 'volumes-nfs' in service:
+    service_volumes_nfs = service.get('volumes-nfs', [])
+    # Preserve original list for later use
+    service['volumes-nfs'] = service_volumes_nfs
     del service['volumes-nfs']
 
     if skip_volumes:
@@ -168,17 +235,25 @@ def parse_volumes(
         default_mode=default_volume_mount_mode,
         default_options=default_nfs_options,
       )
+      # Resolve source path
+      if source.startswith('~/'):
+        device_source = os.path.expanduser(source)
+      else:
+        if not os.path.isabs(source):
+          resolved = (compose_dir / source).resolve()
+          if not resolved.exists():
+            raise FileNotFoundError(
+              f'Volume source "{source}" not found relative to {compose_file_path}'
+            )
+          source = str(resolved)
+        device_source = None
+
       target_folder = target
 
-      if volume_entry.startswith('~/') or volume_entry.startswith('./'):
-        device_source = os.path.expanduser(source)
-
-        if os.path.isfile(device_source):
-          target_folder = os.path.dirname(target)
-
-        volume_name = source[2:].replace('/', '-').replace('.', '')
+      if device_source and os.path.isfile(device_source):
+        target_folder = os.path.dirname(target)
+        volume_name = os.path.basename(source).replace('/', '-').replace('.', '')
       else:
-        device_source = None
         volume_name = source
         compose_volumes.pop(volume_name, None)
 
@@ -202,13 +277,13 @@ def parse_volumes(
       )
 
       compose_volumes[volume.name] = driver.resolve_compose_volume(volume)
-
-      service_volumes.append(f'{volume.name}:{target_folder}:{volume_mode}')
+      service['volumes'].append(f'{volume.name}:{target_folder}:{volume_mode}')
       volumes.append(volume)
 
 
 def resolve_compose_file(
   driver: Driver,
+  compose_file_path: str,
   *,
   compose_data: dict,
   default_volume_mount_mode: str = 'rw',
@@ -241,13 +316,18 @@ def resolve_compose_file(
     service_deploy_labels.update(service_labels)
     parse_stack_values(service_deploy_labels)
     parse_local_volumes(
-      driver.stack_id, service_name=service_name, service=service, image_prefix=image_prefix
+      driver.stack_id,
+      compose_file_path=compose_file_path,
+      service_name=service_name,
+      service=service,
+      image_prefix=image_prefix,
     )
 
     parse_volumes(
       driver=driver,
       service_name=service_name,
       service=service,
+      compose_file_path=compose_file_path,
       default_volume_mount_mode=default_volume_mount_mode,
       default_nfs_options=default_nfs_options,
       compose_volumes=compose_volumes,
@@ -410,6 +490,7 @@ def parse_services(
     # resolve compose local volumes
     resolved_compose_data, volumes = resolve_compose_file(
       driver=driver,
+      compose_file_path=service_file,
       compose_data=compose_data,
       default_volume_mount_mode=default_volume_mount_mode,
       default_nfs_options=default_nfs_options,

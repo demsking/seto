@@ -70,7 +70,7 @@ help-down:
 
 resolved-compose.yaml:
 	@uv run seto \
-	  --project $(STACK_NAME) \
+	  --namespace $(STACK_NAME) \
 	  --stack $(STACK_NAME) \
 	  --debug \
 	  config
@@ -78,14 +78,14 @@ resolved-compose.yaml:
 config:
 	@uv run seto \
 	    --debug \
-	    --project $(STACK_NAME) \
+	    --namespace $(STACK_NAME) \
 	    --stack $(STACK_NAME) \
 	  config
 
 config--compose:
 	@uv run seto \
 	    --debug \
-	    --project $(STACK_NAME) \
+	    --namespace $(STACK_NAME) \
 	    --stack $(STACK_NAME) \
 	  config \
 	    --compose
@@ -94,7 +94,7 @@ deploy:
 	@pkexec echo
 	@uv run seto \
 	    --debug \
-	    --project $(STACK_NAME) \
+	    --namespace $(STACK_NAME) \
 	    --stack $(STACK_NAME) \
 	  deploy
 
@@ -102,7 +102,7 @@ setup:
 	@pkexec echo
 	@uv run seto \
 	    --debug \
-	    --project $(STACK_NAME) \
+	    --namespace $(STACK_NAME) \
 	    --stack $(STACK_NAME) \
 	    --key ~/.ssh/id_rsa \
 	  setup \
@@ -114,21 +114,21 @@ down:
 	@pkexec echo
 	@uv run seto \
 	    --debug \
-	    --project $(STACK_NAME) \
+	    --namespace $(STACK_NAME) \
 	    --stack $(STACK_NAME) \
 	  down
 
 volumes:
 	@uv run seto \
 	    --debug \
-	    --project $(STACK_NAME) \
+	    --namespace $(STACK_NAME) \
 	    --stack $(STACK_NAME) \
 	  create-volumes
 
 volumes--sync:
 	@uv run seto \
 	    --debug \
-	    --project $(STACK_NAME) \
+	    --namespace $(STACK_NAME) \
 	    --stack $(STACK_NAME) \
 	  create-volumes \
 	    --sync
@@ -136,14 +136,14 @@ volumes--sync:
 mount:
 	@uv run seto \
 	    --debug \
-	    --project $(STACK_NAME) \
+	    --namespace $(STACK_NAME) \
 	    --stack $(STACK_NAME) \
 	  mount-volumes
 
 umount:
 	@uv run seto \
 	    --debug \
-	    --project $(STACK_NAME) \
+	    --namespace $(STACK_NAME) \
 	    --stack $(STACK_NAME) \
 	  unmount-volumes
 

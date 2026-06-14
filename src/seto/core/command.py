@@ -22,7 +22,7 @@ def parse_volumes_args(args, driver: Driver) -> list[Volume]:
 
   parse_services(
     driver=driver,
-    stack=args.stack or args.project,
+    stack=args.stack or args.namespace,
     default_volume_mount_mode=args.default_volume_mount_mode,
     default_nfs_options=args.default_nfs_options,
     execute=lambda resolved_compose_data, volumes: all_volumes.extend(volumes),

@@ -9,6 +9,7 @@
 ## Table of Contents
 
 - [Why Ṣeto?](#why-ṣeto)
+- [How It Works](#how-it-works)
 - [Overview](#overview)
   - [Key Capabilities](#key-capabilities)
 - [Supported Operating Systems](#supported-operating-systems)
@@ -54,6 +55,38 @@ Deploying containerized applications across multiple servers (using Docker Swarm
 
    **How Ṣeto solves it**: It introduces `x-mode: compose` alongside hardware validation. Ṣeto evaluates custom placement constraints (e.g., `host.device.gpu == true`), physically verifies device drivers on remote nodes over SSH, and deploys services directly via Docker Compose on the target machines—while preserving communication across unified Docker overlay networks.
 
+## How It Works & Terminologies
+
+### How Ṣeto Works
+
+Ṣeto wraps and extends standard Docker orchestration mechanisms. It manages the lifecycle of your application cluster through three main phases:
+
+1. **Infrastructure Provisioning (`setup`)**:
+   During the initialization phase, Ṣeto connects to all configured target hosts via SSH. It automates the environment setup by installing `nfs-kernel-server` on the designated Storage Node and `nfs-common` on the Client Nodes. It also establishes SSH key-based authentication across nodes and generates a local configuration file (`.seto/config.json`).
+
+2. **Volume Synchronization (`create-volumes`)**:
+   For any shared volumes specified via the custom `volumes-nfs` extension in your compose file, Ṣeto:
+   - Configures and updates NFS export rules (`/etc/exports`) on the Storage Node.
+   - Synchronizes local directory contents (source files) directly to the Storage Node over SSH.
+
+3. **Application Orchestration (`deploy`)**:
+   Ṣeto processes deployment configurations based on the specified execution mode:
+   - **Docker Swarm Mode (Default)**: Resolves compose files into Swarm-compatible stacks and schedules them on the Swarm manager. The Swarm nodes automatically mount NFS storage volumes inside the starting containers.
+   - **Compose Mode (`x-mode: compose`)**: For tasks that require localized hardware integrations (like physical GPUs or USB sticks), Ṣeto verifies constraints and initiates targeted Docker Compose deployments directly on designated client hosts.
+
+### Core Terminologies
+
+To help you get started, here are the main concepts used throughout the Ṣeto ecosystem:
+
+- **Namespace**: A logical grouping and isolation boundary for stacks, storage shares, and networks. All NFS share directories on the Storage Node are organized under the namespace name (e.g. `/data/<namespace>/<stack>`).
+- **Stack**: A collection of containerized services, networks, and persistent storage definitions declared in a Compose file that are managed and deployed as a single unit.
+- **Storage Node**: The host computer configured to act as the primary, central NFS server. It is the single source of truth for all shared cluster-wide persistent directories.
+- **Storage Replicas**: Secondary node locations configured as backup/redundant targets to replicate volumes from the Storage Node for redundancy.
+- **Client Nodes**: Target execution hosts (either Swarm worker hosts or independent Docker servers) that run application containers and mount persistent directories.
+- **volumes-nfs**: A custom YAML extension key that declares shared cluster-wide directories, auto-configuring backend NFS exports and mounts.
+- **volumes-image**: A custom YAML extension key used to bundle and bake static folders or files directly into container images during the build/compilation phase.
+- **x-mode**: Specifies whether to run the stack deployment in standard Docker Swarm mode (`swarm`) or localized Docker Compose mode (`compose`).
+
 ## Overview
 
 Ṣeto simplifies distributed, multi-host application architecture by orchestrating three key roles:
@@ -74,11 +107,11 @@ flowchart TD
     end
 
     CLI -- "1. Setup & Provision" --> SN
-    CLI -- "2. Sync Volumes" --> SR
+    CLI -- "2. Sync Volumes" --> SN
 
     C1 -- "Auto NFS Mount (via Docker)" --> SN
     C2 -- "Auto NFS Mount (via Docker)" --> SN
-    SR -- "SSH Sync" --> SN
+    SN -- "Replication" --> SR
 
     C1 -. "mount-volumes (runs locally)" .-> C1
     C2 -. "mount-volumes (runs locally)" .-> C2
@@ -95,7 +128,7 @@ flowchart TD
 ### Key Capabilities
 
 - **Automated Infrastructure Setup**: Configures SSH, NFS server utilities on the Storage Node, installs client packages, and sets up SSH keys on all nodes.
-- **Declarative Storage Management**: Synchronizes local project folders to remote storage locations and handles volume mounting/unmounting lifecycle transparently.
+- **Declarative Storage Management**: Synchronizes local folders to remote storage locations and handles volume mounting/unmounting lifecycle transparently.
 - **Advanced YAML Extensions**: Extends standard Docker Compose files with `volumes-nfs` (for automatic cluster-wide NFS configuration) and `volumes-image` (for baking static assets directly into target images).
 - **Flexible Execution Modes**: Deploys services using Docker Swarm (default) or falls back to multi-host Docker Compose (`x-mode: compose`) when direct hardware access (e.g., GPUs, USB devices, cameras) is required.
 
@@ -135,13 +168,13 @@ If a dependent command is run before `setup` has generated the configuration fil
 
 These options apply globally to the `seto` CLI tool and must be specified before the subcommand:
 
-| Option             | Required  | Description                                                                     | Example                |
-| :----------------- | :-------- | :------------------------------------------------------------------------------ | :--------------------- |
-| `--project <name>` | **Yes\*** | Project name for grouping resources (optional for `check` with `--constraint`). | `--project my-project` |
-| `--stack <name>`   | No        | Stack name for grouping services and volumes.                                   | `--stack my-stack`     |
-| `--key <path>`     | No        | Path to the SSH private key file (defaults to `~/.ssh/id_rsa`).                 | `--key ~/.ssh/id_rsa`  |
-| `--debug`          | No        | Enables verbose debug logging.                                                  | `--debug`              |
-| `-v, --version`    | No        | Show the version number and exit.                                               | `-v`                   |
+| Option               | Required  | Description                                                                  | Example                    |
+| :------------------- | :-------- | :--------------------------------------------------------------------------- | :------------------------- |
+| `--namespace <name>` | **Yes\*** | Namespace for grouping resources (optional for `check` with `--constraint`). | `--namespace my-namespace` |
+| `--stack <name>`     | No        | Stack name for grouping services and volumes.                                | `--stack my-stack`         |
+| `--key <path>`       | No        | Path to the SSH private key file (defaults to `~/.ssh/id_rsa`).              | `--key ~/.ssh/id_rsa`      |
+| `--debug`            | No        | Enables verbose debug logging.                                               | `--debug`                  |
+| `-v, --version`      | No        | Show the version number and exit.                                            | `-v`                       |
 
 ### Environment Variables
 
@@ -157,7 +190,7 @@ These options apply globally to the `seto` CLI tool and must be specified before
 Sets up the **storage node**, **storage replica**, and **client** nodes for NFS synchronization, and generates the `.seto/config.json` base configuration file.
 
 ```bash
-seto --project <project-name> [--stack <stack-name>] \
+seto --namespace <namespace-name> [--stack <stack-name>] \
   setup --storage-node <storage-node-uri> --storage-replicas <storage-replica-strings> --clients <client-strings> [--force]
 ```
 
@@ -171,7 +204,7 @@ seto --project <project-name> [--stack <stack-name>] \
 **Example:**
 
 ```bash
-seto --project my-project --stack my-stack \
+seto --namespace my-namespace --stack my-stack \
   setup --storage-node nfs://user:pass@host --storage-replicas user:pass@replica1 user:pass@replica2 --clients user:pass@client1 user:pass@client2
 ```
 
@@ -180,7 +213,7 @@ seto --project my-project --stack my-stack \
 Parses, resolves environment variables, expands custom volumes, and renders the compose file in canonical format.
 
 ```bash
-seto --project <project-name> [--stack <stack-name>] \
+seto --namespace <namespace-name> [--stack <stack-name>] \
   config [--compose]
 ```
 
@@ -191,7 +224,7 @@ seto --project <project-name> [--stack <stack-name>] \
 **Example:**
 
 ```bash
-seto --project my-project --stack my-stack config --compose
+seto --namespace my-namespace --stack my-stack config --compose
 ```
 
 ### 3. Create Volumes Command
@@ -199,7 +232,7 @@ seto --project my-project --stack my-stack config --compose
 Creates and synchronizes shared NFS volumes across target storage replica nodes.
 
 ```bash
-seto --project <project-name> --stack <stack-name> \
+seto --namespace <namespace-name> --stack <stack-name> \
   create-volumes [--sync]
 ```
 
@@ -210,7 +243,7 @@ seto --project <project-name> --stack <stack-name> \
 **Example:**
 
 ```bash
-seto --project my-project --stack my-stack \
+seto --namespace my-namespace --stack my-stack \
   create-volumes --sync
 ```
 
@@ -222,14 +255,14 @@ A helper command that manually mounts the root shared NFS volume directory onto 
 > This command is not required for application containers. Docker automatically mounts the NFS volumes inside the containers when the stack is deployed. This command is a helper for host-level management and manual file access.
 
 ```bash
-seto --project <project-name> --stack <stack-name> \
+seto --namespace <namespace-name> --stack <stack-name> \
   mount-volumes
 ```
 
 **Example:**
 
 ```bash
-seto --project my-project --stack my-stack mount-volumes
+seto --namespace my-namespace --stack my-stack mount-volumes
 ```
 
 ### 5. Unmount Volumes Command
@@ -237,14 +270,14 @@ seto --project my-project --stack my-stack mount-volumes
 A helper command that manually unmounts the root shared NFS volume directory from the local filesystem of the node where the command is executed.
 
 ```bash
-seto --project <project-name> --stack <stack-name> \
+seto --namespace <namespace-name> --stack <stack-name> \
   unmount-volumes
 ```
 
 **Example:**
 
 ```bash
-seto --project my-project --stack my-stack unmount-volumes
+seto --namespace my-namespace --stack my-stack unmount-volumes
 ```
 
 ### 6. Deploy Command
@@ -258,7 +291,7 @@ Deploys a stack to the Swarm cluster or to multiple nodes via Compose (if `x-mod
 > If any shared NFS volumes (`volumes-nfs`) are defined in the stack services, the `deploy` command will automatically connect to the storage node, create and synchronize the volumes, and update the exports configuration before the services are started.
 
 ```bash
-seto --project <project-name> --stack <stack-name> \
+seto --namespace <namespace-name> --stack <stack-name> \
   deploy [--image-prefix <prefix>] [--sync]
 ```
 
@@ -270,7 +303,7 @@ seto --project <project-name> --stack <stack-name> \
 **Example:**
 
 ```bash
-seto --project my-project --stack my-stack deploy
+seto --namespace my-namespace --stack my-stack deploy
 ```
 
 ### 7. Down Command
@@ -278,14 +311,14 @@ seto --project my-project --stack my-stack deploy
 Stops and removes containers, networks, and stack resources.
 
 ```bash
-seto --project <project-name> --stack <stack-name> \
+seto --namespace <namespace-name> --stack <stack-name> \
   down
 ```
 
 **Example:**
 
 ```bash
-seto --project my-project --stack my-stack down
+seto --namespace my-namespace --stack my-stack down
 ```
 
 ### 8. Check Command
@@ -293,7 +326,7 @@ seto --project my-project --stack my-stack down
 Verifies and lists nodes matching placement constraints.
 
 ```bash
-seto [--project <project-name>] check [--constraint <query>]
+seto [--namespace <namespace-name>] check [--constraint <query>]
 ```
 
 | Option         | Description                                                                                     |
@@ -302,15 +335,15 @@ seto [--project <project-name>] check [--constraint <query>]
 
 **Example (Compose Stack):**
 
-If the `--constraint` option is not provided, the global `--project` option must be provided to locate the stack's compose files.
+If the `--constraint` option is not provided, the global `--namespace` option must be provided to locate the stack's compose files.
 
 ```bash
-seto --project my-project check
+seto --namespace my-namespace check
 ```
 
 **Example (Dynamic CLI Constraints):**
 
-If the `--constraint` option is provided, the global `--project` option is not required.
+If the `--constraint` option is provided, the global `--namespace` option is not required.
 
 ```bash
 seto check --constraint "host.device.gpu == true"
@@ -322,14 +355,14 @@ Typical end-to-end workflow:
 
 ```bash
 # 1. Setup storage node, storage replicas, and clients (generates .seto/config.json)
-seto --project my-project --stack my-stack \
+seto --namespace my-namespace --stack my-stack \
   setup \
     --storage-node nfs://user:pass@host \
     --storage-replicas user:pass@replica1 user:pass@replica2 \
     --clients user:pass@client1 user:pass@client2
 
 # 2. Deploy stack: will automatically create volumes
-seto --project my-project --stack my-stack deploy
+seto --namespace my-namespace --stack my-stack deploy
 ```
 
 ## Error Handling

@@ -51,7 +51,7 @@ def get_global_external_networks() -> dict:
 
 
 def resolve_networks(
-  project: str,
+  namespace: str,
   external_networks: list[str] | None = None,
 ) -> dict:
   networks_files = glob.glob(os.path.join('networks', '*.yaml'))
@@ -61,7 +61,7 @@ def resolve_networks(
     with open(network_file, encoding='utf-8') as file:
       network_key = os.path.splitext(os.path.basename(network_file))[0]
       network_data: dict = yaml.safe_load(file) or {}  # type: ignore
-      network_name = network_data.get('name', f'{project}_{network_key}')
+      network_name = network_data.get('name', f'{namespace}_{network_key}')
       merged_data[network_key] = network_data
 
       if external_networks and network_key in external_networks:

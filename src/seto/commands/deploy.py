@@ -79,7 +79,7 @@ def parse_compose_config(
 
 def deploy_seto_stack(args, driver: Driver, storage_replicas: list[Setting]) -> None:
   # Temporary rewrite driver config
-  driver.project = 'seto'
+  driver.namespace = 'seto'
   driver.stack = None
 
   # Building seto config
@@ -123,27 +123,27 @@ def deploy_seto_stack(args, driver: Driver, storage_replicas: list[Setting]) -> 
   swarm.logs()
 
   # Restore initial driver config
-  driver.project = args.project
+  driver.namespace = args.namespace
   driver.stack = args.stack
 
 
-def deploy_project_stack(args, driver: Driver, storage_replicas: list[Setting]) -> None:
+def deploy_namespace_stack(args, driver: Driver, storage_replicas: list[Setting]) -> None:
   # Temporary rewrite driver config
-  driver.project = f'seto-{args.project}'
+  driver.namespace = f'seto-{args.namespace}'
   driver.stack = None
 
   # Building seto config
   client = DockerClient.from_env()
-  project_networks = resolve_networks(args.project)
+  namespace_networks = resolve_networks(args.namespace)
 
-  logger.info('Configuring seto project agent...')
+  logger.info('Configuring seto namespace agent...')
   internal_stack = {
-    'networks': project_networks,
+    'networks': namespace_networks,
     'services': {
       'agent': {
         'image': 'busybox',
         'command': ['sleep', 'infinity'],
-        'networks': list(project_networks.keys()),
+        'networks': list(namespace_networks.keys()),
         'deploy': {
           'mode': 'global',
         },
@@ -161,10 +161,10 @@ def deploy_project_stack(args, driver: Driver, storage_replicas: list[Setting]) 
     inject=True,
   )
 
-  logger.info('Creating seto project volumes...')
+  logger.info('Creating seto namespace volumes...')
   driver.create_volumes(volumes=volumes, sync=args.sync)
 
-  logger.info('Deploying seto project services...')
+  logger.info('Deploying seto namespace services...')
   swarm = DockerSwarm(
     client=client,
     driver=driver,
@@ -177,7 +177,7 @@ def deploy_project_stack(args, driver: Driver, storage_replicas: list[Setting]) 
   swarm.logs()
 
   # Restore initial driver config
-  driver.project = args.project
+  driver.namespace = args.namespace
   driver.stack = args.stack
 
 

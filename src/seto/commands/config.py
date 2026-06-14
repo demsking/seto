@@ -32,7 +32,7 @@ def resolve(
   skip_volumes: bool = False,
 ) -> dict:
   config_networks = get_global_external_networks()
-  global_networks = resolve_networks(args.project)
+  global_networks = resolve_networks(args.namespace)
 
   for network_name, network_definition in global_networks.items():
     config_networks[network_name] = {
@@ -119,7 +119,7 @@ def resolve(
     if execute:
       execute(resolved_compose_data, placement or [])
 
-  stack = args.stack or args.project
+  stack = args.stack or args.namespace
 
   parse_services(
     driver=driver,

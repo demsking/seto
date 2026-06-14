@@ -57,7 +57,7 @@ class NFSDriver(Driver):
     exports = self.storage_node.file('/etc/exports')
 
     self.add_exports_entry(
-      f'/{self.project}',
+      f'/{self.namespace}',
       exports=exports,
       options=('rw', 'sync', f'fsid={uuid4()}', 'crossmnt', 'no_subtree_check'),
     )

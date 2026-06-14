@@ -32,13 +32,13 @@ class Driver:
     self,
     stack: str,
     *,
-    project: str,
+    namespace: str,
     host: Shell,
     storage_node: Shell,
     debug: bool = False,
   ) -> None:
     self.stack: str | None = stack
-    self.project = project
+    self.namespace = namespace
     self.host = host
     self.storage_node = storage_node
     self.debug = debug
@@ -49,11 +49,11 @@ class Driver:
 
   @property
   def brickname(self) -> str:
-    return f'{self.project}/{self.stack}' if self.stack else self.project
+    return f'{self.namespace}/{self.stack}' if self.stack else self.namespace
 
   @property
   def stack_id(self) -> str:
-    return f'{self.project}_{self.stack}' if self.stack else self.project
+    return f'{self.namespace}_{self.stack}' if self.stack else self.namespace
 
   @property
   def slug(self) -> str:

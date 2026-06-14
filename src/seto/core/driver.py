@@ -39,6 +39,10 @@ class Driver:
     self.debug = debug
 
   @property
+  def shell(self) -> Shell:
+    return self.host
+
+  @property
   def brickname(self) -> str:
     return f'{self.project}/{self.stack}' if self.stack else self.project
 

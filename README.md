@@ -36,6 +36,7 @@ custom orchestrations that depend on synchronized shared storage.
 - **Create Volumes Command** – Creates and synchronizes NFS volumes.
 - **Mount Volumes Command** – Mounts volumes on replicas.
 - **Unmount Volumes Command** – Safely detaches shared volumes.
+- **Check Command** – Verifies and lists nodes matching placement constraints.
 
 ## Global Options
 
@@ -145,9 +146,33 @@ seto --stack <stack-name> --driver <driver-uri> \
 
 **Example**
 
-```bash
+````bash
 seto --stack my-stack --driver nfs://user:pass@host \
   unmount-volumes --replica user:pass@replica1 user:pass@replica2
+### 6. Check Command
+
+Verifies and lists nodes matching placement constraints. By default, it resolves constraints from the stack's compose files. Alternatively, dynamic constraints can be passed via the `--constraint` option.
+
+```bash
+seto --project <project-name> --manager <manager-uri> \
+  check [--constraint <constraint-query>]
+````
+
+| Option         | Description                                                    |
+| :------------- | :------------------------------------------------------------- |
+| `--constraint` | Optional. A specific constraint query to evaluate dynamically. |
+
+**Example (Compose Stack Fallback)**
+
+```bash
+seto --project my-project --stack my-stack --manager nfs://user:pass@host check
+```
+
+**Example (Dynamic CLI Constraints)**
+
+```bash
+seto --project my-project --manager nfs://user:pass@host \
+  check --constraint "host.device.gpu == true"
 ```
 
 ## Example Workflow
@@ -199,23 +224,82 @@ seto --stack my-stack --driver nfs://user:pass@host \
   `data:/var/lib/mysql:ro`
   `data:/var/lib/mysql:rw:hard,noatime`.
 
-## Custom Compose Extensions (x-\*)
+## Compose-Specific Deployments (x-mode: compose)
 
-Ṣeto supports custom top-level extension fields in compose files to control the deployment mode and target host placements:
+By default, Ṣeto deploys stacks using Docker Swarm. However, Docker Swarm has
+native limitations, such as not supporting direct host device mapping (e.g.,
+passing a GPU or a microphone/audio input device to a container).
 
-- **`x-mode`** (`string`): Deployment orchestration mode. Must be either `swarm` (default) or `compose`. `compose` mode runs deployments using `docker compose` directly on target nodes, which is useful as a workaround for hardware/device mapping support on swarm.
-- **`x-placement-hostnames`** (`list`): Target hostnames to deploy compose stacks on. Must be a YAML list of strings. Exclusive with `x-placement-hostname` and `x-placement`.
-- **`x-placement-hostname`** (`string`): Target hostname to deploy compose stacks on. Must be a single hostname string. Exclusive with `x-placement-hostnames` and `x-placement`.
-- **`x-placement`** (`string` or `list`): Placement label selector query (e.g. `node.labels.device == gpu`). Hostnames of all Swarm nodes matching the query will be targeted. Exclusive with `x-placement-hostnames` and `x-placement-hostname`.
+To work around these Swarm hardware mapping limitations while retaining stack-
+based orchestration, Ṣeto supports `x-mode: compose`. In this mode,
+deployments are run using `docker compose` directly on target nodes rather
+than via the Swarm orchestrator.
+
+Even though compose services run outside the Swarm orchestrator, they still have
+access to the same overlay and external networks as Swarm services. Ṣeto
+automatically resolves and maps these networks, enabling seamless communication
+between Swarm-managed services and Compose-managed services.
+
+### Custom Compose Extensions
+
+Ṣeto parses custom top-level extensions and placement constraints to select
+target nodes:
+
+- **`x-mode`** (`string`): Deployment orchestration mode. Must be either
+  `swarm` (default) or `compose`.
+- **`x-placement`** (`list`): List of target host constraint queries (e.g.
+  `host.device.gpu == true`). All Swarm nodes matching these queries will be
+  targeted. If `x-placement` is not defined at the top level, Ṣeto automatically
+  falls back to service-level constraints defined under
+  `deploy.placement.constraints` for all services in the stack.
 
 ### Targeting Multiple Hosts
 
-When using `x-mode: compose`, Ṣeto allows targeting **more than one host** for compose deployments:
+When using `x-mode: compose`, Ṣeto supports targeting **multiple hosts**
+Supported constraint keys include:
 
-- **Multiple Hostnames**: Define multiple hostnames using YAML list formatting in `x-placement-hostnames`. Alternatively, a single target hostname string can be defined in `x-placement-hostname`.
-- **Placement Queries**: Supply a label selector in `x-placement` that matches multiple Swarm nodes. Ṣeto dynamically retrieves hostnames for all matching nodes and deploys to all of them.
+- `host.device.<name> == <value>`: matches a hardware/device label on the host
+  (e.g., `host.device.gpu == true` or `host.device.zigbee == true`).
+- `host.role == <role>`: matches the Swarm node role (`manager` or `worker`).
+- `host.name == <hostname>`: matches the Swarm node hostname.
+- `node.labels.<key> == <value>` (legacy): matches a Swarm node label.
+- `node.role == <role>` / `node.hostname == <hostname>` (legacy).
 
-During deployment, lifecycle, status, logging, or removal commands, Ṣeto loops over each target host to perform the action.
+During deployment, lifecycle management, status checks, logging, or removal,
+Ṣeto loops over each targeted host to execute the corresponding action.
+
+### Physical Device Verification
+
+When a placement query contains a device constraint (using
+`host.device.<name> == <value>` or legacy labels like
+`node.labels.device == <name>` / `device == <name>`), Ṣeto connects to the
+matching nodes and runs a physical hardware/device check. If the check fails,
+the node is excluded from deployment.
+
+Supported devices and their validation commands:
+
+- **`gpu`**: Verifies presence of NVIDIA or Intel/AMD drivers (`/dev/nvidiactl`,
+  `/dev/nvidia0`, or `/dev/dri`).
+- **`bluetooth`**: Verifies presence of an active Bluetooth controller (via
+  `/sys/class/bluetooth/hci*` or `hciconfig`).
+- **`camera`**: Verifies presence of a video capture device/webcam (via
+  `/dev/video*`).
+- **`coral`**: Verifies presence of a Google Coral Edge TPU coprocessor (PCIe or
+  USB).
+- **`zigbee` / `zwave`**: Verifies presence of serial controllers (`/dev/ttyUSB0`,
+  `/dev/ttyACM0`, or `/dev/serial`).
+- **Custom devices**: Verifies presence of the device file at `/dev/<name>`.
+
+### Example
+
+```yaml
+x-mode: compose
+x-placement:
+  - host.device.gpu == true
+  - host.device.zigbee == true
+  - host.role == worker
+  - host.name == worker-node-1
+```
 
 ## Environment Setup
 

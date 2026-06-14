@@ -19,6 +19,7 @@ import sys
 
 from paramiko.ssh_exception import AuthenticationException
 
+from .commands.check import execute_check_command
 from .commands.config import execute_config_command
 from .commands.deploy import execute_deploy_command
 from .commands.down import execute_down_command
@@ -216,6 +217,18 @@ def run() -> None:
   # Down command
   down_parser = subparsers.add_parser('down', description='Stop and remove containers, networks')
   down_parser.set_defaults(func=execute_down_command)
+
+  #
+  # Check command
+  check_parser = subparsers.add_parser(
+    'check', description='Verify and list nodes matching placement constraints'
+  )
+  check_parser.set_defaults(func=execute_check_command)
+  check_parser.add_argument(
+    '--constraint',
+    action='append',
+    help='Dynamic constraint to match against (e.g., host.device.gpu == true). Can be specified multiple times.',
+  )
 
   #
   # Parsing

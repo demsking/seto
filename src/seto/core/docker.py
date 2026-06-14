@@ -93,85 +93,248 @@ class Docker:
     raise NotImplementedError()
 
 
+def match_node_constraint(node: Any, key: str, value: str) -> bool:
+  if not node.attrs:
+    return False
+
+  # Support host.device.<name> (compose internal constraint) and node.labels.<name> (swarm constraint)
+  if key.startswith('host.device.'):
+    device_name = key[len('host.device.'):]
+    labels = node.attrs.get('Spec', {}).get('Labels') or {}
+    node_val = labels.get(key)
+
+    if node_val is None:
+      node_val = labels.get(key[len('host.'):])  # Try "device.<name>"
+
+    if node_val is None:
+      node_val = labels.get(key[len('host.device.'):])  # Try "<name>"
+
+    if node_val is not None:
+      return str(node_val).strip() == str(value).strip()
+
+    # If label is not present on the node, return True to allow physical verification to decide
+    # only for supported non-audio devices
+    if device_name in ('gpu', 'bluetooth', 'camera', 'coral', 'zigbee', 'zwave'):
+      return True
+
+    return False
+
+  elif key.startswith('node.labels.'):
+    actual_key = key[len('node.labels.'):]
+    labels = node.attrs.get('Spec', {}).get('Labels') or {}
+    node_val = labels.get(actual_key)
+
+    if node_val is not None:
+      return str(node_val).strip() == str(value).strip()
+
+    # If this is a device constraint and label is missing, let physical check decide
+    if actual_key == 'device' and value not in ('mic', 'audio'):
+      return True
+
+    return False
+
+  elif key in ('host.role', 'node.role'):
+    role = node.attrs.get('Spec', {}).get('Role')
+
+    return role is not None and str(role).strip() == str(value).strip()
+
+  elif key in ('host.name', 'host.hostname', 'node.hostname'):
+    hostname = node.attrs.get('Description', {}).get('Hostname')
+
+    return hostname is not None and str(hostname).strip() == str(value).strip()
+
+  else:
+    # Fallback to direct label matching for backward compatibility
+    labels = node.attrs.get('Spec', {}).get('Labels') or {}
+    node_val = labels.get(key)
+
+    if node_val is not None:
+      return str(node_val).strip() == str(value).strip()
+
+    # Direct fallback for device key
+    if key == 'device' and value not in ('mic', 'audio'):
+      return True
+
+    return False
+
+
 class DockerCompose(Docker):
   @property
-  def placement_hostnames(self) -> list[str] | None:
-    return self.config.get('x-placement-hostnames', None)
+  def placement(self) -> list:
+    value = self.config.get('x-placement', [])
 
-  @property
-  def placement_hostname(self) -> str | None:
-    return self.config.get('x-placement-hostname', None)
-
-  @property
-  def placement(self) -> str | list[str]:
-    return self.config.get('x-placement', '')
+    return value if isinstance(value, list) else [value]
 
   @property
   @functools.lru_cache(maxsize=128)
   def nodenames(self) -> list[str]:
-    specified = []
-    if self.placement_hostnames is not None:
-      specified.append('x-placement-hostnames')
-    if self.placement_hostname:
-      specified.append('x-placement-hostname')
-    if self.placement:
-      specified.append('x-placement')
+    if not self.placement:
+      raise ValueError('Missing required x-placement field')
 
-    if len(specified) > 1:
-      raise ValueError(
-        f"Only one of 'x-placement-hostnames', 'x-placement-hostname', or 'x-placement' can be specified. Got: {', '.join(specified)}"
-      )
+    # Normalize to constraint groups (each group is a list of strings to be ANDed)
+    groups = []
 
-    # 1. Parse x-placement-hostnames / x-placement-hostname
-    hosts = []
-    if self.placement_hostnames is not None:
-      if not isinstance(self.placement_hostnames, list):
-        raise ValueError('x-placement-hostnames must be a list of strings')
-      for h in self.placement_hostnames:
-        if not isinstance(h, str):
-          raise ValueError('x-placement-hostnames must be a list of strings')
-        hosts.append(h.strip())
-    elif self.placement_hostname:
-      host = str(self.placement_hostname).strip()
-      if host:
-        hosts.append(host)
+    for p in self.placement:
+      if isinstance(p, list):
+        group = [c.strip() for c in p if isinstance(c, str) and '==' in c]
 
-    if hosts:
-      return list(dict.fromkeys(hosts))
+        if group:
+          groups.append(group)
+      elif isinstance(p, str):
+        if '==' in p:
+          groups.append([p.strip()])
 
-    # 2. Parse x-placement
-    placements = []
-    if self.placement:
-      if isinstance(self.placement, list):
-        for p in self.placement:
-          if p:
-            placements.append(p)
-      else:
-        placements.extend(self._parse_placement_string(self.placement))
-
-    if not placements:
-      raise ValueError('Missing required x-placement or x-placement-hostname field')
+    if self.driver.debug:
+      print(f'[DEBUG] Placement constraints: {self.placement}')
+      print(f'[DEBUG] Constraint groups resolved: {groups}')
+      print('[DEBUG] Listing Swarm nodes...')
 
     nodes = self.client.nodes.list()
     matched_nodes = []
 
-    for placement in placements:
-      if not placement or '==' not in placement:
+    for node in nodes:
+      if not node.attrs:
+        if self.driver.debug:
+          print(f'[DEBUG] Node has no attributes: {node}')
         continue
-      label_key, label_value = placement.split('==', 1)
-      label_key = label_key.strip()
-      value = label_value.strip()
 
-      for node in nodes:
-        if node.attrs and node.attrs['Spec']['Labels'].get(label_key) == value:
-          hostname = node.attrs['Description']['Hostname']
+      hostname = node.attrs.get('Description', {}).get('Hostname', 'unknown')
+
+      if self.driver.debug:
+        print(f"[DEBUG] Evaluating node '{hostname}'")
+        print(f'  Role: {node.attrs.get("Spec", {}).get("Role")}')
+        print(f'  Labels: {node.attrs.get("Spec", {}).get("Labels")}')
+
+      # Check if this node matches at least one group (OR between groups)
+      for group in groups:
+        match_all = True
+        if self.driver.debug:
+          print(f'  Checking group: {group}')
+
+        for constraint in group:
+          label_key, label_value = constraint.split('==', 1)
+          label_key = label_key.strip()
+          value = label_value.strip()
+
+          matched = match_node_constraint(node, label_key, value)
+          if self.driver.debug:
+            print(f'    Constraint: {label_key} == {value} -> {"MATCHED" if matched else "FAILED"}')
+
+          if not matched:
+            match_all = False
+            break
+
+        if match_all:
+          if self.driver.debug:
+            print(f"  Node '{hostname}' matched group constraints.")
           if hostname not in matched_nodes:
             matched_nodes.append(hostname)
+          break  # Already matched, move to next node
+        else:
+          if self.driver.debug:
+            print(f"  Node '{hostname}' failed group constraints.")
+
+    if self.driver.debug:
+      print(f'[DEBUG] Matched nodes (before physical device checks): {matched_nodes}')
 
     if not matched_nodes:
       raise ValueError(f'Unable to found node for placement "{self.placement}"')
 
-    return matched_nodes
+    supported_device_checks = {
+      'gpu': r'(test -c /dev/nvidiactl || test -c /dev/nvidia0) && (docker info 2>/dev/null | grep -iq nvidia || which nvidia-smi >/dev/null 2>&1) && echo "OK" || (echo "GPU device not found or not configured for Docker" >&2; exit 1)',
+      'bluetooth': r'(ls -d /sys/class/bluetooth/hci* >/dev/null 2>&1 || hciconfig 2>/dev/null | grep -q "hci") && echo "OK" || (echo "No active Bluetooth controller found" >&2; exit 1)',
+      'camera': r'ls /dev/video* >/dev/null 2>&1 && echo "OK" || (echo "No video capture device (camera) found" >&2; exit 1)',
+      'coral': r'(test -e /dev/apex_0 || lsusb 2>/dev/null | grep -E -iq "Google|Global Unichip") && echo "OK" || (echo "Google Coral Edge TPU not found" >&2; exit 1)',
+      'zigbee': r'(test -e /dev/ttyUSB0 || test -e /dev/ttyACM0 || test -d /dev/serial) && echo "OK" || (echo "Zigbee device not found" >&2; exit 1)',
+      'zwave': r'(test -e /dev/ttyUSB0 || test -e /dev/ttyACM0 || test -d /dev/serial) && echo "OK" || (echo "ZWave device not found" >&2; exit 1)',
+    }
+
+    verified_nodes = []
+    for nodename in matched_nodes:
+      # Find the node object to check its constraints
+      node_obj = next(
+        n for n in nodes if n.attrs and n.attrs['Description']['Hostname'] == nodename
+      )
+
+      # Determine if we need to verify devices based on the matching group
+      device_checks = []
+
+      for group in groups:
+        match_group = True
+
+        for constraint in group:
+          label_key, label_value = constraint.split('==', 1)
+          label_key = label_key.strip()
+          value = label_value.strip()
+
+          if not match_node_constraint(node_obj, label_key, value):
+            match_group = False
+            break
+
+        if match_group:
+          for constraint in group:
+            label_key, label_value = constraint.split('==', 1)
+            label_key = label_key.strip()
+            value = label_value.strip()
+
+            if label_key.startswith('host.device.'):
+              device_name = label_key[len('host.device.'):]
+              device_checks.append((device_name, value))
+            elif label_key == 'node.labels.device' or label_key == 'device':
+              device_checks.append((value, 'true'))
+          break
+
+      # Run the physical checks on the node
+      has_all_devices = True
+      if self.driver.debug and device_checks:
+        print(f"[DEBUG] Running physical device verification for node '{nodename}'...")
+
+      for device_name, expected_val in device_checks:
+        if str(expected_val).lower().strip() in ('false', '0'):
+          if self.driver.debug:
+            print(
+              f"  Skipping physical check for '{device_name}' because expected value is '{expected_val}'"
+            )
+          continue
+
+        device_key = device_name.lower().strip()
+        check_cmd = supported_device_checks.get(
+          device_key,
+          f'test -e /dev/{device_name} && echo "OK" || (echo "{device_name} device not found" >&2; exit 1)',
+        )
+
+        if self.driver.debug:
+          print(f"  Checking device '{device_name}' on '{nodename}' using command: '{check_cmd}'")
+
+        try:
+          if self.hostname == nodename:
+            self.shell.run(check_cmd, quiet=True, stdout=False, stderr=True)
+          else:
+            setting = Setting.from_connection_string(f'{Driver.setouser}@{nodename}')
+            remote_shell = Driver.get_shell(setting, self.shell.key_file_path)
+            remote_shell.connect()
+            remote_shell.run(check_cmd, quiet=True, stdout=False, stderr=True)
+            remote_shell.close()
+          if self.driver.debug:
+            print(f"  Device '{device_name}' verified successfully on '{nodename}'")
+        except Exception as e:
+          if self.driver.debug:
+            print(f"  Physical verification failed for device '{device_name}' on '{nodename}': {e}")
+          print(
+            f"WARNING: Node '{nodename}' matched label constraints but physical check failed for device '{device_name}': {e}. Excluding node."
+          )
+          has_all_devices = False
+          break
+
+      if has_all_devices:
+        verified_nodes.append(nodename)
+
+    if not verified_nodes:
+      raise ValueError(
+        f'Unable to found node for placement "{self.placement}" (physical device verification failed for all matched nodes)'
+      )
+
+    return verified_nodes
 
   @property
   def nodename(self) -> str:
@@ -183,7 +346,9 @@ class DockerCompose(Docker):
   def _parse_hostname_string(self, value: Any) -> list[str]:
     if not value:
       return []
+
     raw = str(value).strip()
+
     if ',' in raw:
       return [h.strip() for h in raw.split(',') if h.strip()]
     elif ' ' in raw:
@@ -194,9 +359,12 @@ class DockerCompose(Docker):
   def _parse_placement_string(self, value: Any) -> list[str]:
     if not value:
       return []
+
     raw = str(value).strip()
+
     if ',' in raw:
       return [p.strip() for p in raw.split(',') if p.strip()]
+
     return [raw]
 
   def _remote_node_run(self, command: str, *, hostname: str, input: str) -> None:

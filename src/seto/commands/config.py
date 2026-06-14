@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-import re
 from collections.abc import Callable
 
 import yaml
@@ -29,7 +28,7 @@ def resolve(
   driver: Driver,
   *,
   inject: bool = False,
-  execute: Callable[[dict, str | list[str]], None] | None = None,
+  execute: Callable[[dict, list], None] | None = None,
 ) -> dict:
   config_networks = get_global_external_networks()
   global_networks = resolve_networks(args.project)
@@ -42,8 +41,6 @@ def resolve(
 
   compose = {
     'x-placement': [],
-    'x-placement-hostnames': [],
-    'x-placement-hostname': None,
     'configs': {},
     'networks': config_networks,
     'volumes': {},
@@ -52,22 +49,7 @@ def resolve(
   }
 
   def parse(resolved_compose_data: dict, volumes: list[Volume]):
-    placement_hostnames: list[str] | None = resolved_compose_data.get('x-placement-hostnames', None)
-    placement_hostname: str | None = resolved_compose_data.get('x-placement-hostname', None)
-    placement: str | list[str] | None = resolved_compose_data.get('x-placement', None)
-
-    specified = []
-    if placement_hostnames is not None:
-      specified.append('x-placement-hostnames')
-    if placement_hostname:
-      specified.append('x-placement-hostname')
-    if placement:
-      specified.append('x-placement')
-
-    if len(specified) > 1:
-      raise ValueError(
-        f"Only one of 'x-placement-hostnames', 'x-placement-hostname', or 'x-placement' can be specified. Got: {', '.join(specified)}"
-      )
+    placement: list | None = resolved_compose_data.get('x-placement', None)
 
     networks_ = resolved_compose_data.get('networks', {})
     services = resolved_compose_data.get('services', {})
@@ -75,39 +57,52 @@ def resolve(
     configs = resolved_compose_data.get('configs', {})
     secrets = resolved_compose_data.get('secrets', {})
 
+    # Extract service-level placement constraints if no top-level placement is specified
+    if not placement:
+      file_service_constraints = []
+
+      for service_name, service_def in services.items():
+        constraints = service_def.get('deploy', {}).get('placement', {}).get('constraints', [])
+
+        if isinstance(constraints, list) and constraints:
+          cleaned = [c.strip() for c in constraints if isinstance(c, str) and '==' in c]
+
+          if cleaned:
+            file_service_constraints.append(cleaned)
+      if file_service_constraints:
+        resolved_compose_data['x-placement'] = file_service_constraints
+        placement = file_service_constraints
+
     resolved_compose_data['networks'] = {**config_networks, **networks_}
-
-    # Aggregate x-placement-hostnames & x-placement-hostname
-    if placement_hostnames is not None:
-      if not isinstance(placement_hostnames, list):
-        raise ValueError('x-placement-hostnames must be a list of strings')
-      for h in placement_hostnames:
-        if not isinstance(h, str):
-          raise ValueError('x-placement-hostnames must be a list of strings')
-        part = h.strip()
-        if part and part not in compose['x-placement-hostnames']:
-          compose['x-placement-hostnames'].append(part)
-
-    if placement_hostname:
-      host = str(placement_hostname).strip()
-      if host:
-        if host not in compose['x-placement-hostnames']:
-          compose['x-placement-hostnames'].append(host)
-        if not compose['x-placement-hostname']:
-          compose['x-placement-hostname'] = host
 
     # Aggregate x-placement
     if placement:
-      def add_placements(val):
-        if isinstance(val, list):
-          for item in val:
-            add_placements(item)
-        elif val:
-          for part in re.split(r'[,\s]+', str(val)):
-            if part and part not in compose['x-placement']:
-              compose['x-placement'].append(part)
+      if isinstance(placement, list) and any(isinstance(i, list) for i in placement):
+        # Nested list of constraint groups
+        for group in placement:
+          if isinstance(group, list):
+            cleaned_group = [c.strip() for c in group if isinstance(c, str) and '==' in c]
+            if cleaned_group and cleaned_group not in compose['x-placement']:
+              compose['x-placement'].append(cleaned_group)
+          elif isinstance(group, str):
+            part = group.strip()
+            if part and '==' in part:
+              wrapped = [part]
+              if wrapped not in compose['x-placement']:
+                compose['x-placement'].append(wrapped)
+      else:
+        # Flat placement (single string or list of strings)
+        raw_placements = []
+        if isinstance(placement, list):
+          for item in placement:
+            if isinstance(item, str):
+              raw_placements.extend([p.strip() for p in item.split(',') if p.strip()])
+        else:
+          raw_placements.extend([p.strip() for p in str(placement).split(',') if p.strip()])
 
-      add_placements(placement)
+        for part in raw_placements:
+          if part and part not in compose['x-placement']:
+            compose['x-placement'].append(part)
 
     compose['networks'].update(networks_)
     compose['services'].update(services)
@@ -115,11 +110,13 @@ def resolve(
     compose['configs'].update(configs)
     compose['secrets'].update(secrets)
 
-    if args.compose and not placement and not placement_hostname and not placement_hostnames:
-      raise ValueError('Missing required x-placement, x-placement-hostnames or x-placement-hostname field')
+    if args.compose and not placement:
+      raise ValueError(
+        'Missing required x-placement or service-level deploy.placement.constraints field'
+      )
 
     if execute:
-      execute(resolved_compose_data, placement_hostnames or placement_hostname or placement or '')
+      execute(resolved_compose_data, placement or [])
 
   parse_services(
     driver=driver,
@@ -132,15 +129,7 @@ def resolve(
     mode=['compose'] if args.compose else ['swarm'],
   )
 
-  # Simplify arrays to a single string if they contain only one element
-  if len(compose['x-placement-hostnames']) == 1:
-    compose['x-placement-hostnames'] = compose['x-placement-hostnames'][0]
-  elif not compose['x-placement-hostnames']:
-    compose['x-placement-hostnames'] = None
-
-  if len(compose['x-placement']) == 1:
-    compose['x-placement'] = compose['x-placement'][0]
-  elif not compose['x-placement']:
+  if not compose['x-placement']:
     compose['x-placement'] = None
 
   return compose

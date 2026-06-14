@@ -188,14 +188,6 @@ def run() -> None:
     'create-volumes', description='Create and sync shared volumes'
   )
   create_volumes_parser.set_defaults(func=execute_create_volumes_command)
-  create_volumes_parser.add_argument(
-    '--storage-replicas',
-    dest='storage_replicas',
-    type=storage_replica_type,
-    nargs='+',
-    required=True,
-    help='Storage replica nodes where volumes will be created',
-  )
 
   create_volumes_parser.add_argument(
     '--force',

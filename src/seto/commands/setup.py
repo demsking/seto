@@ -62,12 +62,6 @@ def execute_setup_command(args, driver: Driver) -> None:
       'ip': driver.storage_node.setting.ip,
       'local': driver.storage_node.setting.local,
     },
-    'manager': {
-      'hostname': driver.storage_node.setting.hostname,
-      'username': driver.storage_node.setting.username,
-      'ip': driver.storage_node.setting.ip,
-      'local': driver.storage_node.setting.local,
-    },
   }
 
   with open(config_path, 'w', encoding='utf-8') as file:
@@ -97,7 +91,9 @@ def print_ssh_copy_id_commands(args) -> None:
   pub_key_file_path = args.key + '.pub'
   storage_replicas: list[Setting] = [items[0] for items in args.storage_replicas]
   clients: list[Setting] = [items[0] for items in args.clients]
-  remotes = storage_replicas + [item for item in clients if not any(item == setting for setting in storage_replicas)]
+  remotes = storage_replicas + [
+    item for item in clients if not any(item == setting for setting in storage_replicas)
+  ]
 
   logger.info('Please run the following command for each server to copy your public key:\n')
 

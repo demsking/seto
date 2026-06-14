@@ -123,8 +123,7 @@ volumes:
 	    --debug \
 	    --project $(STACK_NAME) \
 	    --stack $(STACK_NAME) \
-	  create-volumes \
-	    --storage-replicas $(SETO_STORAGE_REPLICAS)
+	  create-volumes
 
 volumes--force:
 	@uv run seto \
@@ -132,7 +131,6 @@ volumes--force:
 	    --project $(STACK_NAME) \
 	    --stack $(STACK_NAME) \
 	  create-volumes \
-	    --storage-replicas $(SETO_STORAGE_REPLICAS) \
 	    --force
 
 mount:

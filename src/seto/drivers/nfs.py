@@ -52,13 +52,7 @@ class NFSDriver(Driver):
   def setup_node(self, shell: Shell, force: bool = False) -> None:
     shell.install('nfs-common')
 
-  def create_volumes(
-    self,
-    *,
-    storage_replicas: list[Setting],
-    volumes: list[Volume],
-    force: bool = False,
-  ) -> None:
+  def create_volumes(self, *, volumes: list[Volume], force: bool = False) -> None:
     # Read existing export paths from /etc/exports on the remote server
     exports = self.storage_node.file('/etc/exports')
 

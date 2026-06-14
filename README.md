@@ -175,8 +175,6 @@ seto --project my-project --stack my-stack \
   setup --storage-node nfs://user:pass@host --storage-replicas user:pass@replica1 user:pass@replica2 --clients user:pass@client1 user:pass@client2
 ```
 
----
-
 ### 2. Config Command
 
 Parses, resolves environment variables, expands custom volumes, and renders the compose file in canonical format.
@@ -196,30 +194,25 @@ seto --project <project-name> [--stack <stack-name>] \
 seto --project my-project --stack my-stack config --compose
 ```
 
----
-
 ### 3. Create Volumes Command
 
 Creates and synchronizes shared NFS volumes across target storage replica nodes.
 
 ```bash
 seto --project <project-name> --stack <stack-name> \
-  create-volumes --storage-replicas <storage-replica-strings> [--force]
+  create-volumes [--force]
 ```
 
-| Option               | Description                                                    |
-| :------------------- | :------------------------------------------------------------- |
-| `--storage-replicas` | Required. Storage replica nodes where volumes will be created. |
-| `--force`            | Optional. Forces synchronization of volume data.               |
+| Option    | Description                                      |
+| :-------- | :----------------------------------------------- |
+| `--force` | Optional. Forces synchronization of volume data. |
 
 **Example:**
 
 ```bash
 seto --project my-project --stack my-stack \
-  create-volumes --storage-replicas user:pass@replica1 user:pass@replica2 --force
+  create-volumes --force
 ```
-
----
 
 ### 4. Mount Volumes Command
 
@@ -244,8 +237,6 @@ seto --project my-project --stack my-stack \
   mount-volumes --clients user:pass@client1 user:pass@client2
 ```
 
----
-
 ### 5. Unmount Volumes Command
 
 A helper command that manually unmounts the root shared NFS volume directory from the client hosts' filesystems.
@@ -265,8 +256,6 @@ seto --project <project-name> --stack <stack-name> \
 seto --project my-project --stack my-stack \
   unmount-volumes --clients user:pass@client1 user:pass@client2
 ```
-
----
 
 ### 6. Deploy Command
 
@@ -290,8 +279,6 @@ seto --project <project-name> --stack <stack-name> \
 seto --project my-project --stack my-stack deploy
 ```
 
----
-
 ### 7. Down Command
 
 Stops and removes containers, networks, and stack resources.
@@ -306,8 +293,6 @@ seto --project <project-name> --stack <stack-name> \
 ```bash
 seto --project my-project --stack my-stack down
 ```
-
----
 
 ### 8. Check Command
 
@@ -351,7 +336,7 @@ seto --project my-project --stack my-stack \
 
 # 2. Create and sync volumes
 seto --project my-project --stack my-stack \
-  create-volumes --storage-replicas user:pass@replica1 user:pass@replica2 --force
+  create-volumes --force
 
 # 3. Mount volumes for usage
 seto --project my-project --stack my-stack \
@@ -379,8 +364,6 @@ seto --project my-project --stack my-stack \
 Ṣeto provides two custom volume extensions in Docker Compose/Swarm stack files to simplify shared storage and file deployment: **`volumes-nfs`** and **`volumes-image`**.
 
 These extensions are declared at the service level in your YAML compose configurations. During compilation (e.g., `seto compose` or deployment), Ṣeto parses these keys, translates them into standard Docker/Docker Compose configurations, and handles the necessary backend setups.
-
----
 
 ### 1. NFS Shared Volumes (`volumes-nfs`)
 
@@ -438,8 +421,6 @@ services:
 1. **Compilation/Translation**: During `seto compose`, Ṣeto strips the `volumes-nfs` block from the service definition, adds a top-level `volumes` definition in the output compose file configured to use the NFS volume driver pointing to the storage node's IP address, and mounts this NFS volume to the service's `volumes` block.
 2. **Synchronization**: The `create-volumes` command synchronizes any local source directories (e.g., `./data/static`) to the NFS share directory on the storage node via SSH.
 3. **Mounting**: The `mount-volumes` command installs NFS client utilities and mounts the NFS export on the storage replica nodes.
-
----
 
 ### 2. Image-embedded Volumes (`volumes-image`)
 

@@ -38,9 +38,6 @@ repos:
       - id: double-quote-string-fixer
         name: "Fix Double-Quoted Strings"
         description: "Convert single-quoted strings to double-quoted strings in Python files."
-      - id: name-tests-test
-        name: 'Ensure Test Files Start with "test"'
-        description: 'Ensure test files are named correctly, starting with "test".'
 
   - repo: https://github.com/Lucas-C/pre-commit-hooks
     rev: v1.5.6

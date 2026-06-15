@@ -1,6 +1,6 @@
 APP_VERSION := $(shell python scripts/metadata.py version)
 
-.PHONY: env
+.PHONY: env test
 
 shell:
 	tmuxinator
@@ -11,6 +11,9 @@ env:
 install:
 	uv venv --clear
 	uv sync
+
+test:
+	uv run pytest --cov=src --cov-report=term-missing tests/
 
 outdated:
 	uv pip list --outdated

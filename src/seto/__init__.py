@@ -222,6 +222,11 @@ def run() -> None:
     action='store_true',
     help='Resolve environment variables in compose file',
   )
+  config_parser.add_argument(
+    '--image-prefix',
+    default=os.getenv('SETO_IMAGE_PREFIX', ''),
+    help='Image namespace prefix to added to internal images',
+  )
 
   #
   # Deploy command

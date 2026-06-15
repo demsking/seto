@@ -250,17 +250,18 @@ Parses, resolves environment variables, expands custom volumes, and renders the 
 
 ```bash
 seto --namespace <namespace-name> [--stack <stack-name>] \
-  config [--resolve-vars]
+  config [--resolve-vars] [--image-prefix <prefix>]
 ```
 
-| Option           | Description                                                        |
-| :--------------- | :----------------------------------------------------------------- |
-| `--resolve-vars` | Optional. Resolves environment variables inside the compose files. |
+| Option           | Description                                                           |
+| :--------------- | :-------------------------------------------------------------------- |
+| `--resolve-vars` | Optional. Resolves environment variables inside the compose files.    |
+| `--image-prefix` | Optional. Prefix added to the image namespace of custom built images. |
 
 **Example:**
 
 ```bash
-seto --namespace my-namespace --stack my-stack config --resolve-vars
+seto --namespace my-namespace --stack my-stack config --resolve-vars --image-prefix my-prefix/
 ```
 
 ### 3. Volumes Command Group
@@ -518,14 +519,24 @@ services:
 
 #### **How It Works Under the Hood**
 
-1. **Dockerfile Generation**: When Ṣeto parses `volumes-image`, it removes it from the service definition and automatically creates a new Dockerfile under the `.seto/images/` directory named `{stack_name}-{service_name}.dockerfile` with the following structure:
+1. **Dockerfile Generation**: When Ṣeto parses `volumes-image`, it removes it from the service definition and automatically creates a new Dockerfile under the `.seto/images/` directory named `{namespace}-{stack_name}-{service_name}.dockerfile` (with underscores replaced by hyphens) with the following structure:
    ```dockerfile
    FROM <original_service_image>
    COPY <source> <target>
    ```
 2. **Variable Resolution**: Ṣeto runs `envsubst` to resolve any environment variables in the generated Dockerfile.
-3. **Compose/Swarm Translation**: It modifies the service's `image` tag to point to a custom image (`{image_prefix}{stack_name}-{service_name}:{image_version}`) and defines a `build` block targeting the generated Dockerfile.
+3. **Compose/Swarm Translation**: It modifies the service's `image` tag to point to a custom image (`{image_prefix}{namespace}-{stack_name}-{service_name}:{image_version}`) (with underscores replaced by hyphens) and defines a `build` block targeting the generated Dockerfile.
 4. **Build and Deployment**: When the stack is built/deployed, the custom image is built with the embedded assets and deployed to the target nodes.
+
+#### **The Role and Purpose of Image Prefix (`--image-prefix`)**
+
+When using `volumes-image`, Ṣeto dynamically generates a Dockerfile and builds a custom Docker image containing your static files. Because this custom image is built on the deployment/management host, it needs to be pushed to a container registry (or a specific registry namespace) so that all remote nodes in the cluster can pull and run the container.
+
+This is where the **image prefix** plays a critical role:
+
+- **Registry and Namespace Mapping**: It specifies the container registry URL and/or namespace where the custom-built image should be hosted.
+- **Image Resolution**: Without a prefix, a service named `web` in a namespace `my-namespace` and stack `my-stack` will resolve to `my-namespace-my-stack-web:alpine`. With `--image-prefix my-registry.com/another-namespace/`, the tag resolves to `my-registry.com/another-namespace/my-namespace-my-stack-web:alpine` (note: any underscores in the namespace or stack name are replaced with hyphens).
+- **Consistency**: Both the `config` and `deploy` commands support the `--image-prefix` CLI option (and the `SETO_IMAGE_PREFIX` environment variable) to ensure that the generated compose files, local build steps, and target image tags are fully aligned and prefix-resolved correctly before any build or push action occurs.
 
 ## Compose-Specific Deployments (x-mode: compose)
 

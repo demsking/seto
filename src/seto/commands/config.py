@@ -169,7 +169,7 @@ def resolve(
 
 
 def execute_config_command(args, driver: Driver) -> None:
-  compose = resolve(args, driver)
+  compose = resolve(args, driver, resolve_vars=getattr(args, 'resolve_vars', False))
   cleaned_compose = {k: v for k, v in compose.items() if v}
   compose_output = yaml.dump(cleaned_compose, default_flow_style=False, sort_keys=False) or '{}'
   print(compose_output.strip())

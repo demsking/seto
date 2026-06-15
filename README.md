@@ -204,6 +204,7 @@ These options apply globally to the `seto` CLI tool and must be specified before
 | `SETO_NAMESPACE`                 | Default namespace name.                                                          | None                         |
 | `SETO_STACK`                     | Default stack name.                                                              | None                         |
 | `SETO_SSH_KEY`                   | Default path to the SSH private key file.                                        | `~/.ssh/id_rsa`              |
+| `SETO_IMAGE_PREFIX`              | Default image namespace prefix to be added to internal images.                   | None                         |
 | `SETO_DEFAULT_VOLUME_MOUNT_MODE` | Default volume mount mode used when mode is omitted in `volumes-nfs` entries.    | `rw`                         |
 | `SETO_DEFAULT_NFS_OPTIONS`       | Default `volumes-nfs` mount options when options are omitted in compose entries. | `rw,hard,noatime,nodiratime` |
 

@@ -185,9 +185,7 @@ def run() -> None:
 
   #
   # Volumes command group
-  volumes_parser = subparsers.add_parser(
-    'volumes', description='Manage shared volumes'
-  )
+  volumes_parser = subparsers.add_parser('volumes', description='Manage shared volumes')
   volumes_subparsers = volumes_parser.add_subparsers(dest='volumes_command')
   volumes_subparsers.required = True
 
@@ -204,9 +202,7 @@ def run() -> None:
   volumes_sync_parser.set_defaults(func=execute_sync_volumes_command)
 
   # volumes mount
-  volumes_mount_parser = volumes_subparsers.add_parser(
-    'mount', description='Mount shared volumes'
-  )
+  volumes_mount_parser = volumes_subparsers.add_parser('mount', description='Mount shared volumes')
   volumes_mount_parser.set_defaults(func=execute_mount_volumes_command)
 
   # volumes unmount
@@ -236,7 +232,9 @@ def run() -> None:
   deploy_parser.set_defaults(func=execute_deploy_command)
 
   deploy_parser.add_argument(
-    '--image-prefix', default='', help='Image namespace prefix to added to internal images'
+    '--image-prefix',
+    default=os.getenv('SETO_IMAGE_PREFIX', ''),
+    help='Image namespace prefix to added to internal images',
   )
 
   deploy_parser.add_argument(
@@ -299,7 +297,7 @@ def run() -> None:
           args.namespace = os.path.basename(os.getcwd())
 
     if not hasattr(args, 'image_prefix'):
-      setattr(args, 'image_prefix', '')
+      setattr(args, 'image_prefix', os.getenv('SETO_IMAGE_PREFIX', ''))
 
     if args.func == execute_setup_command:
       driver_type, connection_string = args.storage_node

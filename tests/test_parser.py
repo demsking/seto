@@ -20,6 +20,7 @@ from unittest.mock import MagicMock
 import pytest
 from seto.core.driver import Driver
 from seto.core.parser import load_env_file
+from seto.core.parser import parse_compose_file
 from seto.core.parser import parse_local_volumes
 from seto.core.parser import parse_nfs_volume_entry
 from seto.core.parser import parse_service_configs
@@ -248,3 +249,24 @@ services:
   assert 'app' in resolved_list[0]['services']
   # x-mode compose preserves top-level labels
   assert resolved_list[0]['services']['app']['image'] == 'python:rc'
+
+
+def test_parse_interpolation(tmp_path, mocker, monkeypatch):
+  monkeypatch.chdir(tmp_path)
+  monkeypatch.setenv('MY_TEST_VAR', 'interpolated_val')
+
+  compose_file = tmp_path / 'docker-compose.yaml'
+  compose_file.write_text("""
+version: '3.8'
+services:
+  app:
+    image: myapp:${MY_TEST_VAR}
+""", encoding='utf-8')
+
+  mocker.patch('seto.core.parser.load_env_file')
+
+  data, _ = parse_compose_file(str(compose_file))
+  assert data['services']['app']['image'] == 'myapp:interpolated_val'
+
+  data_skip, _ = parse_compose_file(str(compose_file), skip_interpolation=True)
+  assert data_skip['services']['app']['image'] == 'myapp:${MY_TEST_VAR}'

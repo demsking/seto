@@ -211,7 +211,7 @@ These options apply globally to the `seto` CLI tool and must be specified before
 
 ### Variable Interpolation
 
-Ṣeto supports resolving environment variables within your Compose files when performing operations (like `resolve --resolve-vars` or during stack deployments).
+Ṣeto supports resolving environment variables within your Compose files by default when performing operations (like `resolve` or during stack deployments). You can skip this interpolation by passing the `--skip-interpolation` flag.
 
 #### How it works:
 
@@ -250,18 +250,18 @@ Parses, resolves environment variables, expands custom volumes, and renders the 
 
 ```bash
 seto --namespace <namespace-name> [--stack <stack-name>] \
-  resolve [--resolve-vars] [--image-prefix <prefix>]
+  resolve [--skip-interpolation] [--image-prefix <prefix>]
 ```
 
-| Option           | Description                                                           |
-| :--------------- | :-------------------------------------------------------------------- |
-| `--resolve-vars` | Optional. Resolves environment variables inside the compose files.    |
-| `--image-prefix` | Optional. Prefix added to the image namespace of custom built images. |
+| Option                 | Description                                                                      |
+| :--------------------- | :------------------------------------------------------------------------------- |
+| `--skip-interpolation` | Optional. Skips interpolation of environment variables inside the compose files. |
+| `--image-prefix`       | Optional. Prefix added to the image namespace of custom built images.            |
 
 **Example:**
 
 ```bash
-seto --namespace my-namespace --stack my-stack resolve --resolve-vars --image-prefix my-prefix/
+seto --namespace my-namespace --stack my-stack resolve --skip-interpolation --image-prefix my-prefix/
 ```
 
 ### 3. Volumes Command Group

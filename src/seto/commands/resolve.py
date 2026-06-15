@@ -62,7 +62,7 @@ def resolve(
   inject: bool = False,
   execute: Callable[[dict, list], None] | None = None,
   skip_volumes: bool = False,
-  resolve_vars: bool = False,
+  skip_interpolation: bool = False,
 ) -> dict:
   config_networks = {}
   global_networks = resolve_networks(args.namespace)
@@ -158,7 +158,7 @@ def resolve(
     default_nfs_options=args.default_nfs_options,
     execute=parse,
     inject=inject,
-    resolve_vars=resolve_vars,
+    skip_interpolation=skip_interpolation,
     skip_volumes=skip_volumes,
   )
 
@@ -169,7 +169,7 @@ def resolve(
 
 
 def execute_resolve_command(args, driver: Driver) -> None:
-  compose = resolve(args, driver, resolve_vars=getattr(args, 'resolve_vars', False))
+  compose = resolve(args, driver, skip_interpolation=getattr(args, 'skip_interpolation', False))
   cleaned_compose = {k: v for k, v in compose.items() if v}
   compose_output = yaml.dump(cleaned_compose, default_flow_style=False, sort_keys=False) or '{}'
   print(compose_output.strip())

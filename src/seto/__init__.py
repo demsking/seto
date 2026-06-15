@@ -218,9 +218,9 @@ def run() -> None:
   )
   resolve_parser.set_defaults(func=execute_resolve_command)
   resolve_parser.add_argument(
-    '--resolve-vars',
+    '--skip-interpolation',
     action='store_true',
-    help='Resolve environment variables in compose file',
+    help='Skip interpolation of environment variables in compose file',
   )
   resolve_parser.add_argument(
     '--image-prefix',

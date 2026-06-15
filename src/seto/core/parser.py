@@ -468,7 +468,7 @@ def resolve_env_vars(content: str) -> str:
   return res
 
 
-def parse_compose_file(compose_file: str, resolve_vars=False) -> tuple[dict, str]:
+def parse_compose_file(compose_file: str, skip_interpolation: bool = False) -> tuple[dict, str]:
   compose_file = os.path.realpath(compose_file)
 
   # Auto-load corresponding .env file if it exists
@@ -480,7 +480,7 @@ def parse_compose_file(compose_file: str, resolve_vars=False) -> tuple[dict, str
   with open(compose_file, encoding='utf-8') as file:
     compose_content = file.read()
 
-  if resolve_vars:
+  if not skip_interpolation:
     compose_content = resolve_env_vars(compose_content)
 
   compose_data = yaml.safe_load(compose_content)
@@ -494,7 +494,7 @@ def parse_services(
   default_volume_mount_mode: str = 'rw',
   default_nfs_options: str = 'rw,hard,noatime,nodiratime',
   execute: Callable[[dict, list], None] | None = None,
-  resolve_vars: bool = False,
+  skip_interpolation: bool = False,
   inject: bool = False,
   image_prefix: str,
   skip_volumes: bool = False,
@@ -505,7 +505,7 @@ def parse_services(
   output_volumes = []
 
   for service_file in services_files:
-    compose_data, _ = parse_compose_file(service_file, resolve_vars)
+    compose_data, _ = parse_compose_file(service_file, skip_interpolation=skip_interpolation)
     x_mode = compose_data.get('x-mode', 'swarm')
 
     if x_mode not in ['compose', 'swarm']:

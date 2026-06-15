@@ -38,6 +38,7 @@
   - [2. Image-embedded Volumes (`volumes-image`)](#2-image-embedded-volumes-volumes-image)
 - [Compose-Specific Deployments (x-mode: compose)](#compose-specific-deployments-x-mode-compose)
   - [Custom Compose Extensions](#custom-compose-extensions)
+  - [Template Variable Replacement](#template-variable-replacement)
   - [Targeting Multiple Hosts](#targeting-multiple-hosts)
   - [Physical Device Verification](#physical-device-verification)
   - [Example](#example)
@@ -566,6 +567,10 @@ target nodes:
   targeted. If `x-placement` is not defined at the top level, Ṣeto automatically
   falls back to service-level constraints defined under
   `deploy.placement.constraints` for all services in the stack.
+
+### Template Variable Replacement
+
+In standard Swarm mode, `{{.Node.Hostname}}` is resolved natively by the Swarm engine. However, Docker Compose does not natively support Swarm template placeholders. When running stack deployment in `x-mode: compose`, Ṣeto automatically parses and replaces all occurrences of `{{.Node.Hostname}}` (including variations with spaces like `{{ .Node.Hostname }}`) with the hostname of the current target node during the `info` and `deploy` commands.
 
 ### Targeting Multiple Hosts
 

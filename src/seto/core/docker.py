@@ -15,6 +15,7 @@
 import functools
 import json
 import logging
+import re
 import socket
 from typing import Any
 
@@ -24,6 +25,9 @@ from .driver import Driver
 from .parser import resolve_env_vars  # pylint: disable=deprecated-module
 from .shell import Setting
 from .shell import Shell
+
+# Define the regular expression pattern to match {{ .Node.Hostname }} with optional spaces
+NODE_HOSTNAME_RE = r'\{\{\s*\.Node\.Hostname\s*\}\}'
 
 logger = logging.getLogger(__name__)
 
@@ -387,14 +391,15 @@ class DockerCompose(Docker):
     node.run(command, input=input)
     node.close()
 
-  def _exec(self, command: str, nodename: str) -> None:
+  def _exec(self, command: str, nodename: str, *, resolved_config: str | None = None) -> None:
+    config_to_use = resolved_config if resolved_config is not None else self.resolved_config
     if self.hostname == nodename:
-      self.shell.run(command=command, input=self.resolved_config)
+      self.shell.run(command=command, input=config_to_use)
     else:
       self._remote_node_run(
         command,
         hostname=nodename,
-        input=self.resolved_config,
+        input=config_to_use,
       )
 
   def pull(self) -> None:
@@ -408,7 +413,11 @@ class DockerCompose(Docker):
       command = f'docker compose -p {self.driver.stack_id} -f - config --no-env-resolution --skip-interpolation'
 
     for nodename in self.nodenames:
-      self._exec(command, nodename)
+      self._exec(
+        command,
+        nodename,
+        resolved_config=re.sub(NODE_HOSTNAME_RE, nodename, self.resolved_config),
+      )
 
   def deploy(self) -> None:
     for service in self.config.get('services', {}).values():
@@ -420,6 +429,7 @@ class DockerCompose(Docker):
       self._exec(
         f'docker compose -p {self.driver.stack_id} -f - up -d --remove-orphans',
         nodename,
+        resolved_config=re.sub(NODE_HOSTNAME_RE, nodename, self.resolved_config),
       )
 
   def ps(self) -> None:
@@ -472,7 +482,9 @@ class DockerSwarm(Docker):
 
   def logs(self) -> None:
     for service in self.config.get('services', {}).keys():
-      self.shell.run(f'docker service logs -n 10 {self.driver.stack_id}_{service}', stderr=False, check=False)
+      self.shell.run(
+        f'docker service logs -n 10 {self.driver.stack_id}_{service}', stderr=False, check=False
+      )
 
   def down(self) -> None:
     self.shell.run(f'docker stack rm {self.driver.stack_id}')

@@ -21,16 +21,13 @@ from docker import DockerClient
 from ..core.command import parse_volumes_args
 from ..core.docker import DockerCompose
 from ..core.docker import DockerSwarm
+from ..core.docker import NODE_HOSTNAME_RE
 from ..core.driver import Driver
 from ..core.network import resolve_networks
 from ..core.parser import resolve_compose_file
 from .resolve import resolve
 
 logger = logging.getLogger(__name__)
-
-
-# Define the regular expression pattern to match {{ .Node.Hostname }} with optional spaces
-NODE_HOSTNAME_RE = r'\{\{\s*\.Node\.Hostname\s*\}\}'
 
 
 def parse_service_vars(entries: dict[str, Any], hostname: str) -> None:

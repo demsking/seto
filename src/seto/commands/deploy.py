@@ -24,7 +24,7 @@ from ..core.docker import DockerSwarm
 from ..core.driver import Driver
 from ..core.network import resolve_networks
 from ..core.parser import resolve_compose_file
-from .config import resolve
+from .resolve import resolve
 
 logger = logging.getLogger(__name__)
 

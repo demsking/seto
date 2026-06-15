@@ -23,10 +23,10 @@ import sys
 from paramiko.ssh_exception import AuthenticationException
 
 from .commands.check import execute_check_command
-from .commands.config import execute_config_command
 from .commands.deploy import execute_deploy_command
 from .commands.down import execute_down_command
 from .commands.mount import execute_mount_volumes_command
+from .commands.resolve import execute_resolve_command
 from .commands.setup import execute_setup_command
 from .commands.setup import print_ssh_copy_id_commands
 from .commands.umount import execute_umount_volumes_command
@@ -212,17 +212,17 @@ def run() -> None:
   volumes_unmount_parser.set_defaults(func=execute_umount_volumes_command)
 
   #
-  # Config command
-  config_parser = subparsers.add_parser(
-    'config', description='Parse, resolve and render compose file in canonical format'
+  # Resolve command
+  resolve_parser = subparsers.add_parser(
+    'resolve', description='Parse, resolve and render compose file in canonical format'
   )
-  config_parser.set_defaults(func=execute_config_command)
-  config_parser.add_argument(
+  resolve_parser.set_defaults(func=execute_resolve_command)
+  resolve_parser.add_argument(
     '--resolve-vars',
     action='store_true',
     help='Resolve environment variables in compose file',
   )
-  config_parser.add_argument(
+  resolve_parser.add_argument(
     '--image-prefix',
     default=os.getenv('SETO_IMAGE_PREFIX', ''),
     help='Image namespace prefix to added to internal images',

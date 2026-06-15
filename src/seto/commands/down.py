@@ -19,7 +19,7 @@ from docker import DockerClient
 from ..core.docker import DockerCompose
 from ..core.docker import DockerSwarm
 from ..core.driver import Driver
-from .config import resolve
+from .resolve import resolve
 
 logger = logging.getLogger(__name__)
 

@@ -64,14 +64,14 @@ resolved-compose.yaml:
 	  --namespace $(SETO_STACK) \
 	  --stack $(SETO_STACK) \
 	  --debug \
-	  config
+	  resolve
 
-config:
+resolve:
 	@uv run seto \
 	    --debug \
 	    --namespace $(SETO_STACK) \
 	    --stack $(SETO_STACK) \
-	  config
+	  resolve
 deploy:
 	@pkexec echo
 	@uv run seto \

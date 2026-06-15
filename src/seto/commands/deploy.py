@@ -22,10 +22,8 @@ from ..core.command import parse_volumes_args
 from ..core.docker import DockerCompose
 from ..core.docker import DockerSwarm
 from ..core.driver import Driver
-from ..core.network import GLOBAL_NETWORKS
 from ..core.network import resolve_networks
 from ..core.parser import resolve_compose_file
-from ..core.shell import Setting
 from .config import resolve
 
 logger = logging.getLogger(__name__)
@@ -77,57 +75,7 @@ def parse_compose_config(
     composes.append(compose)
 
 
-def deploy_seto_stack(args, driver: Driver, storage_replicas: list[Setting]) -> None:
-  # Temporary rewrite driver config
-  driver.namespace = 'seto'
-  driver.stack = None
-
-  # Building seto config
-  client = DockerClient.from_env()
-
-  logger.info('Configuring seto agent...')
-  internal_stack = {
-    'networks': GLOBAL_NETWORKS,
-    'services': {
-      'agent': {
-        'image': 'busybox',
-        'command': ['sleep', 'infinity'],
-        'networks': list(GLOBAL_NETWORKS.keys()),
-        'deploy': {
-          'mode': 'global',
-        },
-      },
-    },
-  }
-
-  # Resolving compose local volumes
-  resolved_compose_data, _ = resolve_compose_file(
-    driver=driver,
-    image_prefix=args.image_prefix,
-    compose_data=internal_stack,
-    default_volume_mount_mode=args.default_volume_mount_mode,
-    default_nfs_options=args.default_nfs_options,
-    inject=True,
-  )
-
-  logger.info('Deploying seto services...')
-  swarm = DockerSwarm(
-    client=client,
-    driver=driver,
-    config=resolved_compose_data,
-  )
-
-  swarm.info()
-  swarm.deploy()
-  swarm.ps()
-  swarm.logs()
-
-  # Restore initial driver config
-  driver.namespace = args.namespace
-  driver.stack = args.stack
-
-
-def deploy_namespace_stack(args, driver: Driver, storage_replicas: list[Setting]) -> None:
+def deploy_seto_stack(args, driver: Driver) -> None:
   # Temporary rewrite driver config
   driver.namespace = f'seto-{args.namespace}'
   driver.stack = None
@@ -162,7 +110,7 @@ def deploy_namespace_stack(args, driver: Driver, storage_replicas: list[Setting]
   )
 
   logger.info('Creating seto namespace volumes...')
-  driver.create_volumes(volumes=volumes, sync=args.sync)
+  driver.create_volumes(volumes=volumes, sync=getattr(args, 'sync', False))
 
   logger.info('Deploying seto namespace services...')
   swarm = DockerSwarm(

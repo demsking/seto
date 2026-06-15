@@ -86,8 +86,8 @@ def parse_nfs_volume_entry(
 
 def parse_local_volumes(
   stack: str,
-  compose_file_path: str,
   *,
+  compose_file_path: str,
   service_name: str,
   service: Service,
   image_prefix: str,
@@ -301,7 +301,7 @@ def parse_volumes(
 
 def resolve_compose_file(
   driver: Driver,
-  compose_file_path: str,
+  compose_file_path: str = '',
   *,
   compose_data: dict,
   default_volume_mount_mode: str = 'rw',

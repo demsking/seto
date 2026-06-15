@@ -17,7 +17,6 @@ from collections.abc import Callable
 import yaml
 
 from ..core.driver import Driver
-from ..core.network import get_global_external_networks
 from ..core.network import resolve_networks
 from ..core.parser import parse_services
 from ..core.volume import Volume
@@ -30,8 +29,9 @@ def resolve(
   inject: bool = False,
   execute: Callable[[dict, list], None] | None = None,
   skip_volumes: bool = False,
+  resolve_vars: bool = False,
 ) -> dict:
-  config_networks = get_global_external_networks()
+  config_networks = {}
   global_networks = resolve_networks(args.namespace)
 
   for network_name, network_definition in global_networks.items():
@@ -124,7 +124,7 @@ def resolve(
     default_nfs_options=args.default_nfs_options,
     execute=parse,
     inject=inject,
-    resolve_vars=getattr(args, 'resolve_vars', False),
+    resolve_vars=resolve_vars,
     skip_volumes=skip_volumes,
   )
 

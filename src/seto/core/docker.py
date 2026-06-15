@@ -402,7 +402,7 @@ class DockerCompose(Docker):
       self._exec(f'docker compose -p {self.driver.stack_id} -f - pull', nodename)
 
   def info(self) -> None:
-    if self.driver.manager:
+    if self.driver.storage_node:
       command = f'docker compose -p {self.driver.stack_id} -f - config'
     else:
       command = f'docker compose -p {self.driver.stack_id} -f - config --no-env-resolution --skip-interpolation'
@@ -449,7 +449,7 @@ class DockerSwarm(Docker):
     pass
 
   def info(self) -> None:
-    if self.driver.manager:
+    if self.driver.storage_node:
       command = 'docker stack config -c -'
     else:
       command = 'docker stack config -c - --skip-interpolation'
@@ -467,12 +467,12 @@ class DockerSwarm(Docker):
     )
 
   def ps(self) -> None:
-    self.shell.run(f'docker stack ps --no-trunc {self.driver.stack_id}', stderr=False)
-    self.shell.run(f'docker stack services {self.driver.stack_id}', stderr=False)
+    self.shell.run(f'docker stack ps --no-trunc {self.driver.stack_id}', stderr=False, check=False)
+    self.shell.run(f'docker stack services {self.driver.stack_id}', stderr=False, check=False)
 
   def logs(self) -> None:
     for service in self.config.get('services', {}).keys():
-      self.shell.run(f'docker service logs -n 10 {self.driver.stack_id}_{service}', stderr=False)
+      self.shell.run(f'docker service logs -n 10 {self.driver.stack_id}_{service}', stderr=False, check=False)
 
   def down(self) -> None:
     self.shell.run(f'docker stack rm {self.driver.stack_id}')

@@ -24,31 +24,6 @@ NETWORK_CONFIG = {
   },
 }
 
-GLOBAL_NETWORKS = {
-  'seto-cloud-public': {
-    'name': 'seto-cloud-public',
-    'driver': 'overlay',
-    'attachable': True,
-    **NETWORK_CONFIG,
-  },
-  'seto-cloud-edge': {
-    'name': 'seto-cloud-edge',
-    'driver': 'overlay',
-    'attachable': True,
-    **NETWORK_CONFIG,
-  },
-}
-
-
-def get_global_external_networks() -> dict:
-  return {
-    shortname: {
-      'name': network['name'],
-      'external': True,
-    }
-    for shortname, network in GLOBAL_NETWORKS.items()
-  }
-
 
 def resolve_networks(
   namespace: str,

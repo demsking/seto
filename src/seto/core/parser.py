@@ -444,14 +444,28 @@ def load_env_file(env_file_path: str) -> None:
 
 
 def resolve_env_vars(content: str) -> str:
+  placeholders = {}
+
+  def repl(match):
+    placeholder = f'__SETO_ESC_VAR_{len(placeholders)}__'
+    placeholders[placeholder] = f'${{{match.group(1)}}}'
+    return placeholder
+
+  temp_content = re.sub(r'\$\$\{([^}]+)\}', repl, content)
+
   output = subprocess.run(
     ['envsubst'],
-    input=content,
+    input=temp_content,
     text=True,
     capture_output=True,
     check=True,
   )
-  return output.stdout
+
+  res = output.stdout
+  for placeholder, original in placeholders.items():
+    res = res.replace(placeholder, original)
+
+  return res
 
 
 def parse_compose_file(compose_file: str, resolve_vars=False) -> tuple[dict, str]:

@@ -19,6 +19,7 @@
   - [Configuration & Command Dependencies](#configuration--command-dependencies)
   - [Global Options](#global-options)
   - [Environment Variables](#environment-variables)
+    - [Variable Interpolation](#variable-interpolation)
 - [Subcommands](#subcommands)
   - [1. Setup Command](#1-setup-command)
   - [2. Config Command](#2-config-command)
@@ -207,6 +208,16 @@ These options apply globally to the `seto` CLI tool and must be specified before
 | `SETO_IMAGE_PREFIX`              | Default image namespace prefix to be added to internal images.                   | None                         |
 | `SETO_DEFAULT_VOLUME_MOUNT_MODE` | Default volume mount mode used when mode is omitted in `volumes-nfs` entries.    | `rw`                         |
 | `SETO_DEFAULT_NFS_OPTIONS`       | Default `volumes-nfs` mount options when options are omitted in compose entries. | `rw,hard,noatime,nodiratime` |
+
+### Variable Interpolation
+
+Ṣeto supports resolving environment variables within your Compose files when performing operations (like `config --resolve-vars` or during stack deployments).
+
+#### How it works:
+
+- **Interpolation Syntax**: Use standard syntax like `${VARIABLE}` or `${VARIABLE:-default_value}` in your Compose files.
+- **Auto-loaded `.env` Files**: Ṣeto automatically searches for and loads environment variables from a `.env` file and/or a `{stack_name}.env` file (e.g., `my-stack.env`) located in the same directory as the Compose file, prior to performing interpolation.
+- **Escaping Interpolation**: If you need to pass a literal `${VARIABLE}` reference to the generated Compose file or container runtime (and prevent Ṣeto from interpolating it), escape it using a double dollar sign: `$${VARIABLE}`. During variable resolution, this will be safely preserved and rendered as `${VARIABLE}` without being replaced by its environment variable value.
 
 ## Subcommands
 

@@ -22,6 +22,39 @@ from ..core.parser import parse_services
 from ..core.volume import Volume
 
 
+def filter_unused_networks(compose_data: dict, config_networks: dict) -> None:
+  """Filter compose networks entry to explicitly services's defining networks."""
+  used_networks = set()
+  services = compose_data.get('services', {})
+
+  if isinstance(services, dict):
+    for service_def in services.values():
+      if isinstance(service_def, dict):
+        service_networks = service_def.get('networks')
+
+        if isinstance(service_networks, list):
+          for net in service_networks:
+            if isinstance(net, str):
+              used_networks.add(net)
+        elif isinstance(service_networks, dict):
+          for net in service_networks.keys():
+            if isinstance(net, str):
+              used_networks.add(net)
+
+  networks = compose_data.get('networks') or {}
+  filtered_networks = {}
+
+  for net in used_networks:
+    if net in networks:
+      filtered_networks[net] = networks[net]
+    elif net in config_networks:
+      filtered_networks[net] = config_networks[net]
+    else:
+      filtered_networks[net] = {}
+
+  compose_data['networks'] = filtered_networks
+
+
 def resolve(
   args,
   driver: Driver,
@@ -43,7 +76,7 @@ def resolve(
   compose = {
     'x-placement': [],
     'configs': {},
-    'networks': config_networks,
+    'networks': {},
     'volumes': {},
     'secrets': {},
     'services': {},
@@ -75,6 +108,7 @@ def resolve(
         placement = file_service_constraints
 
     resolved_compose_data['networks'] = {**config_networks, **networks_}
+    filter_unused_networks(resolved_compose_data, config_networks)
 
     # Aggregate x-placement
     if placement:
@@ -105,7 +139,7 @@ def resolve(
           if part and part not in compose['x-placement']:
             compose['x-placement'].append(part)
 
-    compose['networks'].update(networks_)
+    compose['networks'].update(resolved_compose_data['networks'])
     compose['services'].update(services)
     compose['volumes'].update(volumes)
     compose['configs'].update(configs)

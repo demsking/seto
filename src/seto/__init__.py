@@ -217,11 +217,10 @@ def run() -> None:
     'config', description='Parse, resolve and render compose file in canonical format'
   )
   config_parser.set_defaults(func=execute_config_command)
-
   config_parser.add_argument(
-    '--compose',
+    '--resolve-vars',
     action='store_true',
-    help='Resolve for Docker Compose',
+    help='Resolve environment variables in compose file',
   )
 
   #

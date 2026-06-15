@@ -72,15 +72,6 @@ config:
 	    --namespace $(SETO_STACK) \
 	    --stack $(SETO_STACK) \
 	  config
-
-config--compose:
-	@uv run seto \
-	    --debug \
-	    --namespace $(SETO_STACK) \
-	    --stack $(SETO_STACK) \
-	  config \
-	    --compose
-
 deploy:
 	@pkexec echo
 	@uv run seto \

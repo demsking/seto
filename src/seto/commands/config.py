@@ -111,11 +111,6 @@ def resolve(
     compose['configs'].update(configs)
     compose['secrets'].update(secrets)
 
-    if args.compose and not placement:
-      raise ValueError(
-        'Missing required x-placement or service-level deploy.placement.constraints field'
-      )
-
     if execute:
       execute(resolved_compose_data, placement or [])
 
@@ -129,7 +124,7 @@ def resolve(
     default_nfs_options=args.default_nfs_options,
     execute=parse,
     inject=inject,
-    mode=['compose'] if args.compose else ['swarm'],
+    resolve_vars=getattr(args, 'resolve_vars', False),
     skip_volumes=skip_volumes,
   )
 
@@ -141,11 +136,6 @@ def resolve(
 
 def execute_config_command(args, driver: Driver) -> None:
   compose = resolve(args, driver)
-  compose_output = yaml.dump(compose) or '{}'
-
-  if args.compose:
-    command = f'docker compose -p {driver.stack_id} -f - config'
-  else:
-    command = 'docker stack config -c -'
-
-  driver.shell.run(command, input=str(compose_output))
+  cleaned_compose = {k: v for k, v in compose.items() if v}
+  compose_output = yaml.dump(cleaned_compose, default_flow_style=False, sort_keys=False) or '{}'
+  print(compose_output.strip())

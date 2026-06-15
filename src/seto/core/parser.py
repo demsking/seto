@@ -480,7 +480,7 @@ def parse_services(
   default_volume_mount_mode: str = 'rw',
   default_nfs_options: str = 'rw,hard,noatime,nodiratime',
   execute: Callable[[dict, list], None] | None = None,
-  mode: list[ResolveMode] | None = None,
+  resolve_vars: bool = False,
   inject: bool = False,
   image_prefix: str,
   skip_volumes: bool = False,
@@ -491,20 +491,12 @@ def parse_services(
   output_volumes = []
 
   for service_file in services_files:
-    resolve_vars = isinstance(mode, list) and 'compose' in mode
     compose_data, _ = parse_compose_file(service_file, resolve_vars)
     x_mode = compose_data.get('x-mode', 'swarm')
 
     if x_mode not in ['compose', 'swarm']:
       logger.error('x-mode must be either "compose" or "swarm"')
       sys.exit(42)
-
-    if mode:
-      if 'compose' in mode and 'compose' != x_mode:
-        continue
-
-      if 'swarm' in mode and 'swarm' != x_mode:
-        continue
 
     # resolve compose local volumes
     resolved_compose_data, volumes = resolve_compose_file(

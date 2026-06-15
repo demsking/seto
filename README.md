@@ -239,17 +239,17 @@ Parses, resolves environment variables, expands custom volumes, and renders the 
 
 ```bash
 seto --namespace <namespace-name> [--stack <stack-name>] \
-  config [--compose]
+  config [--resolve-vars]
 ```
 
-| Option      | Description                                                                          |
-| :---------- | :----------------------------------------------------------------------------------- |
-| `--compose` | Optional. Resolves and compiles for standard Docker Compose instead of Docker Swarm. |
+| Option           | Description                                                        |
+| :--------------- | :----------------------------------------------------------------- |
+| `--resolve-vars` | Optional. Resolves environment variables inside the compose files. |
 
 **Example:**
 
 ```bash
-seto --namespace my-namespace --stack my-stack config --compose
+seto --namespace my-namespace --stack my-stack config --resolve-vars
 ```
 
 ### 3. Volumes Command Group

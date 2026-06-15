@@ -2,6 +2,26 @@
 
 All notable changes to this project are documented in this file.
 
+## 5.0.0-b3 - 2026-06-15
+
+### Features
+
+- Added support for node hostname placeholder interpolation (`{{.Node.Hostname}}` / `{{ .Node.Hostname }}`) in Compose mode during deployment (`seto deploy` under `x-mode: compose`).
+- Renamed the `config` command to `resolve` to improve semantic clarity across CLI arguments, internal modules, and documentation.
+- Renamed the `--resolve-vars` flag to `--skip-interpolation` on the `resolve` command to align with standard Docker conventions.
+- Added `--image-prefix` argument to the `resolve` command, with environment variable support via `SETO_IMAGE_PREFIX`.
+- Added support for escaping variables in compose files (using `$${VAR}`) to prevent unintended interpolation.
+
+### Improvements
+
+- Consolidated Docker Compose network definitions during resolution, ensuring a single global networks entry is produced and all services reference it.
+- Improved deployment robustness by disabling mandatory checks for logs collection (`swarm.logs()`) when target nodes are offline, and added safer property handling (e.g. `sync` attribute check).
+- Made the compose file path optional in `resolve_compose_file` to support dynamic loading.
+
+### Testing
+
+- Implemented a comprehensive project test suite covering CLI parsing, network configuration, shell commands, DNS resolution, and docker compose setup.
+
 ## 5.0.0-b2 - 2026-06-14
 
 ### Features

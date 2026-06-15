@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-# pylint: disable=import-error,protected-access,invalid-name,unused-import
+# pylint: disable=import-error,protected-access,invalid-name,unused-import,no-member
 from unittest.mock import MagicMock
 
 from seto.core.docker import DockerCompose

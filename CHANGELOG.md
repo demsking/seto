@@ -2,6 +2,35 @@
 
 All notable changes to this project are documented in this file.
 
+## 5.0.0-b4 - 2026-06-23
+
+### Breaking Changes
+
+- Changed `seto deploy` volume synchronization to run by default and replaced the `--sync` opt-in flag with `--no-sync`.
+- Limited `x-placement` handling to Compose-mode stacks (`x-mode: compose`); Swarm-mode files now ignore `x-placement` and keep using native Swarm placement constraints.
+
+### Features
+
+- Added `-f` / `--force` to `seto deploy` to overwrite existing volume files during deploy-time synchronization.
+
+### Improvements
+
+- Deploy-time volume synchronization now copies only new files by default, preserving existing remote volume data unless `--force` is provided.
+- Kept `seto volumes sync` as an explicit full synchronization command that overwrites existing files.
+
+### Fixes
+
+- Fixed repeated deploy syncs failing with permission errors by uploading remote files to a temporary path and installing them into NFS volume paths with sudo.
+
+### Documentation
+
+- Documented local editable CLI testing with `uv tool install --editable . --force`, similar to an `npm link` workflow.
+- Clarified deploy synchronization defaults, `--no-sync`, `--force`, and Compose-only `x-placement` behavior.
+
+### Testing
+
+- Added regression coverage for deploy sync defaults, forced sync overwrites, remote sudo copy behavior, and Compose-only placement resolution.
+
 ## 5.0.0-b3 - 2026-06-15
 
 ### Features

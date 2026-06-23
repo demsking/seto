@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-# pylint: disable=invalid-name,import-error,import-outside-toplevel
+# pylint: disable=invalid-name,import-error,import-outside-toplevel,protected-access
 from unittest.mock import MagicMock
 
 import pytest
@@ -149,6 +149,22 @@ def test_local_shell(mocker):
   shell.copy_file(local_path='foo', remote_path='bar')
   # copy_file executes "cp foo bar" command
   mock_popen.assert_called()
+
+
+def test_shell_copy_skips_existing_files_unless_forced(mocker, tmp_path):
+  local_file = tmp_path / 'model.bin'
+  local_file.write_text('data', encoding='utf-8')
+  shell = MagicMock(spec=Shell)
+  shell.exists.return_value = True
+
+  Shell._copy(shell, local_path=str(local_file), remote_path='/data/model.bin')
+  shell.copy_file.assert_not_called()
+
+  Shell._copy(shell, local_path=str(local_file), remote_path='/data/model.bin', force=True)
+  shell.copy_file.assert_called_once_with(
+    local_path=str(local_file),
+    remote_path='/data/model.bin',
+  )
 
 
 def test_remote_shell(mocker):

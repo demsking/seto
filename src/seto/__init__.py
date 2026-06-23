@@ -249,6 +249,13 @@ def run() -> None:
     help='Do not sync volumes data before deploying',
   )
 
+  deploy_parser.add_argument(
+    '-f',
+    '--force',
+    action='store_true',
+    help='Overwrite existing volume files while syncing before deploying',
+  )
+
   #
   # Down command
   down_parser = subparsers.add_parser('down', description='Stop and remove containers, networks')

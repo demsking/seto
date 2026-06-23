@@ -344,17 +344,18 @@ Deploys a stack to the Swarm cluster or to multiple nodes via Compose (if `x-mod
 > The `deploy` command must be run on the **Swarm Manager** node to perform Swarm service orchestration.
 
 > [!NOTE]
-> If any shared NFS volumes (`volumes-nfs`) are defined in the stack services, the `deploy` command will automatically connect to the storage node, create and synchronize the volumes, and update the exports configuration before the services are started.
+> If any shared NFS volumes (`volumes-nfs`) are defined in the stack services, the `deploy` command will automatically connect to the storage node, create and synchronize the volumes, and update the exports configuration before the services are started. Deploy-time synchronization copies only new files by default; pass `-f` or `--force` to overwrite existing files.
 
 ```bash
 seto --namespace <namespace-name> --stack <stack-name> \
-  deploy [--image-prefix <prefix>] [--no-sync]
+  deploy [--image-prefix <prefix>] [--no-sync] [-f|--force]
 ```
 
 | Option           | Description                                                           |
 | :--------------- | :-------------------------------------------------------------------- |
 | `--image-prefix` | Optional. Prefix added to the image namespace of custom built images. |
 | `--no-sync`      | Optional. Disable shared volume data synchronization before deploy.   |
+| `-f, --force`    | Optional. Overwrite existing volume files while syncing.              |
 
 **Example:**
 

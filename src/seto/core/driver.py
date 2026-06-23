@@ -139,7 +139,9 @@ class Driver:
   def setup_node(self, shell: Shell, force: bool = False) -> None:
     raise NotImplementedError()
 
-  def create_volumes(self, *, volumes: list[Volume], sync: bool = False) -> None:
+  def create_volumes(
+    self, *, volumes: list[Volume], sync: bool = False, force: bool = False
+  ) -> None:
     raise NotImplementedError()
 
   def mount_volumes(self, *, volumes: list[Volume]) -> None:

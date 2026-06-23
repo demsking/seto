@@ -107,3 +107,15 @@ def test_deploy_no_sync_disables_volume_sync(mocker):
   assert exc_info.value.code == 0
   args, _driver = execute_deploy_command.call_args.args
   assert args.sync is False
+
+
+def test_deploy_force_overwrites_existing_volume_files(mocker):
+  execute_deploy_command = mocker.patch('seto.execute_deploy_command')
+  mocker.patch('sys.argv', ['seto', '--namespace', 'test', '--stack', 'app', 'deploy', '--force'])
+
+  with pytest.raises(SystemExit) as exc_info:
+    seto.run()
+
+  assert exc_info.value.code == 0
+  args, _driver = execute_deploy_command.call_args.args
+  assert args.force is True

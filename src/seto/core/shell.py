@@ -14,6 +14,7 @@
 # ==============================================================================
 import logging
 import os
+import shlex
 import socket
 import sys
 from dataclasses import dataclass
@@ -240,8 +241,18 @@ class Shell:
   def file(self, filename: str) -> File:
     return File(self, filename)
 
-  def _copy(self, *, local_path: str, remote_path: str) -> None:
+  def exists(self, path: str) -> bool:
+    try:
+      self.run(f'test -e {shlex.quote(path)}', sudo=True, stdout=False, quiet=True)
+      return True
+    except Exception:
+      return False
+
+  def _copy(self, *, local_path: str, remote_path: str, force: bool = False) -> None:
     if os.path.isfile(local_path):
+      if not force and self.exists(remote_path):
+        return
+
       try:
         self.copy_file(local_path=local_path, remote_path=remote_path)
       except Exception as error:
@@ -259,15 +270,16 @@ class Shell:
           self._copy(
             local_path=local_file_path,
             remote_path=remote_file_path,
+            force=force,
           )
     else:
       logger.warning('WARN: %s %s', local_path, remote_path)
 
-  def copy_volume(self, volume: Volume, dest: str) -> None:
+  def copy_volume(self, volume: Volume, dest: str, *, force: bool = False) -> None:
     target = os.path.join(dest, volume.target)
 
     if volume.source:
-      self._copy(local_path=volume.source, remote_path=target)
+      self._copy(local_path=volume.source, remote_path=target, force=force)
     else:
       self.mkdir(target)
 

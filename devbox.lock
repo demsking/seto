@@ -359,7 +359,7 @@
     },
     "poetry@latest": {
       "last_modified": "2026-05-21T08:15:18Z",
-      "plugin_version": "0.0.4",
+      "plugin_version": "0.0.5",
       "resolved": "github:NixOS/nixpkgs/4a29d733e8a7d5b824c3d8c958a946a9867b3eb2#poetry",
       "source": "devbox-search",
       "version": "2.4.1",
@@ -872,7 +872,7 @@
     },
     "python@3.12": {
       "last_modified": "2026-05-21T08:15:18Z",
-      "plugin_version": "0.0.4",
+      "plugin_version": "0.0.5",
       "resolved": "github:NixOS/nixpkgs/4a29d733e8a7d5b824c3d8c958a946a9867b3eb2#python312",
       "source": "devbox-search",
       "version": "3.12.13",

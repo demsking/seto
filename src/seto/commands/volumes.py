@@ -29,6 +29,6 @@ def execute_sync_volumes_command(args, driver: Driver) -> None:
   all_volumes = parse_volumes_args(args, driver)
 
   driver.connect()
-  driver.create_volumes(volumes=all_volumes, sync=True)
+  driver.create_volumes(volumes=all_volumes, sync=True, force=True)
   driver.apply_storage_node_changes()
   driver.terminate()

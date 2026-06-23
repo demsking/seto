@@ -42,8 +42,10 @@
   - [Targeting Multiple Hosts](#targeting-multiple-hosts)
   - [Physical Device Verification](#physical-device-verification)
   - [Example](#example)
-- [Environment Setup](#environment-setup)
-- [Makefile Targets](#makefile-targets)
+- [Development](#development)
+  - [Environment Setup](#environment-setup)
+  - [Local CLI Testing](#local-cli-testing)
+  - [Makefile Targets](#makefile-targets)
 - [License](#license)
 
 ## Why Ṣeto?
@@ -620,7 +622,9 @@ x-placement:
   - host.name == worker-node-1
 ```
 
-## Environment Setup
+## Development
+
+### Environment Setup
 
 0. See [cloud-init.yaml](cloud-init.yaml) file for prerequisites to install.
 
@@ -657,7 +661,25 @@ x-placement:
    This will starts a preconfigured Tmux session.
    Please see the [.tmuxinator.yml](.tmuxinator.yml) file.
 
-## Makefile Targets
+### Local CLI Testing
+
+To test the checked-out project as a globally available `seto` command, use
+`uv tool install --editable .` from the repository root. This works like
+`npm link`: the command is installed as a tool, while code changes in this
+checkout are reflected without rebuilding or reinstalling the package.
+
+```sh
+uv tool install --editable . --force
+seto --version
+```
+
+When you are done testing the local checkout, remove the linked tool:
+
+```sh
+uv tool uninstall seto
+```
+
+### Makefile Targets
 
 Please see the [Makefile](Makefile) for the full list of targets.
 

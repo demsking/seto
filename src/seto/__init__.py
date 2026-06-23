@@ -242,9 +242,11 @@ def run() -> None:
   )
 
   deploy_parser.add_argument(
-    '--sync',
-    action='store_true',
-    help='Sync volumes data before deploying',
+    '--no-sync',
+    dest='sync',
+    action='store_false',
+    default=True,
+    help='Do not sync volumes data before deploying',
   )
 
   #

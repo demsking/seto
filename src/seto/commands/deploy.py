@@ -107,7 +107,7 @@ def deploy_seto_stack(args, driver: Driver) -> None:
   )
 
   logger.info('Creating seto namespace volumes...')
-  driver.create_volumes(volumes=volumes, sync=getattr(args, 'sync', False))
+  driver.create_volumes(volumes=volumes, sync=getattr(args, 'sync', True))
 
   logger.info('Deploying seto namespace services...')
   swarm = DockerSwarm(
@@ -134,7 +134,7 @@ def execute_deploy_command(args, driver: Driver) -> None:
     logger.info('Automatically creating shared volumes...')
 
     driver.connect()
-    driver.create_volumes(volumes=all_volumes, sync=getattr(args, 'sync', False))
+    driver.create_volumes(volumes=all_volumes, sync=getattr(args, 'sync', True))
     driver.apply_storage_node_changes()
     driver.terminate()
 

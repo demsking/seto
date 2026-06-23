@@ -346,13 +346,13 @@ Deploys a stack to the Swarm cluster or to multiple nodes via Compose (if `x-mod
 
 ```bash
 seto --namespace <namespace-name> --stack <stack-name> \
-  deploy [--image-prefix <prefix>] [--sync]
+  deploy [--image-prefix <prefix>] [--no-sync]
 ```
 
 | Option           | Description                                                           |
 | :--------------- | :-------------------------------------------------------------------- |
 | `--image-prefix` | Optional. Prefix added to the image namespace of custom built images. |
-| `--sync`         | Optional. Force synchronization of shared volumes data.               |
+| `--no-sync`      | Optional. Disable shared volume data synchronization before deploy.   |
 
 **Example:**
 

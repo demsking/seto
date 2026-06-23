@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-# pylint: disable=import-error
+# pylint: disable=import-error,invalid-name
 import argparse
 import socket
 
 import pytest
+import seto
 from seto import nodes_type
 from seto import storage_node_type
 from seto import storage_replica_type
@@ -82,3 +83,27 @@ def test_nodes_type(mocker):
   # Other exceptions
   with pytest.raises(argparse.ArgumentTypeError, match='is not a nodes value'):
     nodes_type('invalid_connection_string')
+
+
+def test_deploy_syncs_volumes_by_default(mocker):
+  execute_deploy_command = mocker.patch('seto.execute_deploy_command')
+  mocker.patch('sys.argv', ['seto', '--namespace', 'test', '--stack', 'app', 'deploy'])
+
+  with pytest.raises(SystemExit) as exc_info:
+    seto.run()
+
+  assert exc_info.value.code == 0
+  args, _driver = execute_deploy_command.call_args.args
+  assert args.sync is True
+
+
+def test_deploy_no_sync_disables_volume_sync(mocker):
+  execute_deploy_command = mocker.patch('seto.execute_deploy_command')
+  mocker.patch('sys.argv', ['seto', '--namespace', 'test', '--stack', 'app', 'deploy', '--no-sync'])
+
+  with pytest.raises(SystemExit) as exc_info:
+    seto.run()
+
+  assert exc_info.value.code == 0
+  args, _driver = execute_deploy_command.call_args.args
+  assert args.sync is False

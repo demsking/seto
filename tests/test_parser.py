@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-# pylint: disable=import-error
+# pylint: disable=import-error,invalid-name
 import os
+from argparse import Namespace
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+from seto.commands.resolve import resolve
 from seto.core.driver import Driver
 from seto.core.parser import load_env_file
 from seto.core.parser import parse_compose_file
@@ -64,7 +66,9 @@ def test_parse_nfs_volume_entry():
 
 def test_load_env_file(tmp_path):
   env_file = tmp_path / '.env'
-  env_file.write_text('KEY1=value1\n# Comment\nKEY2="value2"\nKEY3=\'value3\'\nINVALID_LINE\n', encoding='utf-8')
+  env_file.write_text(
+    'KEY1=value1\n# Comment\nKEY2="value2"\nKEY3=\'value3\'\nINVALID_LINE\n', encoding='utf-8'
+  )
 
   # Ensure env is empty
   os.environ.pop('KEY1', None)
@@ -228,13 +232,16 @@ def test_parse_services(tmp_path, mocker, monkeypatch):
 
   # Create a test service yaml file
   service_yaml = Path('service.yaml')
-  service_yaml.write_text("""
+  service_yaml.write_text(
+    """
 version: '3.8'
 x-mode: compose
 services:
   app:
     image: python:rc
-""", encoding='utf-8')
+""",
+    encoding='utf-8',
+  )
 
   mocker.patch('glob.glob', return_value=[str(service_yaml)])
   mocker.patch('seto.core.parser.load_env_file')
@@ -251,17 +258,81 @@ services:
   assert resolved_list[0]['services']['app']['image'] == 'python:rc'
 
 
+def test_resolve_uses_x_placement_only_for_compose_mode(tmp_path, mocker, monkeypatch):
+  monkeypatch.chdir(tmp_path)
+
+  driver = MagicMock(spec=Driver)
+  driver.stack_id = 'stack'
+  driver.resolve_compose_volume.return_value = {}
+
+  swarm_yaml = tmp_path / 'swarm.yaml'
+  swarm_yaml.write_text(
+    """
+version: '3.8'
+x-placement:
+  - host.device.gpu == true
+services:
+  web:
+    image: nginx:latest
+    deploy:
+      placement:
+        constraints:
+          - node.labels.role == web
+""",
+    encoding='utf-8',
+  )
+
+  compose_yaml = tmp_path / 'compose.yaml'
+  compose_yaml.write_text(
+    """
+version: '3.8'
+x-mode: compose
+x-placement:
+  - host.device.camera == true
+services:
+  camera:
+    image: nginx:latest
+""",
+    encoding='utf-8',
+  )
+
+  mocker.patch('seto.core.parser.load_env_file')
+  execute = MagicMock()
+
+  resolved = resolve(
+    Namespace(
+      namespace='test',
+      stack=str(tmp_path),
+      image_prefix='',
+      default_volume_mount_mode='rw',
+      default_nfs_options='rw,hard,noatime,nodiratime',
+    ),
+    driver,
+    execute=execute,
+  )
+
+  assert resolved['x-placement'] == ['host.device.camera == true']
+  assert set(resolved['services']) == {'web', 'camera'}
+  execute.assert_called_once()
+  compose_config, placement = execute.call_args.args
+  assert compose_config['x-mode'] == 'compose'
+  assert placement == ['host.device.camera == true']
+
+
 def test_parse_interpolation(tmp_path, mocker, monkeypatch):
   monkeypatch.chdir(tmp_path)
   monkeypatch.setenv('MY_TEST_VAR', 'interpolated_val')
 
   compose_file = tmp_path / 'docker-compose.yaml'
-  compose_file.write_text("""
+  compose_file.write_text(
+    """
 version: '3.8'
 services:
   app:
     image: myapp:${MY_TEST_VAR}
-""", encoding='utf-8')
+""",
+    encoding='utf-8',
+  )
 
   mocker.patch('seto.core.parser.load_env_file')
 

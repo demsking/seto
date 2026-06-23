@@ -83,7 +83,10 @@ def resolve(
   }
 
   def parse(resolved_compose_data: dict, volumes: list[Volume]):
-    placement: list | None = resolved_compose_data.get('x-placement', None)
+    is_compose_mode = resolved_compose_data.get('x-mode', 'swarm') == 'compose'
+    placement: list | None = (
+      resolved_compose_data.get('x-placement', None) if is_compose_mode else None
+    )
 
     networks_ = resolved_compose_data.get('networks', {})
     services = resolved_compose_data.get('services', {})
@@ -91,8 +94,9 @@ def resolve(
     configs = resolved_compose_data.get('configs', {})
     secrets = resolved_compose_data.get('secrets', {})
 
-    # Extract service-level placement constraints if no top-level placement is specified
-    if not placement:
+    # In compose mode, fall back to service-level Swarm placement constraints
+    # when no top-level x-placement is specified.
+    if is_compose_mode and not placement:
       file_service_constraints = []
 
       for service_name, service_def in services.items():
@@ -111,7 +115,7 @@ def resolve(
     filter_unused_networks(resolved_compose_data, config_networks)
 
     # Aggregate x-placement
-    if placement:
+    if is_compose_mode and placement:
       if isinstance(placement, list) and any(isinstance(i, list) for i in placement):
         # Nested list of constraint groups
         for group in placement:
@@ -145,7 +149,7 @@ def resolve(
     compose['configs'].update(configs)
     compose['secrets'].update(secrets)
 
-    if execute:
+    if execute and is_compose_mode:
       execute(resolved_compose_data, placement or [])
 
   stack = args.stack or args.namespace

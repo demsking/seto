@@ -565,11 +565,12 @@ target nodes:
 
 - **`x-mode`** (`string`): Deployment orchestration mode. Must be either
   `swarm` (default) or `compose`.
-- **`x-placement`** (`list`): List of target host constraint queries (e.g.
-  `host.device.gpu == true`). All Swarm nodes matching these queries will be
-  targeted. If `x-placement` is not defined at the top level, Ṣeto automatically
-  falls back to service-level constraints defined under
-  `deploy.placement.constraints` for all services in the stack.
+- **`x-placement`** (`list`): Compose-mode only. List of target host constraint
+  queries (e.g. `host.device.gpu == true`). All Swarm nodes matching these
+  queries will be targeted by `docker compose`. If `x-placement` is not defined
+  at the top level of an `x-mode: compose` file, Ṣeto automatically falls back
+  to service-level constraints defined under `deploy.placement.constraints` for
+  that Compose-mode stack. In `x-mode: swarm` files, `x-placement` is ignored.
 
 ### Template Variable Replacement
 

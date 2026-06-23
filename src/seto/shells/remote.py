@@ -13,6 +13,9 @@
 # limitations under the License.
 # ==============================================================================
 import logging
+import posixpath
+import shlex
+from uuid import uuid4
 
 import paramiko
 
@@ -98,8 +101,20 @@ class RemoteShell(Shell):
     return stdout_output
 
   def copy_file(self, *, local_path: str, remote_path: str) -> None:
+    temp_path = f'/tmp/seto-{uuid4()}-{posixpath.basename(remote_path)}'
+
     self.print(f'scp {local_path} {self.hostname}:{remote_path}')
-    self._fs.put(local_path, remote_path)
+    self._fs.put(local_path, temp_path)
+
+    try:
+      remote_dir = posixpath.dirname(remote_path)
+
+      if remote_dir:
+        self.run(f'mkdir -p {shlex.quote(remote_dir)}', sudo=True, quiet=True)
+
+      self.run(f'cp {shlex.quote(temp_path)} {shlex.quote(remote_path)}', sudo=True, quiet=True)
+    finally:
+      self.run(f'rm -f {shlex.quote(temp_path)}', sudo=True, quiet=True, check=False)
 
   def close(self) -> None:
     self.ssh.close()

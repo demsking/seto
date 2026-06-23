@@ -184,3 +184,35 @@ def test_remote_shell(mocker):
   res = shell.run('uptime', stdout=False)
   assert res == 'remote_out\n'
   mock_client.exec_command.assert_called_once_with('uptime')
+
+
+def test_remote_shell_copy_file_uses_sudo_install_path(mocker):
+  from seto.shells.remote import RemoteShell
+
+  mocker.patch('seto.core.shell.resolve_hostname', return_value='192.168.1.100')
+  mocker.patch('seto.shells.remote.uuid4', return_value='copy-id')
+  setting = Setting.from_connection_string('admin@my-host')
+
+  mock_client_class = mocker.patch('paramiko.SSHClient')
+  mock_client = mock_client_class.return_value
+  mock_sftp = MagicMock()
+  mock_client.open_sftp.return_value = mock_sftp
+
+  mock_stdin = MagicMock()
+  mock_stdout = MagicMock()
+  mock_stderr = MagicMock()
+  mock_stdout.read.return_value = b''
+  mock_stderr.read.return_value = b''
+  mock_stdout.channel.recv_exit_status.return_value = 0
+  mock_client.exec_command.return_value = (mock_stdin, mock_stdout, mock_stderr)
+
+  shell = RemoteShell(setting)
+  shell.connect()
+  shell.copy_file(local_path='model.bin', remote_path='/data/nfs/app/models/model.bin')
+
+  mock_sftp.put.assert_called_once_with('model.bin', '/tmp/seto-copy-id-model.bin')
+  mock_client.exec_command.assert_any_call("sudo sh -c 'mkdir -p /data/nfs/app/models'")
+  mock_client.exec_command.assert_any_call(
+    "sudo sh -c 'cp /tmp/seto-copy-id-model.bin /data/nfs/app/models/model.bin'"
+  )
+  mock_client.exec_command.assert_any_call("sudo sh -c 'rm -f /tmp/seto-copy-id-model.bin'")

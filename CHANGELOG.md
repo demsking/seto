@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented in this file.
 
+## 5.0.0-b5 - 2026-06-27
+
+### Fixes
+
+- Fixed `seto deploy` so stacks declared with `x-mode: compose` are deployed with Docker Compose only and no longer attempt a Docker Swarm stack deployment.
+
+### Testing
+
+- Added regression coverage for mode-filtered resolution and compose-only deploy orchestration.
+
 ## 5.0.0-b4 - 2026-06-23
 
 ### Breaking Changes

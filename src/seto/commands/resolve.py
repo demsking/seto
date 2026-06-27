@@ -84,6 +84,10 @@ def resolve(
 
   def parse(resolved_compose_data: dict, volumes: list[Volume]):
     is_compose_mode = resolved_compose_data.get('x-mode', 'swarm') == 'compose'
+    requested_compose_mode = getattr(args, 'compose', None)
+
+    include_in_output = requested_compose_mode is None or requested_compose_mode == is_compose_mode
+
     placement: list | None = (
       resolved_compose_data.get('x-placement', None) if is_compose_mode else None
     )
@@ -113,6 +117,12 @@ def resolve(
 
     resolved_compose_data['networks'] = {**config_networks, **networks_}
     filter_unused_networks(resolved_compose_data, config_networks)
+
+    if execute and is_compose_mode and requested_compose_mode is not False:
+      execute(resolved_compose_data, placement or [])
+
+    if not include_in_output:
+      return
 
     # Aggregate x-placement
     if is_compose_mode and placement:
@@ -148,9 +158,6 @@ def resolve(
     compose['volumes'].update(volumes)
     compose['configs'].update(configs)
     compose['secrets'].update(secrets)
-
-    if execute and is_compose_mode:
-      execute(resolved_compose_data, placement or [])
 
   stack = args.stack or args.namespace
 

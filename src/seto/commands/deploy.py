@@ -176,22 +176,23 @@ def execute_deploy_command(args, driver: Driver) -> None:
     ),
   )
 
-  logger.info('Building %s swarm images...', driver.stack_id)
-  swarm.build()
+  if swarm_config['services']:
+    logger.info('Building %s swarm images...', driver.stack_id)
+    swarm.build()
 
-  logger.info('Pushing %s images...', driver.stack_id)
-  swarm.push()
+    logger.info('Pushing %s images...', driver.stack_id)
+    swarm.push()
 
-  logger.info('Deploying %s swarm environment...', driver.stack_id)
+    logger.info('Deploying %s swarm environment...', driver.stack_id)
 
-  if logger.level == logging.DEBUG:
-    swarm.info()
+    if logger.level == logging.DEBUG:
+      swarm.info()
 
-  swarm.deploy()
+    swarm.deploy()
 
-  if logger.level == logging.DEBUG:
-    swarm.ps()
-    swarm.logs()
+    if logger.level == logging.DEBUG:
+      swarm.ps()
+      swarm.logs()
 
   if composes_items:
     logger.info('Building %s compose images...', driver.stack_id)

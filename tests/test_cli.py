@@ -12,15 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-# pylint: disable=import-error,invalid-name
+# pylint: disable=import-error,invalid-name,redefined-outer-name,no-member
 import argparse
 import socket
+from argparse import Namespace
+from unittest.mock import MagicMock
 
 import pytest
 import seto
 from seto import nodes_type
 from seto import storage_node_type
 from seto import storage_replica_type
+from seto.commands.deploy import execute_deploy_command
 
 
 def test_storage_node_type(mocker):
@@ -119,3 +122,65 @@ def test_deploy_force_overwrites_existing_volume_files(mocker):
   assert exc_info.value.code == 0
   args, _driver = execute_deploy_command.call_args.args
   assert args.force is True
+
+
+def test_deploy_compose_only_stack_does_not_deploy_swarm(mocker):
+  args = Namespace(
+    namespace='test',
+    stack='app',
+    image_prefix='',
+    default_volume_mount_mode='rw',
+    default_nfs_options='rw,hard,noatime,nodiratime',
+    sync=True,
+    force=False,
+  )
+  driver = MagicMock()
+  driver.stack_id = 'test_app'
+
+  mocker.patch('seto.commands.deploy.parse_volumes_args', return_value=[])
+  mocker.patch('seto.commands.deploy.DockerClient.from_env')
+  resolved_configs = [
+    {
+      'x-placement': None,
+      'configs': {},
+      'networks': {},
+      'volumes': {},
+      'secrets': {},
+      'services': {},
+    },
+    {
+      'x-placement': ['host.name == worker'],
+      'configs': {},
+      'networks': {},
+      'volumes': {},
+      'secrets': {},
+      'services': {'server': {'image': 'nginx'}},
+    },
+  ]
+
+  def resolve_side_effect(*_args, **kwargs):
+    resolved = resolved_configs.pop(0)
+    execute = kwargs.get('execute')
+
+    if execute and resolved['services']:
+      execute(resolved, resolved['x-placement'] or [])
+
+    return resolved
+
+  resolve = mocker.patch('seto.commands.deploy.resolve', side_effect=resolve_side_effect)
+  swarm_cls = mocker.patch('seto.commands.deploy.DockerSwarm')
+  compose_cls = mocker.patch('seto.commands.deploy.DockerCompose')
+
+  execute_deploy_command(args, driver)
+
+  swarm = swarm_cls.return_value
+  swarm.build.assert_not_called()
+  swarm.push.assert_not_called()
+  swarm.deploy.assert_not_called()
+  compose = compose_cls.return_value
+  compose.build.assert_called_once()
+  compose.push.assert_called_once()
+  compose.pull.assert_called_once()
+  compose.deploy.assert_called_once()
+  assert resolve.call_args_list[0].args[:2] == (args, driver)
+  assert args.compose is True

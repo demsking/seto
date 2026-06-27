@@ -319,6 +319,55 @@ services:
   assert placement == ['host.device.camera == true']
 
 
+def test_resolve_filters_services_by_requested_mode(tmp_path, mocker, monkeypatch):
+  monkeypatch.chdir(tmp_path)
+
+  driver = MagicMock(spec=Driver)
+  driver.stack_id = 'stack'
+  driver.resolve_compose_volume.return_value = {}
+
+  swarm_yaml = tmp_path / 'swarm.yaml'
+  swarm_yaml.write_text(
+    """
+services:
+  web:
+    image: nginx:latest
+""",
+    encoding='utf-8',
+  )
+
+  compose_yaml = tmp_path / 'compose.yaml'
+  compose_yaml.write_text(
+    """
+x-mode: compose
+x-placement:
+  - host.name == worker
+services:
+  gpu:
+    image: nginx:latest
+""",
+    encoding='utf-8',
+  )
+
+  mocker.patch('seto.core.parser.load_env_file')
+
+  common_args = {
+    'namespace': 'test',
+    'stack': str(tmp_path),
+    'image_prefix': '',
+    'default_volume_mount_mode': 'rw',
+    'default_nfs_options': 'rw,hard,noatime,nodiratime',
+  }
+
+  swarm_only = resolve(Namespace(**common_args, compose=False), driver)
+  compose_only = resolve(Namespace(**common_args, compose=True), driver)
+
+  assert set(swarm_only['services']) == {'web'}
+  assert swarm_only['x-placement'] is None
+  assert set(compose_only['services']) == {'gpu'}
+  assert compose_only['x-placement'] == ['host.name == worker']
+
+
 def test_parse_interpolation(tmp_path, mocker, monkeypatch):
   monkeypatch.chdir(tmp_path)
   monkeypatch.setenv('MY_TEST_VAR', 'interpolated_val')

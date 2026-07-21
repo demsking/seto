@@ -14,7 +14,7 @@ authors = [{ name = "Sébastien Demanou", email = "demsking@gmail.com" }]
 maintainers = [{ name = "Sébastien Demanou", email = "demsking@gmail.com" }]
 license = { text = "Apache-2.0" }
 readme = "README.md"
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.12"
 include = ["seto"]
 
 classifiers = [

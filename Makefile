@@ -1,6 +1,7 @@
 APP_VERSION := $(shell uv version --short)
+DIST_DIR := dist
 
-.PHONY: env tests
+.PHONY: install tests clean package pypi env bump patch minor major alpha beta rc release publish check-clean
 
 shell:
 	tmuxinator

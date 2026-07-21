@@ -242,6 +242,13 @@ def run() -> None:
   )
 
   deploy_parser.add_argument(
+    '--pull',
+    action='store_true',
+    default=False,
+    help='Pull images from their upstream source and push them to --image-prefix instead of building locally',
+  )
+
+  deploy_parser.add_argument(
     '--no-sync',
     dest='sync',
     action='store_false',

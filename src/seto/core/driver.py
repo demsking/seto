@@ -120,12 +120,21 @@ class Driver:
       )
       node.run(f'id {self.setouser}', quiet=True)
 
-      # Create the .ssh directory if it doesn't exist
-      ssh_home = f'/home/{self.setouser}/.ssh'
+      # Resolve the user home from passwd to support distro-specific defaults.
+      user_home = node.run(
+        f'getent passwd {self.setouser} | cut -d: -f6',
+        sudo=True,
+        quiet=True,
+      ).strip()
+
+      if user_home in ('', '/', '/nonexistent'):
+        user_home = f'/home/{self.setouser}'
+
+      ssh_home = f'{user_home}/.ssh'
       authorized_keys_file = f'{ssh_home}/authorized_keys'
 
       node.mkdir(ssh_home, user=self.setouser, group=self.setouser, mode='700')
-      node.run(f'touch {authorized_keys_file}', quiet=True)
+      node.run(f'touch {authorized_keys_file}', sudo=True, quiet=True)
       authorized_keys = node.file(authorized_keys_file)
 
       # Append the SSH public key to authorized_keys file

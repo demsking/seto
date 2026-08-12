@@ -223,6 +223,11 @@ def run() -> None:
     help='Skip interpolation of environment variables in compose file',
   )
   resolve_parser.add_argument(
+    '--env-file',
+    default=os.getenv('SETO_ENV_FILE', ''),
+    help='Additional environment file to load before resolving compose variables (merged with any .env files next to the compose file)',
+  )
+  resolve_parser.add_argument(
     '--image-prefix',
     default=os.getenv('SETO_IMAGE_PREFIX', ''),
     help='Image namespace prefix to added to internal images',
@@ -239,6 +244,12 @@ def run() -> None:
     '--image-prefix',
     default=os.getenv('SETO_IMAGE_PREFIX', ''),
     help='Image namespace prefix to added to internal images',
+  )
+
+  deploy_parser.add_argument(
+    '--env-file',
+    default=os.getenv('SETO_ENV_FILE', ''),
+    help='Additional environment file to load before resolving compose variables (merged with any .env files next to the compose file)',
   )
 
   deploy_parser.add_argument(

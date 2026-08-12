@@ -256,15 +256,17 @@ seto --namespace <namespace-name> [--stack <stack-name>] \
   resolve [--skip-interpolation] [--image-prefix <prefix>]
 ```
 
-| Option                 | Description                                                                      |
-| :--------------------- | :------------------------------------------------------------------------------- |
-| `--skip-interpolation` | Optional. Skips interpolation of environment variables inside the compose files. |
-| `--image-prefix`       | Optional. Prefix added to the image namespace of custom built images.            |
+| Option                 | Description                                                                                                           |
+| :--------------------- | :-------------------------------------------------------------------------------------------------------------------- |
+| `--skip-interpolation` | Optional. Skips interpolation of environment variables inside the compose files.                                      |
+| `--env-file <path>`    | Optional. Extra environment file to load before interpolation, merged with any `.env` files next to the compose file. |
+| `--image-prefix`       | Optional. Prefix added to the image namespace of custom built images.                                                 |
 
 **Example:**
 
 ```bash
-seto --namespace my-namespace --stack my-stack resolve --skip-interpolation --image-prefix my-prefix/
+seto --namespace my-namespace --stack my-stack \
+  resolve --skip-interpolation --env-file .env.production --image-prefix my-prefix/
 ```
 
 ### 3. Volumes Command Group
@@ -351,12 +353,13 @@ seto --namespace <namespace-name> --stack <stack-name> \
   deploy [--image-prefix <prefix>] [--pull] [--no-sync] [-f|--force]
 ```
 
-| Option           | Description                                                                                             |
-| :--------------- | :------------------------------------------------------------------------------------------------------ |
-| `--image-prefix` | Optional. Prefix added to the image namespace of custom built images.                                   |
-| `--pull`         | Optional. Pull images from their upstream source and push them to `--image-prefix` instead of building. |
-| `--no-sync`      | Optional. Disable shared volume data synchronization before deploy.                                     |
-| `-f, --force`    | Optional. Overwrite existing volume files while syncing.                                                |
+| Option              | Description                                                                                                           |
+| :------------------ | :-------------------------------------------------------------------------------------------------------------------- |
+| `--image-prefix`    | Optional. Prefix added to the image namespace of custom built images.                                                 |
+| `--env-file <path>` | Optional. Extra environment file to load before interpolation, merged with any `.env` files next to the compose file. |
+| `--pull`            | Optional. Pull images from their upstream source and push them to `--image-prefix` instead of building.               |
+| `--no-sync`         | Optional. Disable shared volume data synchronization before deploy.                                                   |
+| `-f, --force`       | Optional. Overwrite existing volume files while syncing.                                                              |
 
 #### Pull-and-Push Mode (`--pull`)
 
@@ -406,7 +409,7 @@ seto --namespace my-namespace --stack my-stack deploy
 
 ```bash
 seto --namespace my-namespace --stack my-stack \
-  deploy --image-prefix registry.example.com/my-namespace/ --pull
+  deploy --env-file .env.production --image-prefix registry.example.com/my-namespace/ --pull
 ```
 
 **Example — mirror only `amd64` (via placement constraint in compose file):**

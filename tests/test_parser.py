@@ -390,3 +390,25 @@ services:
 
   data_skip, _ = parse_compose_file(str(compose_file), skip_interpolation=True)
   assert data_skip['services']['app']['image'] == 'myapp:${MY_TEST_VAR}'
+
+
+def test_parse_interpolation_with_custom_env_file(tmp_path, mocker, monkeypatch):
+  monkeypatch.chdir(tmp_path)
+
+  (tmp_path / '.env').write_text('MY_TEST_VAR=from_compose\n', encoding='utf-8')
+  custom_env = tmp_path / 'custom.env'
+  custom_env.write_text('MY_TEST_VAR=from_custom\nEXTRA_VAR=extra\n', encoding='utf-8')
+
+  compose_file = tmp_path / 'docker-compose.yaml'
+  compose_file.write_text(
+    """
+version: '3.8'
+services:
+  app:
+    image: myapp:${MY_TEST_VAR}-${EXTRA_VAR}
+""",
+    encoding='utf-8',
+  )
+
+  data, _ = parse_compose_file(str(compose_file), env_file=str(custom_env))
+  assert data['services']['app']['image'] == 'myapp:from_custom-extra'

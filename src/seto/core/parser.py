@@ -468,14 +468,23 @@ def resolve_env_vars(content: str) -> str:
   return res
 
 
-def parse_compose_file(compose_file: str, skip_interpolation: bool = False) -> tuple[dict, str]:
+def parse_compose_file(
+  compose_file: str,
+  skip_interpolation: bool = False,
+  env_file: str | None = None,
+) -> tuple[dict, str]:
   compose_file = os.path.realpath(compose_file)
 
-  # Auto-load corresponding .env file if it exists
+  # Auto-load corresponding .env file if it exists.
+  # The optional env_file is additive and is loaded last so it can override the
+  # compose directory defaults while still preserving any existing .env values.
   compose_path = Path(compose_file)
 
   load_env_file(str(compose_path.parent / '.env'))
   load_env_file(str(compose_path.parent / f'{compose_path.stem}.env'))
+
+  if env_file:
+    load_env_file(os.path.expanduser(env_file))
 
   with open(compose_file, encoding='utf-8') as file:
     compose_content = file.read()
@@ -498,6 +507,7 @@ def parse_services(
   inject: bool = False,
   image_prefix: str,
   skip_volumes: bool = False,
+  env_file: str | None = None,
 ) -> tuple[list, list]:
   search_dir = stack if stack and os.path.isdir(stack) else '.'
   services_files = glob.glob(os.path.join(search_dir, '*.yaml'))
@@ -505,7 +515,11 @@ def parse_services(
   output_volumes = []
 
   for service_file in services_files:
-    compose_data, _ = parse_compose_file(service_file, skip_interpolation=skip_interpolation)
+    compose_data, _ = parse_compose_file(
+      service_file,
+      skip_interpolation=skip_interpolation,
+      env_file=env_file,
+    )
     x_mode = compose_data.get('x-mode', 'swarm')
 
     if x_mode not in ['compose', 'swarm']:

@@ -63,6 +63,7 @@ def resolve(
   execute: Callable[[dict, list], None] | None = None,
   skip_volumes: bool = False,
   skip_interpolation: bool = False,
+  env_file: str | None = None,
 ) -> dict:
   config_networks = {}
   global_networks = resolve_networks(args.namespace)
@@ -171,6 +172,7 @@ def resolve(
     inject=inject,
     skip_interpolation=skip_interpolation,
     skip_volumes=skip_volumes,
+    env_file=env_file,
   )
 
   if not compose['x-placement']:
@@ -180,7 +182,12 @@ def resolve(
 
 
 def execute_resolve_command(args, driver: Driver) -> None:
-  compose = resolve(args, driver, skip_interpolation=getattr(args, 'skip_interpolation', False))
+  compose = resolve(
+    args,
+    driver,
+    skip_interpolation=getattr(args, 'skip_interpolation', False),
+    env_file=getattr(args, 'env_file', None),
+  )
   cleaned_compose = {k: v for k, v in compose.items() if v}
   compose_output = yaml.dump(cleaned_compose, default_flow_style=False, sort_keys=False) or '{}'
   print(compose_output.strip())

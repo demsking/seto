@@ -83,11 +83,7 @@ def get_platform_constraints(service: dict) -> list[str]:
   Returns an empty list when no ``node.platform.arch`` constraints are found,
   which means *all* platforms advertised by the source image should be mirrored.
   """
-  constraints = (
-    service.get('deploy', {})
-    .get('placement', {})
-    .get('constraints', [])
-  )
+  constraints = service.get('deploy', {}).get('placement', {}).get('constraints', [])
   platforms = []
 
   for constraint in constraints:
@@ -166,9 +162,7 @@ def pull_and_push_images(config: dict, image_prefix: str) -> None:
     platforms = get_platform_constraints(service)
     platform_info = ', '.join(platforms) if platforms else 'all platforms'
 
-    logger.info(
-      "Mirroring '%s' → '%s' (%s)...", original_image, prefixed_image, platform_info
-    )
+    logger.info("Mirroring '%s' → '%s' (%s)...", original_image, prefixed_image, platform_info)
 
     cmd = ['docker', 'buildx', 'imagetools', 'create', '--tag', prefixed_image]
 
@@ -260,7 +254,7 @@ def execute_deploy_command(args, driver: Driver) -> None:
 
   logger.info('Resolving %s services...', driver.stack_id)
   setattr(args, 'compose', False)
-  swarm_config = resolve(args, driver)
+  swarm_config = resolve(args, driver, env_file=getattr(args, 'env_file', None))
 
   swarm = DockerSwarm(
     client=client,
@@ -276,6 +270,7 @@ def execute_deploy_command(args, driver: Driver) -> None:
     args,
     driver,
     inject=True,
+    env_file=getattr(args, 'env_file', None),
     execute=lambda config, placement: parse_compose_config(
       args,
       driver,

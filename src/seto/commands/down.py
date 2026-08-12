@@ -35,14 +35,14 @@ def execute_down_command(args, driver: Driver) -> None:
     # stack=driver.stack_id,
     client=client,
     driver=driver,
-    config=resolve(args, driver),
+    config=resolve(args, driver, env_file=getattr(args, 'env_file', None)),
   )
 
   swarm.down()
 
   # Docker Compose
   setattr(args, 'compose', True)
-  config = resolve(args, driver, inject=True)
+  config = resolve(args, driver, inject=True, env_file=getattr(args, 'env_file', None))
 
   if config['services']:
     compose = DockerCompose(

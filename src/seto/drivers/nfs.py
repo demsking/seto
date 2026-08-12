@@ -60,11 +60,14 @@ class NFSDriver(Driver):
     for volume in volumes:
       volume_storage = self.storage(volume)
       is_new_entry = self.add_exports_entry(volume_storage, exports=exports)
-      should_sync = is_new_entry or (sync and volume.is_relative_source)
+      should_sync = sync and volume.is_relative_source
 
       if should_sync:
         logger.info('Initializing volume %s...', volume.name)
         self.storage_node.copy_volume(volume, self.brick, force=force)
+
+      if is_new_entry:
+        logger.info('Chowning volume %s...', volume.name)
         self.storage_node.run(
           f'chown -R nobody:{self.storage_node.nobody_group} {self.brick}',
           sudo=True,

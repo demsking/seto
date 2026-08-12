@@ -72,7 +72,10 @@ class NFSDriver(Driver):
         logger.info('Initializing volume %s...', volume.name)
         self.storage_node.copy_volume(volume, self.brick, force=force)
         self.storage_node.run(
-          f'chown -R nobody:{self.storage_node.nobody_group} {self.brick}', sudo=True, stdout=False, quiet=True
+          f'chown -R nobody:{self.storage_node.nobody_group} {self.brick}',
+          sudo=True,
+          stdout=False,
+          quiet=True,
         )
 
   def add_exports_entry(
@@ -89,7 +92,7 @@ class NFSDriver(Driver):
 
     if 'letsencrypt' in volume_storage:
       self.storage_node.run(
-        f'[ -n "$(ls -A x 2>/dev/null)" ] && chmod 600 {volume_storage}/*',
+        f'find {volume_storage} -type f -exec chmod 600 {{}} + 2>/dev/null || true',
         sudo=True,
         stdout=False,
         quiet=True,

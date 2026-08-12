@@ -127,6 +127,35 @@ def test_file_operations(mocker):
   )
 
 
+def test_nfs_letsencrypt_volume_uses_safe_file_scan(mocker):
+  from seto.drivers.nfs import NFSDriver
+
+  mock_shell = MagicMock(spec=Shell)
+  mock_shell.run.return_value = ''
+
+  mock_exports = MagicMock()
+  mock_exports.append.return_value = True
+  mock_exports.content = ''
+
+  driver = NFSDriver(
+    stack='gateway',
+    namespace='netiwoki',
+    host=mock_shell,
+    storage_node=mock_shell,
+  )
+
+  driver.storage_node.mkdir = MagicMock()
+  driver.storage_node.file = MagicMock(return_value=mock_exports)
+
+  driver.add_exports_entry('/data/nfs/netiwoki/gateway/traefik-letsencrypt', exports=mock_exports)
+
+  command = driver.storage_node.run.call_args[0][0]
+  assert 'ls -A x' not in command
+  assert (
+    'find /data/nfs/netiwoki/gateway/traefik-letsencrypt -type f -exec chmod 600 {} +' in command
+  )
+
+
 def test_local_shell(mocker):
   from seto.shells.local import LocalShell
 

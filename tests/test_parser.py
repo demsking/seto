@@ -412,3 +412,22 @@ services:
 
   data, _ = parse_compose_file(str(compose_file), env_file=str(custom_env))
   assert data['services']['app']['image'] == 'myapp:from_custom-extra'
+
+
+def test_parse_interpolation_required_var_syntax(tmp_path, monkeypatch):
+  monkeypatch.chdir(tmp_path)
+  monkeypatch.setenv('LLDAP_ADMIN_PASSWORD', 'supersecret')
+
+  compose_file = tmp_path / 'docker-compose.yaml'
+  compose_file.write_text(
+    """
+services:
+  app:
+    environment:
+      TINYAUTH_LDAP_BINDPASSWORD: ${LLDAP_ADMIN_PASSWORD?Abort}
+""",
+    encoding='utf-8',
+  )
+
+  data, _ = parse_compose_file(str(compose_file))
+  assert data['services']['app']['environment']['TINYAUTH_LDAP_BINDPASSWORD'] == 'supersecret'

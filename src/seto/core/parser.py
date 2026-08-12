@@ -446,12 +446,68 @@ def load_env_file(env_file_path: str) -> None:
 def resolve_env_vars(content: str) -> str:
   placeholders = {}
 
-  def repl(match):
+  def esc_repl(match):
     placeholder = f'__SETO_ESC_VAR_{len(placeholders)}__'
     placeholders[placeholder] = f'${{{match.group(1)}}}'
     return placeholder
 
-  temp_content = re.sub(r'\$\$\{([^}]+)\}', repl, content)
+  temp_content = re.sub(r'\$\$\{([^}]+)\}', esc_repl, content)
+
+  def expand_compose_expression(expr: str) -> str:
+    match = re.fullmatch(
+      r'\$\{(?P<name>[A-Za-z_][A-Za-z0-9_]*)(?:(?P<op>:-|-|:\?|\?|:\+|\+)(?P<value>.*))?\}',
+      expr,
+    )
+
+    if not match:
+      return expr
+
+    name = match.group('name')
+    op = match.group('op')
+    value = match.group('value')
+    current = os.environ.get(name)
+
+    if op is None:
+      return current if current is not None else ''
+
+    if op == '-':
+      return current if current is not None else resolve_env_vars(value)
+
+    if op == ':-':
+      return current if current not in (None, '') else resolve_env_vars(value)
+
+    if op in {'?', ':?'}:
+      if current is None or current == '':
+        message = value if value else 'missing'
+        raise ValueError(f"Environment variable '{name}' is required: {message}")
+
+      return current
+
+    if op == '+':
+      return resolve_env_vars(value) if current is not None else ''
+
+    if op == ':+':
+      return resolve_env_vars(value) if current not in (None, '') else ''
+
+    return current if current is not None else ''
+
+  def special_repl(match):
+    expr = match.group(0)
+    # Only process Docker-style parameter expansion operators.
+    match = re.fullmatch(
+      r'\$\{(?P<name>[A-Za-z_][A-Za-z0-9_]*)(?:(?P<op>:-|-|:\?|\?|:\+|\+)(?P<value>.*))?\}',
+      expr,
+    )
+
+    if not match:
+      return expr
+
+    expanded = expand_compose_expression(expr)
+    placeholder = f'__SETO_SPECIAL_{len(placeholders)}__'
+    placeholders[placeholder] = expanded
+    return placeholder
+
+  temp_content = re.sub(r'\$\{[^}]+\}', special_repl, temp_content)
 
   output = subprocess.run(
     ['envsubst'],

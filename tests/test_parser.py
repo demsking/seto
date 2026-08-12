@@ -189,6 +189,7 @@ def test_parse_volumes_nfs(tmp_path, mocker, monkeypatch):
   assert len(volumes_list) == 1
   vol = volumes_list[0]
   assert vol.source == str(vol_src.resolve())
+  assert vol.is_relative_source is True
   assert vol.target == 'db-nfs_src'
   assert vol.mount_folder == 'db-nfs_src'
 

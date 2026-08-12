@@ -19,6 +19,7 @@ from dataclasses import dataclass
 class Volume:
   name: str
   source: str | None
+  is_relative_source: bool = False
   target: str
   mount_folder: str
   nfs_options: str | None = None

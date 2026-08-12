@@ -19,6 +19,7 @@ import pytest
 from seto.core.shell import File
 from seto.core.shell import Setting
 from seto.core.shell import Shell
+from seto.core.volume import Volume
 
 
 def test_setting_from_connection_string_local(mocker):
@@ -153,6 +154,49 @@ def test_nfs_letsencrypt_volume_uses_safe_file_scan(mocker):
   assert 'ls -A x' not in command
   assert (
     'find /data/nfs/netiwoki/gateway/traefik-letsencrypt -type f -exec chmod 600 {} +' in command
+  )
+
+
+def test_nfs_sync_copies_only_relative_sources(mocker):
+  from seto.drivers.nfs import NFSDriver
+
+  mock_shell = MagicMock(spec=Shell)
+  mock_shell.run.return_value = ''
+  mock_shell.nobody_group = 'nogroup'
+
+  mock_exports = MagicMock()
+  mock_exports.content = ''
+
+  driver = NFSDriver(
+    stack='gateway',
+    namespace='netiwoki',
+    host=mock_shell,
+    storage_node=mock_shell,
+  )
+
+  # First call for /namespace root, then one call per volume.
+  driver.add_exports_entry = MagicMock(side_effect=[True, False, False])
+  driver.storage_node.file = MagicMock(return_value=mock_exports)
+
+  relative_volume = Volume(
+    name='app_data',
+    source='/tmp/project/data',
+    is_relative_source=True,
+    target='app-data',
+    mount_folder='app-data',
+  )
+  absolute_volume = Volume(
+    name='host_data',
+    source='/var/lib/host_data',
+    is_relative_source=False,
+    target='host-data',
+    mount_folder='host-data',
+  )
+
+  driver.create_volumes(volumes=[relative_volume, absolute_volume], sync=True, force=False)
+
+  driver.storage_node.copy_volume.assert_called_once_with(
+    relative_volume, driver.brick, force=False
   )
 
 

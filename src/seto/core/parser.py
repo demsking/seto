@@ -239,7 +239,9 @@ def parse_volumes(
         default_options=default_nfs_options,
       )
 
+      is_relative_source = source.startswith('./') or source.startswith('../')
       is_norename = False
+
       if source.startswith('@'):
         is_norename = True
         source = source[1:]
@@ -289,6 +291,7 @@ def parse_volumes(
       volume = Volume(
         name=volume_name.replace('-', '_'),
         source=device_source,
+        is_relative_source=is_relative_source,
         target=target,
         mount_folder=volume_name,
         nfs_options=nfs_options,

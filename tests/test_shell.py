@@ -174,8 +174,7 @@ def test_nfs_sync_copies_only_relative_sources(mocker):
     storage_node=mock_shell,
   )
 
-  # First call for /namespace root, then one call per volume.
-  driver.add_exports_entry = MagicMock(side_effect=[True, False, False])
+  driver.add_exports_entry = MagicMock(side_effect=[False, False])
   driver.storage_node.file = MagicMock(return_value=mock_exports)
 
   relative_volume = Volume(
@@ -195,6 +194,12 @@ def test_nfs_sync_copies_only_relative_sources(mocker):
 
   driver.create_volumes(volumes=[relative_volume, absolute_volume], sync=True, force=False)
 
+  driver.add_exports_entry.assert_any_call(
+    '/mnt/nfs/netiwoki/gateway/app-data', exports=mock_exports
+  )
+  driver.add_exports_entry.assert_any_call(
+    '/mnt/nfs/netiwoki/gateway/host-data', exports=mock_exports
+  )
   driver.storage_node.copy_volume.assert_called_once_with(
     relative_volume, driver.brick, force=False
   )

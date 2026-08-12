@@ -13,7 +13,6 @@
 # limitations under the License.
 # ==============================================================================
 import logging
-from uuid import uuid4
 
 from ..core.driver import Driver
 from ..core.shell import File
@@ -57,12 +56,6 @@ class NFSDriver(Driver):
   ) -> None:
     # Read existing export paths from /etc/exports on the remote server
     exports = self.storage_node.file('/etc/exports')
-
-    self.add_exports_entry(
-      f'/{self.namespace}',
-      exports=exports,
-      options=('rw', 'sync', f'fsid={uuid4()}', 'crossmnt', 'no_subtree_check'),
-    )
 
     for volume in volumes:
       volume_storage = self.storage(volume)

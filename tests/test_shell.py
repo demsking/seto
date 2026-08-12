@@ -148,12 +148,12 @@ def test_nfs_letsencrypt_volume_uses_safe_file_scan(mocker):
   driver.storage_node.mkdir = MagicMock()
   driver.storage_node.file = MagicMock(return_value=mock_exports)
 
-  driver.add_exports_entry('/data/nfs/netiwoki/gateway/traefik-letsencrypt', exports=mock_exports)
+  driver.add_exports_entry('/mnt/nfs/netiwoki/gateway/traefik-letsencrypt', exports=mock_exports)
 
   command = driver.storage_node.run.call_args[0][0]
   assert 'ls -A x' not in command
   assert (
-    'find /data/nfs/netiwoki/gateway/traefik-letsencrypt -type f -exec chmod 600 {} +' in command
+    'find /mnt/nfs/netiwoki/gateway/traefik-letsencrypt -type f -exec chmod 600 {} +' in command
   )
 
 
@@ -297,11 +297,11 @@ def test_remote_shell_copy_file_uses_sudo_install_path(mocker):
 
   shell = RemoteShell(setting)
   shell.connect()
-  shell.copy_file(local_path='model.bin', remote_path='/data/nfs/app/models/model.bin')
+  shell.copy_file(local_path='model.bin', remote_path='/mnt/nfs/app/models/model.bin')
 
   mock_sftp.put.assert_called_once_with('model.bin', '/tmp/seto-copy-id-model.bin')
-  mock_client.exec_command.assert_any_call("sudo sh -c 'mkdir -p /data/nfs/app/models'")
+  mock_client.exec_command.assert_any_call("sudo sh -c 'mkdir -p /mnt/nfs/app/models'")
   mock_client.exec_command.assert_any_call(
-    "sudo sh -c 'cp /tmp/seto-copy-id-model.bin /data/nfs/app/models/model.bin'"
+    "sudo sh -c 'cp /tmp/seto-copy-id-model.bin /mnt/nfs/app/models/model.bin'"
   )
   mock_client.exec_command.assert_any_call("sudo sh -c 'rm -f /tmp/seto-copy-id-model.bin'")

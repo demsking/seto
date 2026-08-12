@@ -13,6 +13,7 @@
 # limitations under the License.
 # ==============================================================================
 import logging
+import posixpath
 
 from ..core.shell import File
 from ..core.shell import Setting
@@ -35,12 +36,14 @@ class Driver:
     namespace: str,
     host: Shell,
     storage_node: Shell,
+    storage_base_path: str = '/mnt/nfs',
     debug: bool = False,
   ) -> None:
     self.stack: str | None = stack
     self.namespace = namespace
     self.host = host
     self.storage_node = storage_node
+    self.storage_base_path = storage_base_path.rstrip('/') or '/'
     self.debug = debug
 
   @property
@@ -69,7 +72,7 @@ class Driver:
 
   @property
   def brick(self) -> str:
-    return f'/data/{self.slug}/{self.brickname}'
+    return posixpath.join(self.storage_base_path, self.brickname)
 
   @property
   def mount_point_prefix(self) -> str:

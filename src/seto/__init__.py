@@ -170,6 +170,13 @@ def run() -> None:
   )
 
   setup_parser.add_argument(
+    '--storage-path',
+    dest='storage_base_path',
+    default='/mnt/nfs',
+    help='Remote NFS storage base path to persist in .seto/config.json (default: /mnt/nfs)',
+  )
+
+  setup_parser.add_argument(
     '--clients',
     type=nodes_type,
     nargs='+',
@@ -330,9 +337,12 @@ def run() -> None:
     if not hasattr(args, 'image_prefix'):
       setattr(args, 'image_prefix', os.getenv('SETO_IMAGE_PREFIX', ''))
 
+    storage_base_path = '/mnt/nfs'
+
     if args.func == execute_setup_command:
       driver_type, connection_string = args.storage_node
       setting = Setting.from_connection_string(connection_string)
+      storage_base_path = args.storage_base_path
     else:
       # Determine if the config file is needed (i.e. if volumes-nfs needs parsing)
       needs_nfs = False
@@ -381,6 +391,8 @@ def run() -> None:
             username=storage_node_cfg['username'],
             password=None,
           )
+
+          storage_base_path = config_data.get('storage_base_path', '/mnt/nfs')
         except Exception as exception:
           logger.error('Error: Failed to load configuration file. %s', exception)
           sys.exit(40)
@@ -412,6 +424,7 @@ def run() -> None:
         namespace=args.namespace,
         host=local_shell,
         storage_node=storage_node_shell,
+        storage_base_path=storage_base_path,
         debug=args.debug,
       )
     else:

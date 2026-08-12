@@ -124,6 +124,37 @@ def test_deploy_force_overwrites_existing_volume_files(mocker):
   assert args.force is True
 
 
+def test_storage_base_path_setup_arg_is_propagated_to_driver(mocker):
+  mocker.patch('seto.execute_setup_command')
+  nfs_driver = mocker.patch('seto.NFSDriver')
+  mocker.patch('seto.core.shell.resolve_hostname', return_value='192.168.1.20')
+  mocker.patch(
+    'sys.argv',
+    [
+      'seto',
+      '--namespace',
+      'test',
+      '--stack',
+      'app',
+      'setup',
+      '--storage-path',
+      '/srv/nfs',
+      '--storage-node',
+      'nfs://admin@host',
+      '--storage-replicas',
+      'user@replica1',
+      '--clients',
+      'user@client1',
+    ],
+  )
+
+  with pytest.raises(SystemExit) as exc_info:
+    seto.run()
+
+  assert exc_info.value.code == 0
+  assert nfs_driver.call_args.kwargs['storage_base_path'] == '/srv/nfs'
+
+
 def test_deploy_compose_only_stack_does_not_deploy_swarm(mocker):
   args = Namespace(
     namespace='test',

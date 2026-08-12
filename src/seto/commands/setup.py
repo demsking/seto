@@ -54,6 +54,7 @@ def execute_setup_command(args, driver: Driver) -> None:
   config_path = os.path.join(config_dir, 'config.json')
   config_data = {
     'driver': driver.slug,
+    'storage_base_path': driver.storage_base_path,
     'storage_node': {
       'hostname': driver.storage_node.setting.hostname,
       'username': driver.storage_node.setting.username,

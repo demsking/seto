@@ -422,67 +422,41 @@
         }
       }
     },
-    "pre-commit@latest": {
-      "last_modified": "2026-05-21T08:15:18Z",
-      "resolved": "github:NixOS/nixpkgs/4a29d733e8a7d5b824c3d8c958a946a9867b3eb2#pre-commit",
+    "prek@latest": {
+      "last_modified": "2026-08-08T22:24:59Z",
+      "resolved": "github:NixOS/nixpkgs/fe6deff5fad4a42d0e08d2bab3f2d6c7c88f3fe5#prek",
       "source": "devbox-search",
-      "version": "4.5.1",
+      "version": "0.4.12",
       "systems": {
         "aarch64-darwin": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/z3cca68620w0w10f090szgzdnmh1waf2-pre-commit-4.5.1",
+              "path": "/nix/store/0vh1mjac0drv4wd8vid8ycbc6rzlic6g-prek-0.4.12",
               "default": true
-            },
-            {
-              "name": "dist",
-              "path": "/nix/store/qiycli9jv32a6ypxsspzhbraz24sh6ac-pre-commit-4.5.1-dist"
             }
           ],
-          "store_path": "/nix/store/z3cca68620w0w10f090szgzdnmh1waf2-pre-commit-4.5.1"
+          "store_path": "/nix/store/0vh1mjac0drv4wd8vid8ycbc6rzlic6g-prek-0.4.12"
         },
         "aarch64-linux": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/n981w6hjfar2l81kxbxs2wxl64vwa5kj-pre-commit-4.5.1",
+              "path": "/nix/store/x78ysf3jhp1p1gwh0l19g9jzql3vr875-prek-0.4.12",
               "default": true
-            },
-            {
-              "name": "dist",
-              "path": "/nix/store/k32gq33snjdfvxkhny1sj3q066x4z635-pre-commit-4.5.1-dist"
             }
           ],
-          "store_path": "/nix/store/n981w6hjfar2l81kxbxs2wxl64vwa5kj-pre-commit-4.5.1"
-        },
-        "x86_64-darwin": {
-          "outputs": [
-            {
-              "name": "out",
-              "path": "/nix/store/irvx9bawyw89bbvblzvh90nnqy94j936-pre-commit-4.5.1",
-              "default": true
-            },
-            {
-              "name": "dist",
-              "path": "/nix/store/02d24cai743fm1bkk7sa9xmp10kg40zz-pre-commit-4.5.1-dist"
-            }
-          ],
-          "store_path": "/nix/store/irvx9bawyw89bbvblzvh90nnqy94j936-pre-commit-4.5.1"
+          "store_path": "/nix/store/x78ysf3jhp1p1gwh0l19g9jzql3vr875-prek-0.4.12"
         },
         "x86_64-linux": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/bj6i9vl34cij5h0r165y40hrjqak0bmz-pre-commit-4.5.1",
+              "path": "/nix/store/4qw75m2ihfzx9vrp35r5hrxqs1pbxas7-prek-0.4.12",
               "default": true
-            },
-            {
-              "name": "dist",
-              "path": "/nix/store/rxmwc33chn2j6cnprdhmim788bhxwdv9-pre-commit-4.5.1-dist"
             }
           ],
-          "store_path": "/nix/store/bj6i9vl34cij5h0r165y40hrjqak0bmz-pre-commit-4.5.1"
+          "store_path": "/nix/store/4qw75m2ihfzx9vrp35r5hrxqs1pbxas7-prek-0.4.12"
         }
       }
     },

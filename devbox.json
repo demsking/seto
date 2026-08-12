@@ -8,7 +8,6 @@
     "git-secret@latest",
     "tmuxinator@latest",
     "gnumake@latest",
-    "pre-commit@latest",
     "editorconfig-checker@latest",
     "python312Packages.autopep8@latest",
     "python312Packages.bandit@latest",
@@ -18,7 +17,8 @@
     "hadolint@latest",
     "ruff@latest",
     "python312Packages.pyaml@latest",
-    "nodePackages.nodemon@latest"
+    "nodePackages.nodemon@latest",
+    "prek@latest"
   ],
   "env": {
     "VENV_DIR":   ".venv",

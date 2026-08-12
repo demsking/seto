@@ -93,8 +93,31 @@ class Driver:
 
     if not node.check_user_exists(self.setouser):
       # node.run(f'adduser {self.setouser} --quiet --system --disabled-login --disabled-password --ingroup docker', quiet=not True)
-      node.run(f'useradd --system -m -U {self.setouser}', quiet=True)
-      node.run(f'usermod -aG docker {self.setouser}', quiet=True)
+      node.run(
+        (
+          f'if command -v useradd >/dev/null 2>&1; then '
+          f'useradd --system -m -U {self.setouser}; '
+          f'elif [ -x /usr/sbin/useradd ]; then '
+          f'/usr/sbin/useradd --system -m -U {self.setouser}; '
+          f'else '
+          f'adduser {self.setouser} --quiet --system --disabled-login '
+          f'--disabled-password --group; '
+          f'fi'
+        ),
+        sudo=True,
+        quiet=True,
+      )
+      node.run(
+        (
+          f'if command -v usermod >/dev/null 2>&1; then '
+          f'usermod -aG docker {self.setouser}; '
+          f'elif [ -x /usr/sbin/usermod ]; then '
+          f'/usr/sbin/usermod -aG docker {self.setouser}; '
+          f'fi'
+        ),
+        sudo=True,
+        quiet=True,
+      )
       node.run(f'id {self.setouser}', quiet=True)
 
       # Create the .ssh directory if it doesn't exist

@@ -439,6 +439,7 @@ def load_env_file(env_file_path: str) -> None:
     with open(env_file_path, encoding='utf-8') as file:
       for line in file:
         line = line.strip()
+
         if line and not line.startswith('#') and '=' in line:
           key, value = line.split('=', 1)
           # Remove quotes if present

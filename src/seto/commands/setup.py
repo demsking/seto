@@ -18,6 +18,7 @@ import os
 
 from ..core.driver import Driver
 from ..core.shell import Setting
+from .deploy import deploy_namespace_stack
 from .deploy import deploy_seto_stack
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,7 @@ def execute_setup_command(args, driver: Driver) -> None:
 
   driver.connect()
   deploy_seto_stack(args, driver)
+  deploy_namespace_stack(args, driver)
   generate_ssh_keys(args, driver)
   driver.setup_storage_node(storage_replicas, args.force)
   driver.setup_nodes(clients, args.force)

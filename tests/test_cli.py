@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-# pylint: disable=import-error,invalid-name,redefined-outer-name,no-member
+# pylint: disable=import-error,invalid-name,redefined-outer-name,no-member,use-implicit-booleaness-not-comparison
 import argparse
 import socket
 from argparse import Namespace
@@ -24,6 +24,7 @@ from seto import nodes_type
 from seto import storage_node_type
 from seto import storage_replica_type
 from seto.commands.deploy import execute_deploy_command
+from seto.commands.deploy import parse_compose_config
 
 
 def test_storage_node_type(mocker):
@@ -170,6 +171,7 @@ def test_deploy_compose_only_stack_does_not_deploy_swarm(mocker):
 
   mocker.patch('seto.commands.deploy.parse_volumes_args', return_value=[])
   mocker.patch('seto.commands.deploy.DockerClient.from_env')
+  refresh_provider = mocker.patch('seto.commands.deploy.deploy_seto_stack')
   resolved_configs = [
     {
       'x-placement': None,
@@ -204,6 +206,8 @@ def test_deploy_compose_only_stack_does_not_deploy_swarm(mocker):
 
   execute_deploy_command(args, driver)
 
+  refresh_provider.assert_called_once_with(args, driver)
+
   swarm = swarm_cls.return_value
   swarm.build.assert_not_called()
   swarm.push.assert_not_called()
@@ -215,3 +219,39 @@ def test_deploy_compose_only_stack_does_not_deploy_swarm(mocker):
   compose.deploy.assert_called_once()
   assert resolve.call_args_list[0].args[:2] == (args, driver)
   assert args.compose is True
+
+
+def test_parse_compose_config_injects_seto_agent(mocker):
+  args = Namespace()
+  driver = MagicMock()
+  driver.stack_id = 'demo_stack'
+  client = MagicMock()
+
+  compose_config = {
+    'services': {
+      'app': {
+        'image': 'nginx:alpine',
+      }
+    },
+    'networks': {},
+  }
+  composes: list = []
+
+  compose_cls = mocker.patch('seto.commands.deploy.DockerCompose')
+
+  parse_compose_config(
+    args,
+    driver,
+    client,
+    [],
+    {},
+    compose_config=compose_config,
+    placement=[],
+    composes=composes,
+  )
+
+  assert 'seto-agent' not in compose_config['services']
+  assert compose_config['networks'] == {}
+
+  compose_cls.assert_called_once()
+  assert composes == [compose_cls.return_value]

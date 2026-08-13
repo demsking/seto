@@ -24,11 +24,93 @@ from ..core.docker import DockerCompose
 from ..core.docker import DockerSwarm
 from ..core.docker import NODE_HOSTNAME_RE
 from ..core.driver import Driver
-from ..core.network import resolve_networks
+from ..core.network import resolve_global_networks
+from ..core.network import SETO_INTERNAL_NETWORKS
 from ..core.parser import resolve_compose_file
 from .resolve import resolve
 
 logger = logging.getLogger(__name__)
+
+
+def seto_provider_command() -> list[str]:
+  script = (
+    'import json\n'
+    'from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n'
+    'state={"http":{"routers":{},"services":{}}}\n'
+    'class H(BaseHTTPRequestHandler):\n'
+    '  def _send(self,code,obj=None):\n'
+    '    self.send_response(code)\n'
+    '    if obj is None:\n'
+    '      self.send_header("Content-Length","0")\n'
+    '      self.end_headers()\n'
+    '      return\n'
+    '    body=json.dumps(obj).encode("utf-8")\n'
+    '    self.send_header("Content-Type","application/json")\n'
+    '    self.send_header("Content-Length",str(len(body)))\n'
+    '    self.end_headers()\n'
+    '    self.wfile.write(body)\n'
+    '  def log_message(self, fmt, *args):\n'
+    '    return\n'
+    '  def do_GET(self):\n'
+    '    if self.path.rstrip("/")=="/traefik":\n'
+    '      self._send(200,state)\n'
+    '      return\n'
+    '    self._send(404,{"error":"not found"})\n'
+    '  def do_PUT(self):\n'
+    '    normalized_path=self.path.rstrip("/")\n'
+    '    if normalized_path!="/traefik":\n'
+    '      self._send(404,{"error":"not found"})\n'
+    '      return\n'
+    '    length=int(self.headers.get("Content-Length","0"))\n'
+    '    raw=self.rfile.read(length) if length else b"{}"\n'
+    '    try:\n'
+    '      payload=json.loads(raw.decode("utf-8"))\n'
+    '      if not isinstance(payload,dict):\n'
+    '        raise ValueError("invalid payload")\n'
+    '    except Exception:\n'
+    '      self._send(400,{"error":"invalid json"})\n'
+    '      return\n'
+    '    if "http" not in payload and any(k in payload for k in ("routers","services")):\n'
+    '      payload={"http":payload}\n'
+    '    if "http" in payload and isinstance(payload["http"],dict):\n'
+    '      nested_http=payload["http"].get("http")\n'
+    '      if isinstance(nested_http,dict):\n'
+    '        payload["http"]=nested_http\n'
+    '    current = state if isinstance(state, dict) else {}\n'
+    '    merged = dict(current)\n'
+    '    for key, value in payload.items():\n'
+    '      if key == "http" and isinstance(value, dict):\n'
+    '        existing = merged.get("http", {})\n'
+    '        if not isinstance(existing, dict):\n'
+    '          existing = {}\n'
+    '        combined = dict(existing)\n'
+    '        for nested_key, nested_value in value.items():\n'
+    '          if nested_key in {"routers", "services"} and isinstance(nested_value, dict):\n'
+    '            section = dict(combined.get(nested_key, {}))\n'
+    '            section.update(nested_value)\n'
+    '            combined[nested_key] = section\n'
+    '          else:\n'
+    '            combined[nested_key] = nested_value\n'
+    '        merged["http"] = combined\n'
+    '      else:\n'
+    '        merged[key] = value\n'
+    '    state.clear(); state.update(merged)\n'
+    '    self._send(204)\n'
+    '  def do_DELETE(self):\n'
+    '    prefix="/traefik/"\n'
+    '    if not self.path.startswith(prefix):\n'
+    '      self._send(404,{"error":"not found"})\n'
+    '      return\n'
+    '    route_id=self.path[len(prefix):].strip("/")\n'
+    '    http=state.setdefault("http",{})\n'
+    '    routers=http.setdefault("routers",{})\n'
+    '    services=http.setdefault("services",{})\n'
+    '    routers.pop(route_id,None)\n'
+    '    services.pop(route_id,None)\n'
+    '    self._send(204)\n'
+    'ThreadingHTTPServer(("0.0.0.0",8080),H).serve_forever()\n'
+  )
+  return ['python', '-u', '-c', script]
 
 
 def parse_service_vars(entries: dict[str, Any], hostname: str) -> None:
@@ -70,6 +152,7 @@ def parse_compose_config(
       config=compose_config,
     )
 
+    compose.prepare_traefik_publication()
     composes.append(compose)
 
 
@@ -89,6 +172,7 @@ def get_platform_constraints(service: dict) -> list[str]:
   for constraint in constraints:
     if isinstance(constraint, str):
       match = re.match(r'node\.platform\.arch\s*==\s*(\S+)', constraint.strip())
+
       if match:
         platforms.append(f'linux/{match.group(1)}')
 
@@ -138,6 +222,7 @@ def pull_and_push_images(config: dict, image_prefix: str) -> None:
           with open(dockerfile_path, encoding='utf-8') as fh:
             for line in fh:
               line = line.strip()
+
               if line.upper().startswith('FROM '):
                 original_image = line.split(None, 1)[1].strip()
                 break
@@ -180,14 +265,62 @@ def pull_and_push_images(config: dict, image_prefix: str) -> None:
 
 def deploy_seto_stack(args, driver: Driver) -> None:
   # Temporary rewrite driver config
+  driver.namespace = 'seto'
+  driver.stack = None
+
+  # Building seto config
+  client = DockerClient.from_env()
+
+  logger.info('Configuring seto services...')
+  service_alias = 'seto-provider'
+  internal_stack = {
+    'networks': SETO_INTERNAL_NETWORKS,
+    'services': {
+      'provider': {
+        'image': 'python:3.12-alpine',
+        'command': seto_provider_command(),
+        'ports': ['8080:8080'],
+        'networks': {key: {'aliases': [service_alias]} for key in SETO_INTERNAL_NETWORKS.keys()},
+        'deploy': {
+          'replicas': 1,
+          'placement': {
+            'constraints': ['node.role==manager'],
+          },
+        },
+      },
+    },
+  }
+
+  logger.info('Deploying seto services...')
+  swarm = DockerSwarm(
+    client=client,
+    driver=driver,
+    config=internal_stack,
+  )
+
+  swarm.info()
+  swarm.deploy()
+  swarm.ps()
+  swarm.logs()
+
+  # Restore initial driver config
+  driver.namespace = args.namespace
+  driver.stack = args.stack
+
+
+def deploy_namespace_stack(args, driver: Driver) -> None:
+  # Temporary rewrite driver config
   driver.namespace = f'seto-{args.namespace}'
   driver.stack = None
 
   # Building seto config
   client = DockerClient.from_env()
-  namespace_networks = resolve_networks(args.namespace)
+  namespace_networks = resolve_global_networks(
+    args.namespace,
+    external_networks=[network.get('name', key) for key, network in SETO_INTERNAL_NETWORKS.items()],
+  )
 
-  logger.info('Configuring seto namespace agent...')
+  logger.info('Configuring namespace agent...')
   internal_stack = {
     'networks': namespace_networks,
     'services': {
@@ -212,14 +345,14 @@ def deploy_seto_stack(args, driver: Driver) -> None:
     inject=True,
   )
 
-  logger.info('Creating seto namespace volumes...')
+  logger.info('Creating namespace volumes...')
   driver.create_volumes(
     volumes=volumes,
     sync=getattr(args, 'sync', True),
     force=getattr(args, 'force', False),
   )
 
-  logger.info('Deploying seto namespace services...')
+  logger.info('Deploying namespace services...')
   swarm = DockerSwarm(
     client=client,
     driver=driver,
@@ -239,6 +372,9 @@ def deploy_seto_stack(args, driver: Driver) -> None:
 def execute_deploy_command(args, driver: Driver) -> None:
   client = DockerClient.from_env()
   all_volumes = parse_volumes_args(args, driver)
+
+  logger.info('Refreshing seto provider stack...')
+  deploy_seto_stack(args, driver)
 
   if all_volumes:
     logger.info('Automatically creating shared volumes...')
@@ -290,7 +426,6 @@ def execute_deploy_command(args, driver: Driver) -> None:
       logger.info('Pulling and pushing %s swarm images...', driver.stack_id)
       pull_and_push_images(swarm_config, args.image_prefix)
     else:
-      logger.info('Building %s swarm images...', driver.stack_id)
       swarm.build()
 
       logger.info('Pushing %s images...', driver.stack_id)

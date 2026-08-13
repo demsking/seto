@@ -14,6 +14,7 @@
 # ==============================================================================
 import glob
 import os
+from typing import Any
 
 import yaml
 
@@ -24,8 +25,46 @@ NETWORK_CONFIG = {
   },
 }
 
+SETO_NETWORK = {
+  **NETWORK_CONFIG,
+  'driver': 'overlay',
+  'attachable': True,
+  'name': 'seto-network',
+}
+
+SETO_INTERNAL_NETWORKS = {'network': SETO_NETWORK}
+
 
 def resolve_networks(
+  service_networks: dict[str, Any] | list[str] | None,
+  external_networks: list[str] | None = None,
+) -> dict[str, Any]:
+  networks: dict[str, Any] = {}
+
+  if service_networks:
+    if isinstance(service_networks, list):
+      for network_key in service_networks:
+        networks[network_key] = {}
+    else:
+      networks = service_networks.copy()
+
+    if external_networks:
+      for network_key, network_data in networks.items():
+        network_name = network_data.get('name', network_key)
+
+        if network_key in external_networks:
+          network_data.clear()
+
+          network_data['external'] = True
+        else:
+          network_data.update(NETWORK_CONFIG)
+
+        network_data['name'] = network_name
+
+  return networks
+
+
+def resolve_global_networks(
   namespace: str,
   external_networks: list[str] | None = None,
 ) -> dict:

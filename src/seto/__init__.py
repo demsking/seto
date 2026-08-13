@@ -218,7 +218,6 @@ def run() -> None:
   )
   volumes_unmount_parser.set_defaults(func=execute_umount_volumes_command)
 
-  #
   # Resolve command
   resolve_parser = subparsers.add_parser(
     'resolve', description='Parse, resolve and render compose file in canonical format'

@@ -14,6 +14,7 @@
   - [Key Capabilities](#key-capabilities)
 - [Supported Operating Systems](#supported-operating-systems)
 - [Features](#features)
+- [Traefik Configuration](#traefik-configuration)
 - [Installation](#installation)
 - [Usage](#usage)
   - [Configuration & Command Dependencies](#configuration--command-dependencies)
@@ -154,6 +155,93 @@ All remote nodes must have **SSH**, **Docker**, and **NFS client utilities** ins
 - **`deploy` Command** – Deploys or updates Compose/Swarm stacks.
 - **`down` Command** – Stops and removes containers, networks, and resources.
 - **`check` Command** – Verifies and lists nodes matching placement constraints.
+
+## Traefik Configuration
+
+When a stack is deployed in Compose mode on remote hosts, the Traefik instance cannot discover services from the Docker daemon running on another machine through normal Docker labels alone. In that case, Traefik must read a central registry instead of the local Docker daemon.
+
+Ṣeto handles this by extracting Traefik HTTP labels from each deployed service and publishing the resulting dynamic configuration to a single HTTP endpoint. Traefik then consumes that endpoint through its HTTP provider.
+
+### Static Traefik configuration
+
+Use a central Traefik node with an HTTP provider configured as follows:
+
+```yaml
+# traefik.yml
+api:
+  dashboard: false
+
+entryPoints:
+  web:
+    address: ":80"
+  websecure:
+    address: ":443"
+
+providers:
+  http:
+    endpoint: "http://seto-provider:8080/traefik"
+    pollInterval: "10s"
+    watch: true
+```
+
+Equivalent CLI form:
+
+```yaml
+command:
+  - --providers.http.endpoint=http://seto-provider:8080/traefik
+  - --providers.http.pollInterval=10s
+  - --entrypoints.web.address=:80
+  - --entrypoints.websecure.address=:443
+```
+
+The default endpoint used by Ṣeto is `http://seto-provider:8080/traefik`, and it can be overridden with the environment variable `SETO_TRAEFIK_HTTP_ENDPOINT`.
+
+Important: the `seto-provider` service must run on a global overlay network shared with Traefik, and the Traefik service itself must also be attached to that same network. Without that shared network, Traefik cannot resolve the HTTP provider service name across nodes.
+
+```yaml
+services:
+  traefik:
+    networks:
+      - cloud-public
+      - seto-network
+
+  seto-provider:
+    networks:
+      - seto-network
+```
+
+The network should be a Docker overlay with `attachable: true` or another global network reachable by all nodes in the cluster.
+
+### Service labels
+
+Keep using Docker labels on the application service itself. Example:
+
+```yaml
+services:
+  app:
+    image: my-app:latest
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.app.rule=Host(`app.example.com`)"
+      - "traefik.http.routers.app.entrypoints=websecure"
+      - "traefik.http.routers.app.tls=true"
+      - "traefik.http.services.app.loadbalancer.server.port=8080"
+```
+
+During deployment, Ṣeto reads those labels, translates them into a Traefik HTTP configuration payload, and pushes the result to the registry endpoint. The Traefik instance then exposes the route without needing to query the remote Docker daemon hosting the service.
+
+### Cleanup behavior
+
+Routes are automatically refreshed and pruned using a short TTL. By default,Ṣeto keeps registry entries for 30 seconds and removes stale entries when services disappear or are brought down. This prevents dead routes from lingering in Traefik after a remote Compose service is stopped.
+
+### When this matters
+
+This setup is particularly useful for:
+
+- multi-host Docker Compose deployments
+- services running on a node different from the Traefik node
+- hardware-bound stacks where the app is launched directly on remote hosts
+- dynamic routing without a shared local Docker daemon
 
 ## Installation
 

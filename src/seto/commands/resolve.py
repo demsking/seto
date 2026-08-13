@@ -17,7 +17,8 @@ from collections.abc import Callable
 import yaml
 
 from ..core.driver import Driver
-from ..core.network import resolve_networks
+from ..core.network import resolve_global_networks
+from ..core.network import SETO_INTERNAL_NETWORKS
 from ..core.parser import parse_services
 from ..core.volume import Volume
 
@@ -66,7 +67,14 @@ def resolve(
   env_file: str | None = None,
 ) -> dict:
   config_networks = {}
-  global_networks = resolve_networks(args.namespace)
+  seto_networks = [network.get('name', key) for key, network in SETO_INTERNAL_NETWORKS.items()]
+  global_networks = {
+    **{network.get('name', key): network for key, network in SETO_INTERNAL_NETWORKS.items()},
+    **resolve_global_networks(
+      args.namespace,
+      external_networks=seto_networks,
+    ),
+  }
 
   for network_name, network_definition in global_networks.items():
     config_networks[network_name] = {

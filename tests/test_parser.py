@@ -51,9 +51,19 @@ def test_parse_volume_entry():
 
 def test_parse_nfs_volume_entry():
   # Basic
-  assert parse_nfs_volume_entry('src:tgt') == ('src', 'tgt', 'rw', 'rw,hard,noatime,nodiratime')
+  assert parse_nfs_volume_entry('src:tgt') == (
+    'src',
+    'tgt',
+    'rw',
+    'rw,hard,noatime,nodiratime,nfsvers=4',
+  )
   # Custom mode
-  assert parse_nfs_volume_entry('src:tgt:ro') == ('src', 'tgt', 'ro', 'rw,hard,noatime,nodiratime')
+  assert parse_nfs_volume_entry('src:tgt:ro') == (
+    'src',
+    'tgt',
+    'ro',
+    'rw,hard,noatime,nodiratime,nfsvers=4',
+  )
   # Custom mode and options
   assert parse_nfs_volume_entry('src:tgt:ro:opt1,opt2') == ('src', 'tgt', 'ro', 'opt1,opt2')
   # Permissive: mode omitted, option list provided
@@ -306,7 +316,7 @@ services:
       stack=str(tmp_path),
       image_prefix='',
       default_volume_mount_mode='rw',
-      default_nfs_options='rw,hard,noatime,nodiratime',
+      default_nfs_options='rw,hard,noatime,nodiratime,nfsvers=4',
     ),
     driver,
     execute=execute,
@@ -357,7 +367,7 @@ services:
     'stack': str(tmp_path),
     'image_prefix': '',
     'default_volume_mount_mode': 'rw',
-    'default_nfs_options': 'rw,hard,noatime,nodiratime',
+    'default_nfs_options': 'rw,hard,noatime,nodiratime,nfsvers=4',
   }
 
   swarm_only = resolve(Namespace(**common_args, compose=False), driver)

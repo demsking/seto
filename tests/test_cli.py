@@ -162,7 +162,7 @@ def test_deploy_compose_only_stack_does_not_deploy_swarm(mocker):
     stack='app',
     image_prefix='',
     default_volume_mount_mode='rw',
-    default_nfs_options='rw,hard,noatime,nodiratime',
+    default_nfs_options='rw,hard,noatime,nodiratime,nfsvers=4',
     sync=True,
     force=False,
   )

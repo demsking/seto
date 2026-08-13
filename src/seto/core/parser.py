@@ -61,7 +61,7 @@ def parse_volume_entry(entry: str, default_mode='rw') -> tuple[str, str, str]:
 
 
 def parse_nfs_volume_entry(
-  entry: str, default_mode='rw', default_options='rw,hard,noatime,nodiratime'
+  entry: str, default_mode='rw', default_options='rw,hard,noatime,nodiratime,nfsvers=4'
 ) -> tuple[str, str, str, str]:
   """Parse NFS volume entry with format: source:target[:mode[:options]]."""
   parts = entry.split(':', 3)
@@ -181,7 +181,7 @@ def parse_volumes(
   compose_file_path: str,
   *,
   default_volume_mount_mode: str = 'rw',
-  default_nfs_options: str = 'rw,hard,noatime,nodiratime',
+  default_nfs_options: str = 'rw,hard,noatime,nodiratime,nfsvers=4',
   compose_volumes: dict,
   volumes: list[Volume],
   skip_volumes: bool = False,
@@ -308,7 +308,7 @@ def resolve_compose_file(
   *,
   compose_data: dict,
   default_volume_mount_mode: str = 'rw',
-  default_nfs_options: str = 'rw,hard,noatime,nodiratime',
+  default_nfs_options: str = 'rw,hard,noatime,nodiratime,nfsvers=4',
   inject: bool = False,
   mode: list[ResolveMode] | None = None,
   image_prefix: str,
@@ -561,7 +561,7 @@ def parse_services(
   stack: str,
   *,
   default_volume_mount_mode: str = 'rw',
-  default_nfs_options: str = 'rw,hard,noatime,nodiratime',
+  default_nfs_options: str = 'rw,hard,noatime,nodiratime,nfsvers=4',
   execute: Callable[[dict, list], None] | None = None,
   skip_interpolation: bool = False,
   inject: bool = False,

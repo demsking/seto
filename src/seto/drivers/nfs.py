@@ -121,7 +121,7 @@ class NFSDriver(Driver):
     self.umount(node, device)
 
   def resolve_compose_volume(self, volume: Volume) -> dict:
-    nfs_options = volume.nfs_options or 'rw,hard,noatime,nodiratime'
+    nfs_options = volume.nfs_options or 'rw,hard,noatime,nodiratime,nfsvers=4'
     return {
       'driver': 'local',
       'driver_opts': {

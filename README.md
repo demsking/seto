@@ -291,14 +291,14 @@ These options apply globally to the `seto` CLI tool and must be specified before
 
 ### Environment Variables
 
-| Variable                         | Description                                                                      | Default                      |
-| -------------------------------- | -------------------------------------------------------------------------------- | ---------------------------- |
-| `SETO_NAMESPACE`                 | Default namespace name.                                                          | None                         |
-| `SETO_STACK`                     | Default stack name.                                                              | None                         |
-| `SETO_SSH_KEY`                   | Default path to the SSH private key file.                                        | `~/.ssh/id_rsa`              |
-| `SETO_IMAGE_PREFIX`              | Default image namespace prefix to be added to internal images.                   | None                         |
-| `SETO_DEFAULT_VOLUME_MOUNT_MODE` | Default volume mount mode used when mode is omitted in `volumes-nfs` entries.    | `rw`                         |
-| `SETO_DEFAULT_NFS_OPTIONS`       | Default `volumes-nfs` mount options when options are omitted in compose entries. | `rw,hard,noatime,nodiratime` |
+| Variable                         | Description                                                                      | Default                                |
+| -------------------------------- | -------------------------------------------------------------------------------- | -------------------------------------- |
+| `SETO_NAMESPACE`                 | Default namespace name.                                                          | None                                   |
+| `SETO_STACK`                     | Default stack name.                                                              | None                                   |
+| `SETO_SSH_KEY`                   | Default path to the SSH private key file.                                        | `~/.ssh/id_rsa`                        |
+| `SETO_IMAGE_PREFIX`              | Default image namespace prefix to be added to internal images.                   | None                                   |
+| `SETO_DEFAULT_VOLUME_MOUNT_MODE` | Default volume mount mode used when mode is omitted in `volumes-nfs` entries.    | `rw`                                   |
+| `SETO_DEFAULT_NFS_OPTIONS`       | Default `volumes-nfs` mount options when options are omitted in compose entries. | `rw,hard,noatime,nodiratime,nfsvers=4` |
 
 ### Variable Interpolation
 
@@ -617,7 +617,7 @@ volumes-nfs:
 - **`source`**: Can be a local host directory/file (prefixed with `./` or `~/`) or a named Docker volume. Prefix the source with `@` (e.g., `@shared-data` or `@./data/shared`) to define it as a **shared volume** across multiple services (this prevents Ṣeto from scoping the volume with the service name prefix).
 - **`target`**: The destination path inside the container.
 - **`mode`** _(optional)_: Mount permissions, either `rw` (read-write) or `ro` (read-only). Defaults to `rw` (or the value of the environment variable `SETO_DEFAULT_VOLUME_MOUNT_MODE`). Legacy option `norename` is also supported for backward compatibility (but `@` source prefix is preferred).
-- **`nfs-options`** _(optional)_: Custom NFS mount options. Defaults to `rw,hard,noatime,nodiratime` (or the value of the environment variable `SETO_DEFAULT_NFS_OPTIONS`).
+- **`nfs-options`** _(optional)_: Custom NFS mount options. Defaults to `rw,hard,noatime,nodiratime,nfsvers=4` (or the value of the environment variable `SETO_DEFAULT_NFS_OPTIONS`).
 
 #### **Examples**
 

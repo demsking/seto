@@ -317,7 +317,7 @@ def run() -> None:
   setattr(
     args,
     'default_nfs_options',
-    os.getenv('SETO_DEFAULT_NFS_OPTIONS', 'rw,hard,noatime,nodiratime'),
+    os.getenv('SETO_DEFAULT_NFS_OPTIONS', 'rw,hard,noatime,nodiratime,nfsvers=4'),
   )
 
   # Call the function associated with the selected subcommand

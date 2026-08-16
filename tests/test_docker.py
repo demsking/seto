@@ -67,31 +67,110 @@ def test_docker_compose_node_hostname_replacement(mocker):
   assert compose.nodenames == ['node1']
 
   # Mock _remote_node_run and shell.run
-  mocker.patch.object(compose, '_remote_node_run')
+  remote_node_run = mocker.patch.object(compose, '_remote_node_run')
   mocker.patch.object(compose.shell, 'run')
 
   # Run info()
   compose.info()
 
   # Verify that _remote_node_run was called with replaced hostname in the input
-  compose._remote_node_run.assert_called_once()
-  _args, kwargs = compose._remote_node_run.call_args
+  remote_node_run.assert_called_once()
+  _args, kwargs = remote_node_run.call_args
   assert kwargs['hostname'] == 'node1'
   assert 'node1' in kwargs['input']
   assert '{{ .Node.Hostname }}' not in kwargs['input']
   assert '{{.Node.Hostname}}' not in kwargs['input']
 
   # Reset mock and run deploy()
-  compose._remote_node_run.reset_mock()
+  remote_node_run.reset_mock()
   compose.deploy()
 
   # Verify that _remote_node_run was called with replaced hostname in the input
-  compose._remote_node_run.assert_called_once()
-
+  remote_node_run.assert_called_once()
+  _args, kwargs = remote_node_run.call_args
   assert kwargs['hostname'] == 'node1'
   assert 'node1' in kwargs['input']
   assert '{{ .Node.Hostname }}' not in kwargs['input']
   assert '{{.Node.Hostname}}' not in kwargs['input']
+
+
+def test_docker_compose_uses_defined_project_name_for_compose_commands(mocker):
+  mocker.patch('seto.core.shell.resolve_hostname', return_value='127.0.0.1')
+  mocker.patch('socket.gethostname', return_value='local-host')
+
+  driver = MagicMock(spec=Driver)
+  driver.stack_id = 'fallback_stack'
+  driver.debug = False
+  driver.storage_node = False
+  driver.host = MagicMock()
+
+  client = MagicMock()
+  node = MagicMock()
+  node.attrs = {
+    'Description': {'Hostname': 'node1'},
+    'Status': {'Addr': '10.42.0.5'},
+    'Spec': {'Role': 'worker', 'Labels': {}},
+  }
+  client.nodes.list.return_value = [node]
+
+  compose = DockerCompose(
+    config={
+      'name': 'original-project',
+      'x-placement': ['node.hostname==node1'],
+      'services': {'app': {'image': 'nginx'}},
+    },
+    driver=driver,
+    client=client,
+  )
+
+  run_calls = []
+
+  def _exec_stub(command, nodename, *, resolved_config=None):
+    run_calls.append((command, nodename, resolved_config))
+
+  mocker.patch.object(compose, '_exec', side_effect=_exec_stub)
+  mocker.patch.object(compose, '_publish_traefik_routes')
+
+  compose.deploy()
+  compose.ps()
+  compose.logs()
+  compose.down()
+
+  assert run_calls[0][0] == 'docker compose -p original-project -f - up -d --remove-orphans'
+  assert run_calls[1][0] == 'docker compose -p original-project -f - ps'
+  assert run_calls[2][0] == 'docker compose -p original-project -f - logs -n 10'
+  assert run_calls[3][0] == 'docker compose -p original-project -f - down'
+
+
+def test_docker_compose_falls_back_to_stack_id_without_project_name(mocker):
+  mocker.patch('seto.core.shell.resolve_hostname', return_value='127.0.0.1')
+  mocker.patch('socket.gethostname', return_value='local-host')
+
+  driver = MagicMock(spec=Driver)
+  driver.stack_id = 'fallback_stack'
+  driver.debug = False
+  driver.storage_node = False
+  driver.host = MagicMock()
+
+  client = MagicMock()
+  node = MagicMock()
+  node.attrs = {
+    'Description': {'Hostname': 'node1'},
+    'Status': {'Addr': '10.42.0.5'},
+    'Spec': {'Role': 'worker', 'Labels': {}},
+  }
+  client.nodes.list.return_value = [node]
+
+  compose = DockerCompose(
+    config={
+      'x-placement': ['node.hostname==node1'],
+      'services': {'app': {'image': 'nginx'}},
+    },
+    driver=driver,
+    client=client,
+  )
+
+  assert compose.compose_project_name == 'fallback_stack'
 
 
 def test_traefik_compose_route_registration_and_cleanup():

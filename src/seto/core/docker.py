@@ -76,15 +76,21 @@ class Docker:
       if item.attrs and item.attrs['Name'].startswith(self.driver.stack_id)
     ]
 
+  @property
+  def compose_project_name(self) -> str:
+    name = self.config.get('name')
+
+    return name if isinstance(name, str) and name.strip() else self.driver.stack_id
+
   def build(self) -> None:
     self.localshell.run(
-      command=f'docker compose -f - -p {self.driver.stack_id} build --no-cache',
+      command=f'docker compose -f - -p {self.compose_project_name} build --no-cache',
       input=self.resolved_config,
     )
 
   def push(self) -> None:
     self.localshell.run(
-      command=f'docker compose -f - -p {self.driver.stack_id} push',
+      command=f'docker compose -f - -p {self.compose_project_name} push',
       input=self.resolved_config,
     )
 
@@ -684,15 +690,18 @@ class DockerCompose(Docker):
     self.prepare_traefik_publication()
 
     for nodename in self.nodenames:
-      self._exec(f'docker compose -p {self.driver.stack_id} -f - pull', nodename)
+      self._exec(f'docker compose -p {self.compose_project_name} -f - pull', nodename)
 
   def info(self) -> None:
     self.prepare_traefik_publication()
 
     if self.driver.storage_node:
-      command = f'docker compose -p {self.driver.stack_id} -f - config'
+      command = f'docker compose -p {self.compose_project_name} -f - config'
     else:
-      command = f'docker compose -p {self.driver.stack_id} -f - config --no-env-resolution --skip-interpolation'
+      command = (
+        f'docker compose -p {self.compose_project_name} -f - config '
+        '--no-env-resolution --skip-interpolation'
+      )
 
     for nodename in self.nodenames:
       self._exec(
@@ -712,7 +721,7 @@ class DockerCompose(Docker):
     for nodename in nodenames:
       logger.info('Deploying on %s...', nodename)
       self._exec(
-        f'docker compose -p {self.driver.stack_id} -f - up -d --remove-orphans',
+        f'docker compose -p {self.compose_project_name} -f - up -d --remove-orphans',
         nodename,
         resolved_config=re.sub(NODE_HOSTNAME_RE, nodename, self.resolved_config),
       )
@@ -722,7 +731,7 @@ class DockerCompose(Docker):
       # the same published port.
       if len(nodenames) == 1 and self._pin_current_published_ports(nodename):
         self._exec(
-          f'docker compose -p {self.driver.stack_id} -f - up -d --remove-orphans',
+          f'docker compose -p {self.compose_project_name} -f - up -d --remove-orphans',
           nodename,
           resolved_config=re.sub(NODE_HOSTNAME_RE, nodename, self.resolved_config),
         )
@@ -774,7 +783,7 @@ class DockerCompose(Docker):
           continue
 
         port_output = self._exec_output(
-          f'docker compose -p {self.driver.stack_id} port {service_name} {target_port}',
+          f'docker compose -p {self.compose_project_name} port {service_name} {target_port}',
           nodename,
         )
         host_port = self._parse_published_host_port(port_output)
@@ -821,7 +830,7 @@ class DockerCompose(Docker):
           host_port = resolved_by_target_port.get(target_port)
           if host_port is None:
             port_output = self._exec_output(
-              f'docker compose -p {self.driver.stack_id} port {service_name} {target_port}',
+              f'docker compose -p {self.compose_project_name} port {service_name} {target_port}',
               nodename,
             )
             host_port = self._parse_published_host_port(port_output)
@@ -924,17 +933,17 @@ class DockerCompose(Docker):
   def ps(self) -> None:
     for nodename in self.nodenames:
       logger.info('--- Services on %s ---', nodename)
-      self._exec(f'docker compose -p {self.driver.stack_id} -f - ps', nodename)
+      self._exec(f'docker compose -p {self.compose_project_name} -f - ps', nodename)
 
   def logs(self) -> None:
     for nodename in self.nodenames:
       logger.info('--- Logs on %s ---', nodename)
-      self._exec(f'docker compose -p {self.driver.stack_id} -f - logs -n 10', nodename)
+      self._exec(f'docker compose -p {self.compose_project_name} -f - logs -n 10', nodename)
 
   def down(self) -> None:
     for nodename in self.nodenames:
       logger.info('Removing stack from %s...', nodename)
-      self._exec(f'docker compose -p {self.driver.stack_id} -f - down', nodename)
+      self._exec(f'docker compose -p {self.compose_project_name} -f - down', nodename)
 
     self._remove_traefik_routes()
 

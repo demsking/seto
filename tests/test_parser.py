@@ -379,6 +379,42 @@ services:
   assert compose_only['x-placement'] == ['host.name == worker']
 
 
+def test_resolve_preserves_defined_compose_name(tmp_path, mocker, monkeypatch):
+  monkeypatch.chdir(tmp_path)
+
+  driver = MagicMock(spec=Driver)
+  driver.stack_id = 'stack'
+  driver.resolve_compose_volume.return_value = {}
+
+  compose_yaml = tmp_path / 'compose.yaml'
+  compose_yaml.write_text(
+    """
+x-mode: compose
+name: original-project
+services:
+  app:
+    image: nginx:latest
+""",
+    encoding='utf-8',
+  )
+
+  mocker.patch('seto.core.parser.load_env_file')
+
+  resolved = resolve(
+    Namespace(
+      namespace='test',
+      stack=str(tmp_path),
+      image_prefix='',
+      default_volume_mount_mode='rw',
+      default_nfs_options='rw,hard,noatime,nodiratime,nfsvers=4',
+    ),
+    driver,
+  )
+
+  assert resolved['name'] == 'original-project'
+  assert set(resolved['services']) == {'app'}
+
+
 def test_parse_interpolation(tmp_path, mocker, monkeypatch):
   monkeypatch.chdir(tmp_path)
   monkeypatch.setenv('MY_TEST_VAR', 'interpolated_val')

@@ -137,8 +137,6 @@ def resolve(
     if is_compose_mode:
       if compose['name'] is None and resolved_compose_data.get('name'):
         compose['name'] = resolved_compose_data['name']
-    else:
-      del compose['name']
 
     # Aggregate x-placement
     if is_compose_mode and placement:
@@ -161,6 +159,7 @@ def resolve(
       else:
         # Flat placement (single string or list of strings)
         raw_placements = []
+
         if isinstance(placement, list):
           for item in placement:
             if isinstance(item, str):
@@ -196,6 +195,9 @@ def resolve(
   if not compose['x-placement']:
     compose['x-placement'] = None
 
+  if not compose['name']:
+    del compose['name']
+
   return compose
 
 
@@ -206,6 +208,8 @@ def execute_resolve_command(args, driver: Driver) -> None:
     skip_interpolation=getattr(args, 'skip_interpolation', False),
     env_file=getattr(args, 'env_file', None),
   )
+
   cleaned_compose = {k: v for k, v in compose.items() if v}
   compose_output = yaml.dump(cleaned_compose, default_flow_style=False, sort_keys=False) or '{}'
+
   print(compose_output.strip())

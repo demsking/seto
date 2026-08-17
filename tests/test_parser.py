@@ -435,6 +435,41 @@ services:
   assert set(resolved['services']) == {'app'}
 
 
+def test_resolve_ignores_name_outside_compose_mode(tmp_path, mocker, monkeypatch):
+  monkeypatch.chdir(tmp_path)
+
+  driver = MagicMock(spec=Driver)
+  driver.stack_id = 'stack'
+  driver.resolve_compose_volume.return_value = {}
+
+  swarm_yaml = tmp_path / 'swarm.yaml'
+  swarm_yaml.write_text(
+    """
+name: forbidden-project
+services:
+  app:
+    image: nginx:latest
+""",
+    encoding='utf-8',
+  )
+
+  mocker.patch('seto.core.parser.load_env_file')
+
+  resolved = resolve(
+    Namespace(
+      namespace='test',
+      stack=str(tmp_path),
+      image_prefix='',
+      default_volume_mount_mode='rw',
+      default_nfs_options='rw,hard,noatime,nodiratime,nfsvers=4',
+    ),
+    driver,
+  )
+
+  assert resolved['name'] is None
+  assert set(resolved['services']) == {'app'}
+
+
 def test_parse_interpolation(tmp_path, mocker, monkeypatch):
   monkeypatch.chdir(tmp_path)
   monkeypatch.setenv('MY_TEST_VAR', 'interpolated_val')

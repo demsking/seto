@@ -83,7 +83,6 @@ def resolve(
     }
 
   compose = {
-    'name': None,
     'x-placement': [],
     'configs': {},
     'networks': {},
@@ -134,7 +133,7 @@ def resolve(
     if not include_in_output:
       return
 
-    if compose['name'] is None and resolved_compose_data.get('name'):
+    if is_compose_mode and compose['name'] is None and resolved_compose_data.get('name'):
       compose['name'] = resolved_compose_data['name']
 
     # Aggregate x-placement

@@ -83,6 +83,7 @@ def resolve(
     }
 
   compose = {
+    'name': None,
     'x-placement': [],
     'configs': {},
     'networks': {},
@@ -133,8 +134,11 @@ def resolve(
     if not include_in_output:
       return
 
-    if is_compose_mode and compose['name'] is None and resolved_compose_data.get('name'):
-      compose['name'] = resolved_compose_data['name']
+    if is_compose_mode:
+      if compose['name'] is None and resolved_compose_data.get('name'):
+        compose['name'] = resolved_compose_data['name']
+    else:
+      del compose['name']
 
     # Aggregate x-placement
     if is_compose_mode and placement:
@@ -143,12 +147,15 @@ def resolve(
         for group in placement:
           if isinstance(group, list):
             cleaned_group = [c.strip() for c in group if isinstance(c, str) and '==' in c]
+
             if cleaned_group and cleaned_group not in compose['x-placement']:
               compose['x-placement'].append(cleaned_group)
           elif isinstance(group, str):
             part = group.strip()
+
             if part and '==' in part:
               wrapped = [part]
+
               if wrapped not in compose['x-placement']:
                 compose['x-placement'].append(wrapped)
       else:

@@ -207,6 +207,26 @@ def test_parse_volumes_nfs(tmp_path, mocker, monkeypatch):
   assert service['volumes'] == ['db_nfs_src:/data:rw']
 
 
+def test_parse_volumes_does_not_check_regular_volume_sources(tmp_path, mocker, monkeypatch):
+  monkeypatch.chdir(tmp_path)
+
+  driver = MagicMock(spec=Driver)
+  compose_file = Path('docker-compose.yaml')
+  missing_source = './missing-src'
+  service = {'volumes': [f'{missing_source}:/data:ro']}
+
+  parse_volumes(
+    driver=driver,
+    service_name='app',
+    service=service,
+    compose_file_path=str(compose_file),
+    compose_volumes={},
+    volumes=[],
+  )
+
+  assert service['volumes'] == [f'{(tmp_path / "missing-src").resolve()}:/data:ro']
+
+
 def test_resolve_compose_file(tmp_path, mocker, monkeypatch):
   monkeypatch.chdir(tmp_path)
 

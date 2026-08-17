@@ -205,15 +205,9 @@ def parse_volumes(
       src, tgt, mode = parse_volume_entry(vol_entry)
       if src.startswith('~/'):
         expanded = os.path.expanduser(src)
-        if not os.path.exists(expanded):
-          raise FileNotFoundError(f'Volume source "{src}" not found (expanded path {expanded})')
         src = expanded
       elif src.startswith('./') or src.startswith('../'):
         resolved = (compose_dir / src).resolve()
-        if not resolved.exists():
-          raise FileNotFoundError(
-            f'Volume source "{src}" not found relative to {compose_file_path}'
-          )
         src = str(resolved)
       resolved_volumes.append(f'{src}:{tgt}:{mode}')
     else:

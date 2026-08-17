@@ -17,6 +17,7 @@ from unittest.mock import MagicMock
 from urllib import error as urllib_error
 
 from seto.core.docker import DockerCompose
+from seto.core.docker import DockerSwarm
 from seto.core.driver import Driver
 from seto.core.traefik import build_traefik_http_provider_state
 from seto.core.traefik import extract_traefik_route
@@ -171,6 +172,45 @@ def test_docker_compose_falls_back_to_stack_id_without_project_name(mocker):
   )
 
   assert compose.compose_project_name == 'fallback_stack'
+
+
+def test_docker_swarm_escapes_lone_dollar_signs_in_resolved_config(mocker):
+  mocker.patch('seto.core.shell.resolve_hostname', return_value='127.0.0.1')
+  mocker.patch('socket.gethostname', return_value='local-host')
+
+  driver = MagicMock(spec=Driver)
+  driver.stack_id = 'fallback_stack'
+  driver.debug = False
+  driver.storage_node = False
+  driver.host = MagicMock()
+
+  client = MagicMock()
+  client.networks.list.return_value = []
+
+  swarm = DockerSwarm(
+    config={
+      'services': {
+        'dashboard': {
+          'deploy': {
+            'labels': {
+              'traefik.http.routers.bluegate-static.rule': (
+                'Host(`bluegate.umsizi.net`) && '
+                'PathRegexp(`^/favicon\\.(?:ico|png|jpg|jpeg|svg|webp)$`)'
+              ),
+              'literal-template': '$${DOMAIN}',
+            }
+          }
+        }
+      }
+    },
+    driver=driver,
+    client=client,
+  )
+
+  resolved = swarm.resolved_config
+
+  assert '^/favicon\\\\.(?:ico|png|jpg|jpeg|svg|webp)$$`' in resolved
+  assert '$${DOMAIN}' in resolved
 
 
 def test_traefik_compose_route_registration_and_cleanup():

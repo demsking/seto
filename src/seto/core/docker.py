@@ -62,7 +62,7 @@ class Docker:
 
   @property
   def resolved_config(self) -> str:
-    return resolve_env_vars(json.dumps(self.config))
+    return _escape_docker_interpolation(resolve_env_vars(json.dumps(self.config)))
 
   @property
   def hostname(self) -> str:
@@ -113,7 +113,12 @@ class Docker:
     raise NotImplementedError()
 
 
-def match_node_constraint(node: Any, key: str, value: str) -> bool:
+def _escape_docker_interpolation(content: str) -> str:
+  """Escape lone dollar signs before piping resolved config to Docker CLIs."""
+  return re.sub(r'(?<!\$)\$(?!\$)', lambda _match: '$$', content)
+
+
+def _match_node_constraint(node: Any, key: str, value: str) -> bool:
   if not node.attrs:
     return False
 
@@ -246,7 +251,7 @@ class DockerCompose(Docker):
           label_key = label_key.strip()
           value = label_value.strip()
 
-          matched = match_node_constraint(node, label_key, value)
+          matched = _match_node_constraint(node, label_key, value)
           if self.driver.debug:
             logger.debug(
               '    Constraint: %s == %s -> %s', label_key, value, 'MATCHED' if matched else 'FAILED'
@@ -299,7 +304,7 @@ class DockerCompose(Docker):
           label_key = label_key.strip()
           value = label_value.strip()
 
-          if not match_node_constraint(node_obj, label_key, value):
+          if not _match_node_constraint(node_obj, label_key, value):
             match_group = False
             break
 

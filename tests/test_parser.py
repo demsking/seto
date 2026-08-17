@@ -77,19 +77,22 @@ def test_parse_nfs_volume_entry():
 def test_load_env_file(tmp_path):
   env_file = tmp_path / '.env'
   env_file.write_text(
-    'KEY1=value1\n# Comment\nKEY2="value2"\nKEY3=\'value3\'\nINVALID_LINE\n', encoding='utf-8'
+    'KEY1=value1\n# Comment\nKEY2="value2"\nKEY3=\'value3\'\nexport KEY4=value4\nINVALID_LINE\n',
+    encoding='utf-8',
   )
 
   # Ensure env is empty
   os.environ.pop('KEY1', None)
   os.environ.pop('KEY2', None)
   os.environ.pop('KEY3', None)
+  os.environ.pop('KEY4', None)
 
   load_env_file(str(env_file))
 
   assert os.environ.get('KEY1') == 'value1'
   assert os.environ.get('KEY2') == 'value2'
   assert os.environ.get('KEY3') == 'value3'
+  assert os.environ.get('KEY4') == 'value4'
 
 
 def test_resolve_env_vars(mocker):

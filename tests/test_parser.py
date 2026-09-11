@@ -210,6 +210,41 @@ def test_parse_volumes_nfs(tmp_path, mocker, monkeypatch):
   assert service['volumes'] == ['db_nfs_src:/data:rw']
 
 
+def test_parse_volumes_nfs_shared_relative_source_is_syncable(tmp_path, mocker, monkeypatch):
+  monkeypatch.chdir(tmp_path)
+
+  driver = MagicMock(spec=Driver)
+  driver.resolve_compose_volume.return_value = {'driver': 'local', 'driver_opts': {'type': 'nfs'}}
+
+  compose_file = Path('docker-compose.yaml')
+  vol_src = Path('shared_src')
+  vol_src.mkdir()
+
+  service = {'volumes': [], 'volumes-nfs': ['@./shared_src:/data:rw']}
+
+  compose_volumes = {}
+  volumes_list = []
+
+  parse_volumes(
+    driver=driver,
+    service_name='app',
+    service=service,
+    compose_file_path=str(compose_file),
+    compose_volumes=compose_volumes,
+    volumes=volumes_list,
+  )
+
+  assert len(volumes_list) == 1
+  vol = volumes_list[0]
+  assert vol.source == str(vol_src.resolve())
+  assert vol.is_relative_source is True
+  assert vol.target == 'shared_src'
+  assert vol.mount_folder == 'shared_src'
+
+  assert 'shared_src' in compose_volumes
+  assert service['volumes'] == ['shared_src:/data:rw']
+
+
 def test_parse_volumes_does_not_check_regular_volume_sources(tmp_path, mocker, monkeypatch):
   monkeypatch.chdir(tmp_path)
 

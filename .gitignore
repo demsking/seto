@@ -5,6 +5,7 @@
 .direnv/
 .ropeproject/
 .venv/
+.tmp/
 build/
 .seto/
 dist/

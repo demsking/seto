@@ -232,13 +232,13 @@ def parse_volumes(
         default_mode=default_volume_mount_mode,
         default_options=default_nfs_options,
       )
-
-      is_relative_source = source.startswith('./') or source.startswith('../')
       is_norename = False
 
       if source.startswith('@'):
         is_norename = True
         source = source[1:]
+
+      is_relative_source = source.startswith('./') or source.startswith('../')
 
       # Resolve source path
       if source.startswith('~/'):

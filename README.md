@@ -639,13 +639,28 @@ services:
   app:
     image: myapp:latest
     volumes-nfs:
-      - @shared-data:/app/data:rw
+      - "@shared-data:/app/data:rw"
 
   worker:
     image: myworker:latest
     volumes-nfs:
-      - @shared-data:/app/data:ro
+      - "@shared-data:/app/data:ro"
+
+  # Example of sharing a local folder source between services
+  # The folder content is synchronized to the storage node and reused by both services.
+  api:
+    image: my-api:latest
+    volumes-nfs:
+      - "@./data/shared:/srv/shared:rw"
+
+  jobs:
+    image: my-jobs:latest
+    volumes-nfs:
+      - "@./data/shared:/srv/shared:ro"
 ```
+
+For `@./...` sources, run `seto volumes sync` (or `seto deploy`, which syncs
+automatically when enabled) to copy local files to the shared NFS directory.
 
 #### **How It Works Under the Hood**
 

@@ -245,6 +245,103 @@ def test_parse_volumes_nfs_shared_relative_source_is_syncable(tmp_path, mocker, 
   assert service['volumes'] == ['shared_src:/data:rw']
 
 
+def test_parse_volumes_unshared_source_keeps_shared_volume(tmp_path, mocker, monkeypatch):
+  """A non-shared source reusing a shared `@name` must not delete that volume.
+
+  Regression: a service declaring ``volumes-nfs: [config:/...]`` used to pop the
+  top-level ``config`` volume generated for another service using ``@config``,
+  which made ``docker stack deploy`` fail with ``undefined volume "config"``.
+  """
+  monkeypatch.chdir(tmp_path)
+
+  driver = MagicMock(spec=Driver)
+  driver.stack_id = 'stack'
+  driver.resolve_compose_volume.side_effect = lambda volume: {
+    'driver': 'local',
+    'driver_opts': {'type': 'nfs', 'device': volume.mount_folder},
+  }
+
+  compose_data = {
+    'services': {
+      'parent': {'image': 'netdata/netdata:stable', 'volumes-nfs': ['@config:/etc/netdata']},
+      'child': {'image': 'netdata/netdata:stable', 'volumes-nfs': ['@config:/etc/netdata']},
+      'gpu': {'image': 'netdata/netdata:stable', 'volumes-nfs': ['config:/etc/netdata']},
+    }
+  }
+
+  resolved, _ = resolve_compose_file(
+    driver=driver,
+    compose_file_path=str(Path('netdata.yaml')),
+    compose_data=compose_data,
+    image_prefix='',
+  )
+
+  volumes = resolved['volumes']
+
+  assert 'config' in volumes
+  assert 'gpu_config' in volumes
+
+  for service in resolved['services'].values():
+    for entry in service['volumes']:
+      assert entry.split(':')[0] in volumes
+
+
+def test_resolve_prunes_only_unreferenced_volumes(tmp_path, mocker, monkeypatch):
+  monkeypatch.chdir(tmp_path)
+
+  driver = MagicMock(spec=Driver)
+  driver.stack_id = 'stack'
+  driver.resolve_compose_volume.return_value = {'driver': 'local', 'driver_opts': {'type': 'nfs'}}
+
+  compose_yaml = tmp_path / 'stack.yaml'
+  compose_yaml.write_text(
+    """
+services:
+  app:
+    image: nginx:latest
+    volumes:
+      - config:/data
+  db:
+    image: postgres:16
+    volumes-nfs:
+      - config:/var/lib/postgresql/data
+  orphan:
+    image: busybox
+    volumes-nfs:
+      - stale:/data
+volumes:
+  config: {}
+  stale: {}
+  never-used: {}
+""",
+    encoding='utf-8',
+  )
+
+  mocker.patch('seto.core.parser.load_env_file')
+
+  resolved = resolve(
+    Namespace(
+      namespace='test',
+      stack=str(tmp_path),
+      image_prefix='',
+      default_volume_mount_mode='rw',
+      default_nfs_options='rw,hard,noatime,nodiratime,nfsvers=4',
+    ),
+    driver,
+  )
+
+  volumes = resolved['volumes']
+
+  # Still mounted by a regular service volume — must survive.
+  assert 'config' in volumes
+  # Scoped NFS volume generated for db.
+  assert 'db_config' in volumes
+  # 'stale' is scoped to 'orphan_stale', orphaning the declared entry.
+  assert 'orphan_stale' in volumes
+  assert 'stale' not in volumes
+  assert 'never-used' not in volumes
+
+
 def test_parse_volumes_does_not_check_regular_volume_sources(tmp_path, mocker, monkeypatch):
   monkeypatch.chdir(tmp_path)
 

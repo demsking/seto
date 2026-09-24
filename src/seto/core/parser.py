@@ -266,8 +266,6 @@ def parse_volumes(
       if device_source and os.path.isfile(device_source):
         target_folder = os.path.dirname(target)
         volume_name = os.path.basename(source).replace('/', '-').replace('.', '')
-      else:
-        compose_volumes.pop(volume_name, None)
 
       if volume_mode == 'norename':
         volume_mode = 'rw'
@@ -294,6 +292,49 @@ def parse_volumes(
       compose_volumes[volume.name] = driver.resolve_compose_volume(volume)
       service['volumes'].append(f'{volume.name}:{target_folder}:{volume_mode}')
       volumes.append(volume)
+
+
+def collect_referenced_volume_names(services: dict) -> set[str]:
+  """Return every top-level volume name mounted by the given services."""
+  referenced: set[str] = set()
+
+  for service in services.values():
+    if not isinstance(service, dict):
+      continue
+
+    for entry in service.get('volumes', []) or []:
+      if isinstance(entry, str):
+        source, _, _ = parse_volume_entry(entry)
+        referenced.add(source)
+      elif isinstance(entry, dict):
+        mount_type = entry.get('type', 'volume')
+        source = entry.get('source')
+
+        if mount_type == 'volume' and isinstance(source, str):
+          referenced.add(source)
+
+  return referenced
+
+
+def prune_unused_volumes(compose_data: dict) -> None:
+  """Drop top-level volumes that no service references.
+
+  Non-shared ``volumes-nfs`` sources are scoped with the service name, which
+  can leave the original top-level declaration (and any same-named shared
+  volume) orphaned. Removing only the unreferenced entries keeps the resolved
+  output free of dangling volumes while preserving shared ``@`` volumes that
+  other services still mount.
+  """
+  volumes = compose_data.get('volumes')
+
+  if not isinstance(volumes, dict):
+    return
+
+  referenced = collect_referenced_volume_names(compose_data.get('services') or {})
+
+  for name in list(volumes):
+    if name not in referenced:
+      del volumes[name]
 
 
 def resolve_compose_file(

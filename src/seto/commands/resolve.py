@@ -20,6 +20,7 @@ from ..core.driver import Driver
 from ..core.network import resolve_global_networks
 from ..core.network import SETO_INTERNAL_NETWORKS
 from ..core.parser import parse_services
+from ..core.parser import prune_unused_volumes
 from ..core.volume import Volume
 
 
@@ -191,6 +192,8 @@ def resolve(
     skip_volumes=skip_volumes,
     env_file=env_file,
   )
+
+  prune_unused_volumes(compose)
 
   if not compose['x-placement']:
     compose['x-placement'] = None

@@ -25,6 +25,7 @@ from seto import storage_node_type
 from seto import storage_replica_type
 from seto.commands.deploy import execute_deploy_command
 from seto.commands.deploy import parse_compose_config
+from seto.commands.deploy import pull_and_push_images
 
 
 def test_storage_node_type(mocker):
@@ -255,3 +256,135 @@ def test_parse_compose_config_injects_seto_agent(mocker):
 
   compose_cls.assert_called_once()
   assert composes == [compose_cls.return_value]
+
+
+def test_pull_and_push_images_deduplicates_image_shared_by_services(mocker):
+  run = mocker.patch('seto.commands.deploy.subprocess.run')
+  config = {
+    'services': {
+      'netdata-a': {'image': 'netdata/netdata:stable'},
+      'netdata-b': {'image': 'netdata/netdata:stable'},
+      'netdata-c': {'image': 'netdata/netdata:stable'},
+    }
+  }
+
+  pull_and_push_images([config], 'registry.umsizi.net/')
+
+  run.assert_called_once()
+  assert run.call_args.args[0] == [
+    'docker',
+    'buildx',
+    'imagetools',
+    'create',
+    '--tag',
+    'registry.umsizi.net/netdata:stable',
+    'netdata/netdata:stable',
+  ]
+
+  for service in config['services'].values():
+    assert service['image'] == 'registry.umsizi.net/netdata:stable'
+
+
+def test_pull_and_push_images_deduplicates_image_across_configs(mocker):
+  run = mocker.patch('seto.commands.deploy.subprocess.run')
+  swarm_config = {'services': {'monitor': {'image': 'netdata/netdata:stable'}}}
+  compose_config = {'services': {'agent': {'image': 'netdata/netdata:stable'}}}
+
+  pull_and_push_images([swarm_config, compose_config], 'registry.local/')
+
+  run.assert_called_once()
+
+
+def test_pull_and_push_images_merges_platforms_of_shared_image(mocker):
+  run = mocker.patch('seto.commands.deploy.subprocess.run')
+  config = {
+    'services': {
+      'a': {
+        'image': 'example/app:1.0',
+        'deploy': {'placement': {'constraints': ['node.platform.arch == amd64']}},
+      },
+      'b': {
+        'image': 'example/app:1.0',
+        'deploy': {'placement': {'constraints': ['node.platform.arch == arm64']}},
+      },
+      'c': {
+        'image': 'example/app:1.0',
+        'deploy': {'placement': {'constraints': ['node.platform.arch == amd64']}},
+      },
+    }
+  }
+
+  pull_and_push_images([config], 'registry.local/')
+
+  run.assert_called_once()
+  assert run.call_args.args[0] == [
+    'docker',
+    'buildx',
+    'imagetools',
+    'create',
+    '--tag',
+    'registry.local/app:1.0',
+    '--platform',
+    'linux/amd64,linux/arm64',
+    'example/app:1.0',
+  ]
+
+
+def test_pull_and_push_images_all_platforms_wins_over_constraints(mocker):
+  run = mocker.patch('seto.commands.deploy.subprocess.run')
+  config = {
+    'services': {
+      'a': {
+        'image': 'example/app:1.0',
+        'deploy': {'placement': {'constraints': ['node.platform.arch == amd64']}},
+      },
+      'b': {'image': 'example/app:1.0'},
+    }
+  }
+
+  pull_and_push_images([config], 'registry.local/')
+
+  run.assert_called_once()
+  assert '--platform' not in run.call_args.args[0]
+
+
+def test_pull_and_push_images_mirrors_distinct_images_separately(mocker):
+  run = mocker.patch('seto.commands.deploy.subprocess.run')
+  config = {'services': {'a': {'image': 'nginx:1'}, 'b': {'image': 'redis:7'}}}
+
+  pull_and_push_images([config], 'registry.local/')
+
+  assert run.call_count == 2
+
+
+def test_pull_and_push_images_skips_plain_images_without_prefix(mocker):
+  run = mocker.patch('seto.commands.deploy.subprocess.run')
+  config = {'services': {'a': {'image': 'nginx:1'}}}
+
+  pull_and_push_images([config], '')
+
+  run.assert_not_called()
+  assert config['services']['a']['image'] == 'nginx:1'
+
+
+def test_pull_and_push_images_reads_from_line_for_generated_images(mocker, tmp_path):
+  run = mocker.patch('seto.commands.deploy.subprocess.run')
+  dockerfile = tmp_path / 'app.dockerfile'
+  dockerfile.write_text('FROM netdata/netdata:stable\nCOPY ./conf /conf\n', encoding='utf-8')
+  config = {
+    'services': {
+      'a': {
+        'image': 'registry.local/a:stable',
+        'build': {'context': '.', 'dockerfile': str(dockerfile)},
+      },
+      'b': {
+        'image': 'registry.local/b:stable',
+        'build': {'context': '.', 'dockerfile': str(dockerfile)},
+      },
+    }
+  }
+
+  pull_and_push_images([config], 'registry.local/')
+
+  assert run.call_count == 2
+  assert all('build' not in service for service in config['services'].values())

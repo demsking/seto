@@ -461,6 +461,7 @@ By default, Ṣeto **builds** custom images locally (from the Dockerfiles genera
 2. **Determines the platforms to mirror** — by default, every platform advertised by the source image manifest (e.g. `linux/amd64`, `linux/arm64`, `linux/arm/v7`) is mirrored. If the service defines `node.platform.arch` entries under `deploy.placement.constraints`, only those specific platforms are copied.
 3. **Mirrors the manifest** — runs `docker buildx imagetools create --tag <prefixed> [--platform ...] <source>` which copies the manifest list (and all selected platform blobs) to the target registry without a local pull.
 4. **Updates the resolved compose config** — `service.image` is set to the prefixed image name and the `build` key is removed, so the deploy stage that follows pulls the correct image from the registry without any local rebuild.
+5. **Deduplicates shared images** — when several services reference the same source image, its manifest is copied only once. The platform filters requested by those services are unioned; if any of them has no `node.platform.arch` constraint, the full manifest is mirrored.
 
 #### Platform filtering via placement constraints
 

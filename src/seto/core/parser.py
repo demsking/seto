@@ -362,6 +362,7 @@ def resolve_compose_file(
       service=service,
       configs=compose_configs,
       inject=inject,
+      compose_file_path=compose_file_path,
     )
 
     service_environment = service.get('environment', {})
@@ -412,6 +413,12 @@ def resolve_compose_file(
     if 'command' in service and service['command'] is None:
       del service['command']
 
+  resolve_local_configs(
+    updated_compose_data,
+    compose_file_path=compose_file_path,
+    inject=inject,
+  )
+
   updated_compose_data['configs'] = compose_configs
   updated_compose_data['volumes'] = compose_volumes
 
@@ -424,7 +431,15 @@ def parse_service_configs(
   *,
   configs: dict[str, TopLevelConfig],
   inject: bool = False,
+  compose_file_path: str = '',
 ) -> None:
+  """Turn relative file bind mounts into top-level configs.
+
+  Relative sources are resolved against the compose file directory so the
+  generated ``file`` entry stays valid no matter the current working
+  directory.
+  """
+  compose_dir = Path(compose_file_path).parent
   new_volumes: list[str] = []
   service_volumes: list[str] = service.get('volumes', [])
   service_configs: list[ServiceConfig] = service.get('configs', [])
@@ -434,7 +449,9 @@ def parse_service_configs(
       source, target, mode = parse_volume_entry(volume, 'r')
 
       if source.startswith('./') or source.startswith('../'):
-        if os.path.isfile(source):
+        resolved_source = (compose_dir / source).resolve()
+
+        if resolved_source.is_file():
           config_name = re.sub(
             r'_{2,}',
             '_',
@@ -442,13 +459,13 @@ def parse_service_configs(
           )
 
           if inject:
-            with open(source, encoding='utf-8') as config:
+            with resolved_source.open(encoding='utf-8') as config:
               configs[config_name] = {  # type: ignore
                 'content': config.read(),
               }
           else:
             configs[config_name] = {
-              'file': source,
+              'file': str(resolved_source),
             }
 
           service_configs.append(
@@ -466,6 +483,55 @@ def parse_service_configs(
   if len(new_volumes) != len(service_volumes):
     service['configs'] = service_configs
     service['volumes'] = new_volumes
+
+
+def resolve_local_configs(
+  compose_data: dict,
+  *,
+  compose_file_path: str,
+  inject: bool = False,
+) -> None:
+  """Anchor top-level ``configs`` files to the compose YAML location.
+
+  Docker CLIs invoked with ``-c -`` have no compose file location, so relative
+  ``configs.*.file`` entries are resolved against the current working
+  directory instead of the YAML. Mirroring the bind-mount behavior of
+  :func:`parse_volumes`, relative entries are rewritten as absolute paths
+  rooted at the compose file directory. When ``inject`` is set, file contents
+  are inlined as ``content`` so the target node needs no filesystem access.
+  """
+  configs = compose_data.get('configs')
+
+  if not isinstance(configs, dict):
+    return
+
+  compose_dir = Path(compose_file_path).parent
+
+  for config_name, definition in configs.items():
+    if not isinstance(definition, dict):
+      continue
+
+    file_source = definition.get('file')
+
+    if not isinstance(file_source, str) or not file_source:
+      continue
+
+    resolved = (
+      Path(file_source) if os.path.isabs(file_source) else (compose_dir / file_source).resolve()
+    )
+
+    if not resolved.is_file():
+      raise FileNotFoundError(
+        f'Config file "{file_source}" for "{config_name}" not found relative to {compose_file_path}'
+      )
+
+    if inject:
+      definition.pop('file', None)
+
+      with resolved.open(encoding='utf-8') as config:
+        definition['content'] = config.read()
+    else:
+      definition['file'] = str(resolved)
 
 
 def load_env_file(env_file_path: str) -> None:
@@ -610,7 +676,7 @@ def parse_services(
   output_volumes = []
 
   for service_file in services_files:
-    compose_data, _ = parse_compose_file(
+    compose_data, compose_file_path = parse_compose_file(
       service_file,
       skip_interpolation=skip_interpolation,
       env_file=env_file,
@@ -624,7 +690,7 @@ def parse_services(
     # resolve compose local volumes
     resolved_compose_data, volumes = resolve_compose_file(
       driver=driver,
-      compose_file_path=service_file,
+      compose_file_path=compose_file_path,
       compose_data=compose_data,
       default_volume_mount_mode=default_volume_mount_mode,
       default_nfs_options=default_nfs_options,

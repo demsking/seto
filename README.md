@@ -37,6 +37,7 @@
 - [Custom Volume Extensions](#custom-volume-extensions)
   - [1. NFS Shared Volumes (`volumes-nfs`)](#1-nfs-shared-volumes-volumes-nfs)
   - [2. Image-embedded Volumes (`volumes-image`)](#2-image-embedded-volumes-volumes-image)
+- [Local Config Files (`configs`)](#local-config-files-configs)
 - [Compose-Specific Deployments (x-mode: compose)](#compose-specific-deployments-x-mode-compose)
   - [Custom Compose Extensions](#custom-compose-extensions)
   - [Template Variable Replacement](#template-variable-replacement)
@@ -715,6 +716,32 @@ This is where the **image prefix** plays a critical role:
 - **Registry and Namespace Mapping**: It specifies the container registry URL and/or namespace where the custom-built image should be hosted.
 - **Image Resolution**: Without a prefix, a service named `web` in a namespace `my-namespace` and stack `my-stack` will resolve to `my-namespace-my-stack-web:alpine`. With `--image-prefix my-registry.com/another-namespace/`, the tag resolves to `my-registry.com/another-namespace/my-namespace-my-stack-web:alpine` (note: any underscores in the namespace or stack name are replaced with hyphens).
 - **Consistency**: Both the `resolve` and `deploy` commands support the `--image-prefix` CLI option (and the `SETO_IMAGE_PREFIX` environment variable) to ensure that the generated compose files, local build steps, and target image tags are fully aligned and prefix-resolved correctly before any build or push action occurs.
+
+## Local Config Files (`configs`)
+
+Ṣeto resolves relative `file` sources declared in a stack's top-level `configs`
+block against the directory containing the stack YAML, not the directory Ṣeto
+is invoked from:
+
+```yaml
+configs:
+  netdata_child_stream:
+    file: ./config/child.conf
+
+services:
+  netdata-child:
+    image: netdata/netdata:stable
+    configs:
+      - source: netdata_child_stream
+        target: /etc/netdata/stream.conf
+```
+
+Because Docker CLIs receive the stack on standard input (`-c -`), they cannot
+infer the stack location; without this resolution, `./config/child.conf` is
+looked up relative to the current working directory and deployment fails with
+`no such file or directory`. For `x-mode: compose` deployments the file
+contents are inlined as `content` so remote nodes do not need access to the
+source file. A missing file aborts the command with a `FileNotFoundError`.
 
 ## Compose-Specific Deployments (x-mode: compose)
 

@@ -130,7 +130,7 @@ def test_parse_service_configs(tmp_path, monkeypatch):
   assert config_entry['target'] == '/etc/config.json'
   assert config_entry['mode'] == 400  # parse_permission_mode('r') -> 400
   assert config_entry['source'] in configs
-  assert configs[config_entry['source']]['file'] == './config.json'
+  assert configs[config_entry['source']]['file'] == str(config_file.resolve())
 
   # Test with inject
   configs_inject = {}
@@ -138,6 +138,159 @@ def test_parse_service_configs(tmp_path, monkeypatch):
   parse_service_configs('my_service', service_inject, configs=configs_inject, inject=True)
   source_name = service_inject['configs'][0]['source']
   assert configs_inject[source_name]['content'] == '{"foo": "bar"}'
+
+
+def test_resolve_local_configs_relative_to_compose_file(tmp_path):
+  stack_dir = tmp_path / 'services' / 'enabled'
+  config_dir = stack_dir / 'config'
+  config_dir.mkdir(parents=True)
+  (config_dir / 'child.conf').write_text('stream\n', encoding='utf-8')
+
+  compose_file = stack_dir / 'monitor.yaml'
+  compose_file.write_text(
+    """
+configs:
+  netdata_child_stream:
+    file: ./config/child.conf
+services:
+  netdata-child:
+    image: netdata/netdata:stable
+    configs:
+      - source: netdata_child_stream
+        target: /etc/netdata/stream.conf
+""",
+    encoding='utf-8',
+  )
+
+  compose_data, compose_file_path = parse_compose_file(str(compose_file))
+  driver = MagicMock(spec=Driver)
+  driver.stack_id = 'stack'
+
+  resolved, _ = resolve_compose_file(
+    driver=driver,
+    compose_file_path=compose_file_path,
+    compose_data=compose_data,
+    image_prefix='',
+  )
+
+  # The path is anchored to the YAML directory, not the current working directory.
+  assert resolved['configs']['netdata_child_stream']['file'] == str(
+    (config_dir / 'child.conf').resolve()
+  )
+
+
+def test_resolve_local_configs_inlines_content_when_injecting(tmp_path):
+  compose_dir = tmp_path / 'stack'
+  compose_dir.mkdir()
+  (compose_dir / 'child.conf').write_text('stream\n', encoding='utf-8')
+  compose_file = compose_dir / 'monitor.yaml'
+  compose_file.write_text(
+    """
+configs:
+  netdata_child_stream:
+    file: ./child.conf
+  inline:
+    content: |
+      inline-content
+services:
+  app:
+    image: nginx:latest
+""",
+    encoding='utf-8',
+  )
+
+  compose_data, compose_file_path = parse_compose_file(str(compose_file))
+  driver = MagicMock(spec=Driver)
+  driver.stack_id = 'stack'
+
+  resolved, _ = resolve_compose_file(
+    driver=driver,
+    compose_file_path=compose_file_path,
+    compose_data=compose_data,
+    image_prefix='',
+    inject=True,
+  )
+
+  assert 'file' not in resolved['configs']['netdata_child_stream']
+  assert resolved['configs']['netdata_child_stream']['content'] == 'stream\n'
+  # Inline configs are left untouched.
+  assert resolved['configs']['inline']['content'] == 'inline-content\n'
+
+
+def test_resolve_local_configs_missing_file_raises(tmp_path):
+  compose_dir = tmp_path / 'stack'
+  compose_dir.mkdir()
+  compose_file = compose_dir / 'monitor.yaml'
+  compose_file.write_text(
+    """
+configs:
+  netdata_child_stream:
+    file: ./config/missing.conf
+services:
+  app:
+    image: nginx:latest
+""",
+    encoding='utf-8',
+  )
+
+  compose_data, compose_file_path = parse_compose_file(str(compose_file))
+  driver = MagicMock(spec=Driver)
+  driver.stack_id = 'stack'
+
+  with pytest.raises(FileNotFoundError, match='not found relative to'):
+    resolve_compose_file(
+      driver=driver,
+      compose_file_path=compose_file_path,
+      compose_data=compose_data,
+      image_prefix='',
+    )
+
+
+def test_parse_services_resolves_config_files_relative_to_yaml(tmp_path, mocker):
+  stack_dir = tmp_path / 'services' / 'enabled'
+  config_dir = stack_dir / 'config'
+  config_dir.mkdir(parents=True)
+  (config_dir / 'child.conf').write_text('stream\n', encoding='utf-8')
+  (config_dir / 'app.json').write_text('{"foo": "bar"}', encoding='utf-8')
+
+  service_yaml = stack_dir / 'monitor.yaml'
+  service_yaml.write_text(
+    """
+configs:
+  explicit:
+    file: ./config/child.conf
+services:
+  app:
+    image: nginx:latest
+    volumes:
+      - ./config/app.json:/etc/app.json:r
+    configs:
+      - source: explicit
+        target: /etc/explicit.conf
+""",
+    encoding='utf-8',
+  )
+
+  driver = MagicMock(spec=Driver)
+  driver.stack_id = 'stack'
+  driver.resolve_compose_volume.return_value = {}
+
+  mocker.patch('glob.glob', return_value=[str(service_yaml)])
+  mocker.patch('seto.core.parser.load_env_file')
+
+  resolved_list, _ = parse_services(driver=driver, stack=str(tmp_path), image_prefix='')
+  resolved = resolved_list[0]
+
+  assert resolved['configs']['explicit']['file'] == str((config_dir / 'child.conf').resolve())
+
+  # The relative file bind mount is converted to a config anchored to the YAML.
+  volume_configs = [
+    definition
+    for name, definition in resolved['configs'].items()
+    if name != 'explicit' and definition.get('file') == str((config_dir / 'app.json').resolve())
+  ]
+  assert len(volume_configs) == 1
+  assert resolved['services']['app']['volumes'] == []
 
 
 def test_parse_local_volumes(tmp_path, mocker, monkeypatch):

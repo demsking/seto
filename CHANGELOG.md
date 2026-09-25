@@ -2,6 +2,91 @@
 
 All notable changes to this project are documented in this file.
 
+## 5.0.0 - 2026-09-25
+
+### Breaking Changes
+
+- Grouped volume-related commands (`create`, `sync`, `mount`, `unmount`) under a nested `volumes` subcommand group (e.g., `seto volumes {create,sync,mount,unmount}`).
+- Renamed the `--project` CLI flag to `--namespace` to better align with orchestration terminology.
+- Renamed the SSH key CLI flag from `--key` to `--ssh-key` and added environment variable support (`SETO_SSH_KEY`).
+- Replaced the global `--manager` CLI flag with a persistent, localized configuration file (`.seto/config.json`).
+- Refactored storage architecture terminology: replaced "manager/replica" with "storage-node/storage-replicas".
+- Removed the `--clients` flag from `volumes mount` and `volumes unmount`; both commands now execute strictly on the local node.
+- Removed the `--storage-replicas` flag from the volume creation command.
+- Made the NFS storage base path configurable through `setup --storage-path` and changed its default from `/data` to `/mnt/nfs`.
+- Added `nfsvers=4` to the default NFS mount options, so shared volumes now mount over NFSv4 by default.
+- Restricted `x-placement` handling to Compose-mode stacks (`x-mode: compose`); Swarm-mode files now ignore `x-placement` and keep using native Swarm placement constraints.
+- Deploy-time volume synchronization now runs by default; the `--sync` opt-in flag was replaced with `--no-sync`.
+- The top-level `name` field of a Compose file is now honored only in Compose mode and excluded from Swarm/stack output.
+
+### Migration Notes
+
+- Re-run `seto setup` after upgrading. The storage base path is persisted in `.seto/config.json`; pass `--storage-path /data` to keep the previous `/data` location, or migrate existing data to the new `/mnt/nfs` default.
+- If a workload depends on a specific NFS version, set `SETO_DEFAULT_NFS_OPTIONS` (or `nfs-options`) explicitly without `nfsvers=4`.
+- Replace `seto --manager ...` invocations with the configuration file written by `seto setup`.
+- Replace old flags with their new names: `--project` becomes `--namespace`, `--key` becomes `--ssh-key`.
+- Replace `volumes mount --clients ...` / `volumes unmount --clients ...` with the flagless local-node commands, and drop `--storage-replicas` from volume creation.
+
+### Features
+
+- Added pull-and-push image mirroring (`seto deploy --pull`) that copies upstream multi-platform image manifests to the `--image-prefix` registry with `docker buildx imagetools create` instead of building locally, supporting registry mirroring, air-gapped deployments, and CI/CD flows.
+- Added platform filtering for mirrored images through `node.platform.arch` placement constraints; when no constraint is set, every platform in the source manifest is mirrored.
+- Added a Traefik HTTP provider integration for multi-host Docker Compose: `seto` extracts `traefik.http.*` labels, publishes the dynamic route configuration to a central `seto-provider` endpoint with automatic TTL cleanup, and injects the provider and namespace agent stacks during setup/deploy. The endpoint defaults to `http://seto-provider:8080/traefik` and is configurable with `SETO_TRAEFIK_HTTP_ENDPOINT`.
+- Added support for the full Docker Compose variable expansion syntax: `${VAR}`, `${VAR:-default}`, `${VAR-default}`, `${VAR:?error}`, `${VAR?error}`, `${VAR:+alternative}`, and `${VAR+alternative}`, including nested references inside default values and single-pass handling of escaped `$${VAR}` expressions.
+- Added an `--env-file` option (and `SETO_ENV_FILE` environment variable) to `resolve`, `deploy`, and `down` for loading an additional environment file that overrides variables from the `.env` files next to the compose file.
+- Added support for custom Compose project names via the top-level `name` field, used for container and resource naming across all `docker compose` commands.
+- Added resolution of local config files declared in the top-level `configs` block: relative `file` sources are resolved against the stack YAML directory and, for `x-mode: compose` deployments, inlined as `content` so remote nodes need no access to the source file.
+- Added multi-host deployment support to Docker Compose mode.
+- Added a `check` command to verify placement constraints across nodes.
+- Automatically create and provision shared volumes during `deploy` before stack deployment.
+- Added support for sharing NFS volumes across multiple services using the `@` prefix, including local folders such as `@./data/shared`.
+- Added dynamic detection of the `nobody` group (e.g., `nogroup` vs `nobody`) based on the target Linux distribution.
+
+### Improvements
+
+- Deduplicated image mirroring: an image shared by several services is copied once, with the platform filters of those services unioned; an unconstrained service mirrors the full manifest.
+- Limited deploy-time volume synchronization to new exports and to volumes with relative `./` or `../` sources, avoiding unnecessary copies of absolute host paths.
+- Pruned only top-level volumes that no service references, preserving shared `@` volumes and generated scoped NFS volumes.
+- Resolved relative `configs` file sources and relative file bind mounts against the directory containing the stack YAML instead of the current working directory.
+- Consolidated internal and declared networks during resolution so a single global networks entry is produced and every service references it.
+- Made NFS storage initialization decouple data synchronization from permission handling, so `chown` always runs for new exports, and removed the redundant namespace root export entry.
+- Automatically resolve relative volume paths against the compose file location.
+- Improved cross-distribution compatibility: user account creation falls back to `adduser` when `useradd` is unavailable, and the `seto` user's home directory is resolved dynamically through `getent passwd` for `.ssh` setup.
+- Replaced standard `print()` statements with Python structured `logging`.
+- Verified remote command exit codes in the shell layer to improve command error handling.
+- Overhauled project documentation and README with an architecture diagram, workflows, logo, and table of contents.
+- Widened the supported Python range to `>=3.12` (dropping the `<3.13` upper bound) and replaced the ad-hoc metadata and packaging scripts with a Makefile-driven release workflow based on `uv version`, adding `alpha`/`beta`/`rc`/`patch`/`minor`/`major` bump targets plus `package`, `publish`, and `check-clean` guards.
+
+### Fixes
+
+- Fixed `seto deploy` so stacks declared with `x-mode: compose` are deployed with Docker Compose only and no longer attempt a Docker Swarm stack deployment.
+- Fixed repeated deploy syncs failing with permission errors by uploading remote files to a temporary path and installing them into NFS volume paths with sudo.
+- Fixed resolution of `name` outside Compose mode and removed it entirely from Swarm-mode output.
+- Fixed shared volumes being pruned when a non-shared `volumes-nfs` source reused them, which caused `docker stack deploy` to fail with `undefined volume "<name>"`.
+- Fixed detection of relative sources prefixed with `@`, so `@./...` and `@../...` local folders are correctly recognized as syncable.
+- Escaped lone dollar signs in the resolved config so Docker CLI commands preserve literal `$` syntax (for example in Traefik labels) instead of interpreting it as variable interpolation.
+- Added `nfsvers=4` to the default NFS mount options to pin the NFS version and avoid implicit downgrades.
+- Fixed newly created NFS exports not receiving correct permissions when sync was disabled or the volume used an absolute source path.
+- Replaced the unsafe `ls`-based Let's Encrypt permission command with a recursive `find` that suppresses errors.
+- Handled nested remote directories when copying files through the remote shell.
+- Fixed the inline endpoint check to invoke `python3`, restoring compatibility on hosts without a `python` alias.
+
+### Documentation
+
+- Documented Traefik HTTP provider setup, route publication, and the shared overlay network requirement for multi-host Compose deployments.
+- Documented pull-and-push mirroring, platform filtering via `node.platform.arch`, and the `docker buildx` requirement.
+- Documented local config files (`configs`) resolution and content inlining for Compose deployments.
+- Documented custom Compose project names, the `--storage-path` option, custom `--env-file` usage, and the updated NFS defaults and environment variables.
+- Documented local editable CLI testing with `uv tool install --editable . --force`, similar to an `npm link` workflow.
+- Added installation instructions for `pipx` and `uv`, and added `AGENTS.md` describing the repository's development workflow for coding agents.
+
+### Testing
+
+- Expanded the suite with regression coverage for mode-filtered resolution and compose-only deploy orchestration, deploy sync defaults and forced overwrites, remote sudo copy behavior, and Compose-only placement resolution.
+- Added tests for image mirroring (shared images within and across configs, platform merging, the all-platforms override, distinct images, and `FROM` extraction), config file resolution and content injection, variable expansion operators, escaping of dollar signs, and custom Compose project names.
+- Added tests for NFS export permissions, safe Let's Encrypt file scanning, shared-volume pruning, and volume sync behavior for relative versus absolute sources.
+- Added project test coverage for CLI parsing, network configuration, shell commands, DNS resolution, and Docker Compose setup.
+
 ## 5.0.0-b5 - 2026-06-27
 
 ### Fixes

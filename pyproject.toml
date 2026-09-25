@@ -7,7 +7,7 @@ build-backend = "uv_build"
 
 [project]
 name = "seto"
-version = "5.0.0"
+version = "5.1.0"
 description = "An orchestrator for Docker Swarm and Compose deployments with device targeting and automated NFS storage provisioning"
 keywords = ["docker", "swarm", "manager"]
 authors = [{ name = "Sébastien Demanou", email = "demsking@gmail.com" }]

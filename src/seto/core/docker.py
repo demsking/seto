@@ -684,9 +684,7 @@ class DockerCompose(Docker):
       'print("1" if ok else "0")\\n'
     )
 
-    command = (
-      f'python -c {shlex.quote(script)} {shlex.quote(payload)} {shlex.quote(json.dumps(endpoints))}'
-    )
+    command = f'python3 -c {shlex.quote(script)} {shlex.quote(payload)} {shlex.quote(json.dumps(endpoints))}'
     output = self._exec_output(command, nodename)
 
     return output.strip().splitlines()[-1:] == ['1']

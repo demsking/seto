@@ -807,8 +807,9 @@ class DockerSwarm(Docker):
         del service['build']
 
     self.shell.run(
-      command=self.contexts.manager_cli(
-        f'stack deploy --prune --detach=true --resolve-image=always -c - {self.driver.stack_id}'
+      command=self.contexts.local_cli(
+        context=None,
+        subcommand=f'stack deploy --prune --detach=true --resolve-image=always -c - {self.driver.stack_id}',
       ),
       input=self.resolved_config,
     )

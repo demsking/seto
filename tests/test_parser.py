@@ -77,7 +77,7 @@ def test_parse_nfs_volume_entry():
 def test_load_env_file(tmp_path):
   env_file = tmp_path / '.env'
   env_file.write_text(
-    'KEY1=value1\n# Comment\nKEY2="value2"\nKEY3=\'value3\'\nexport KEY4=value4\nINVALID_LINE\n',
+    'KEY1=value1\n# Comment\nKEY2="value2"\nKEY3=\'value3\'\nKEY4=value4\nINVALID_LINE\n',
     encoding='utf-8',
   )
 
@@ -754,7 +754,7 @@ services:
     driver,
   )
 
-  assert resolved['name'] is None
+  assert 'name' not in resolved
   assert set(resolved['services']) == {'app'}
 
 

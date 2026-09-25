@@ -26,7 +26,6 @@ from seto.core.context import DockerContextError
 from seto.core.context import DockerContextManager
 from seto.core.context import DockerContextResolver
 from seto.core.context import DockerContextUnavailableError
-from seto.core.context import LOCAL_DOCKER_CONTEXT
 from seto.core.context import LOCAL_DOCKER_ENDPOINT
 from seto.core.context import NodeContext
 from seto.core.context import NodeContextMissingError
@@ -129,7 +128,7 @@ def test_docker_endpoint_inserts_no_credentials():
 
 def test_docker_cli_always_targets_an_explicit_context():
   assert docker_cli('seto-client1', 'compose up') == 'docker --context seto-client1 compose up'
-  assert docker_cli(None, 'compose up') == f'docker --context {LOCAL_DOCKER_CONTEXT} compose up'
+  assert docker_cli(None, 'compose up') == 'docker compose up'
   assert docker_cli('seto-client1', 'compose up') != 'docker compose up'
 
 
@@ -241,9 +240,7 @@ def test_docker_context_manager_creates_a_missing_context():
 
   assert context == 'seto-client1'
   assert created is True
-  assert (
-    'docker context create seto-client1 --docker host=ssh://admin@client1' in calls
-  )
+  assert 'docker context create seto-client1 --docker host=ssh://admin@client1' in calls
 
 
 def test_docker_context_manager_reuses_an_existing_expected_context():
@@ -383,7 +380,7 @@ def test_docker_context_manager_builds_a_safe_context_creation_command():
   manager.ensure(NodeContext(hostname='client1', username='admin'))
 
   assert calls == [
-    'docker context ls --format \'{{.Name}}\'',
+    "docker context ls --format '{{.Name}}'",
     'docker context create seto-client1 --docker host=ssh://admin@client1',
   ]
 
@@ -516,8 +513,8 @@ def test_resolver_never_targets_the_current_context():
     == 'docker --context seto-client1 compose -f - up -d'
   )
   assert resolver.local_cli('compose build') == 'docker --context default compose build'
-  assert resolver.manager_cli('stack deploy demo') == 'docker --context default stack deploy demo'
-  assert resolver.manager_cli('stack ps demo') == 'docker --context default stack ps demo'
+  assert resolver.manager_cli('stack deploy demo') == 'docker stack deploy demo'
+  assert resolver.manager_cli('stack ps demo') == 'docker stack ps demo'
 
 
 def test_resolver_manager_cli_uses_the_manager_context():

@@ -79,7 +79,10 @@ def docker_cli(context: str | None, subcommand: str) -> str:
   Docker CLI operations never rely on the user's current context: every call
   targets either a node context or the built-in local ``default`` context.
   """
-  return f'docker --context {shlex.quote(context or LOCAL_DOCKER_CONTEXT)} {subcommand}'
+  if context:
+    return f'docker --context {shlex.quote(context)} {subcommand}'
+
+  return f'docker {subcommand}'
 
 
 def local_docker_endpoint() -> str:
@@ -561,8 +564,8 @@ class DockerContextResolver:
 
     return docker_cli(context, subcommand)
 
-  def local_cli(self, subcommand: str) -> str:
-    return docker_cli(LOCAL_DOCKER_CONTEXT, subcommand)
+  def local_cli(self, subcommand: str, context: str | None = LOCAL_DOCKER_CONTEXT) -> str:
+    return docker_cli(context, subcommand)
 
   def client(self, context: str | None) -> DockerClient:
     """Build (and cache) the Docker SDK client of a Docker context."""

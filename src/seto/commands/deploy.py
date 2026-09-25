@@ -445,23 +445,6 @@ def deploy_namespace_stack(args, driver: Driver) -> None:
 
 
 def execute_deploy_command(args, driver: Driver) -> None:
-  all_volumes = parse_volumes_args(args, driver)
-
-  logger.info('Refreshing seto provider stack...')
-  deploy_seto_stack(args, driver)
-
-  if all_volumes:
-    logger.info('Automatically creating shared volumes...')
-
-    driver.connect()
-    driver.create_volumes(
-      volumes=all_volumes,
-      sync=getattr(args, 'sync', True),
-      force=getattr(args, 'force', False),
-    )
-    driver.apply_storage_node_changes()
-    driver.terminate()
-
   logger.info('Resolving %s services...', driver.stack_id)
   setattr(args, 'compose', False)
   swarm_config = resolve(args, driver, env_file=getattr(args, 'env_file', None))
@@ -497,58 +480,78 @@ def execute_deploy_command(args, driver: Driver) -> None:
     ),
   )
 
-  use_pull = getattr(args, 'pull', False)
+  if swarm_config['services'] or composes_items:
+    all_volumes = parse_volumes_args(args, driver)
 
-  # Mirror every image in a single pass so an image shared by several services is
-  # pushed only once, even when the services are spread across swarm and compose.
-  if use_pull:
-    pull_configs = ([swarm_config] if swarm_config['services'] else []) + [
-      compose.config for compose in composes_items
-    ]
+    if all_volumes:
+      logger.info('Automatically creating shared volumes...')
 
-    if pull_configs:
-      logger.info('Pulling and pushing %s images...', driver.stack_id)
-      pull_and_push_images(pull_configs, args.image_prefix)
+      driver.connect()
+      driver.create_volumes(
+        volumes=all_volumes,
+        sync=getattr(args, 'sync', True),
+        force=getattr(args, 'force', False),
+      )
+      driver.apply_storage_node_changes()
+      driver.terminate()
 
-  if swarm_config['services']:
-    if not use_pull:
-      swarm.build()
+    use_pull = getattr(args, 'pull', False)
 
-      logger.info('Pushing %s images...', driver.stack_id)
-      swarm.push()
+    # Mirror every image in a single pass so an image shared by several services is
+    # pushed only once, even when the services are spread across swarm and compose.
+    if use_pull:
+      pull_configs = ([swarm_config] if swarm_config['services'] else []) + [
+        compose.config for compose in composes_items
+      ]
 
-    logger.info('Deploying %s swarm environment...', driver.stack_id)
+      if pull_configs:
+        logger.info('Pulling and pushing %s images...', driver.stack_id)
+        pull_and_push_images(pull_configs, args.image_prefix)
 
-    if logger.level == logging.DEBUG:
-      swarm.info()
+    if swarm_config['services']:
+      if not use_pull:
+        swarm.build()
 
-    swarm.deploy()
+        logger.info('Pushing %s images...', driver.stack_id)
+        swarm.push()
 
-    if logger.level == logging.DEBUG:
+      logger.info('Deploying %s swarm environment...', driver.stack_id)
+
+      if driver.debug:
+        swarm.info()
+
+      swarm.deploy()
       swarm.ps()
-      swarm.logs()
 
-  if composes_items:
-    if not use_pull:
-      logger.info('Building %s compose images...', driver.stack_id)
+      if driver.debug:
+        swarm.logs()
+
+    if composes_items:
+      if not use_pull:
+        logger.info('Building %s compose images...', driver.stack_id)
+
+        for compose in composes_items:
+          compose.build()
+          compose.push()
+
+      logger.info('Pulling %s compose images...', driver.stack_id)
 
       for compose in composes_items:
-        compose.build()
-        compose.push()
+        if driver.debug:
+          compose.info()
 
-    logger.info('Pulling %s compose images...', driver.stack_id)
+        compose.pull()
 
-    for compose in composes_items:
-      if logger.level == logging.DEBUG:
-        compose.info()
+      logger.info('Deploying %s compose environment...', driver.stack_id)
 
-      compose.pull()
-
-    logger.info('Deploying %s compose environment...', driver.stack_id)
-
-    for compose in composes_items:
-      compose.deploy()
-
-      if logger.level == logging.DEBUG:
+      for compose in composes_items:
+        compose.deploy()
         compose.ps()
-        compose.logs()
+
+        if driver.debug:
+          compose.logs()
+
+      logger.info('Refreshing seto provider stack...')
+      deploy_seto_stack(args, driver)
+  else:
+    logger.warning('No services found on %s for deployment', driver.stack_id)

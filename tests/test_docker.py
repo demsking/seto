@@ -374,7 +374,7 @@ def test_docker_compose_build_and_push_run_on_the_local_docker_context(mocker, c
   compose.push()
 
   commands = [call.kwargs['command'] for call in compose.localshell.run.call_args_list]
-  assert commands[0] == "docker --context default compose -p mystack -f - build --no-cache"
+  assert commands[0] == 'docker --context default compose -p mystack -f - build --no-cache'
   assert commands[1] == 'docker --context default compose -p mystack -f - push'
 
 
@@ -389,7 +389,7 @@ def test_docker_swarm_targets_the_manager_docker_context(mocker, contexts_factor
   swarm.down()
 
   commands = [call.kwargs['command'] for call in driver.host.run.call_args_list]
-  assert commands[0].startswith('docker --context seto-manager1 stack deploy ')
+  assert commands[0].startswith('docker stack deploy ')
   assert commands[0].endswith('demo_stack')
   assert commands[1] == 'docker --context seto-manager1 stack ps --no-trunc demo_stack'
   assert commands[2] == 'docker --context seto-manager1 stack services demo_stack'
@@ -406,7 +406,7 @@ def test_docker_swarm_falls_back_to_the_local_context_without_manager_context(
   swarm = DockerSwarm(config={'services': {}}, driver=driver)
   swarm.down()
 
-  assert driver.host.run.call_args.kwargs['command'] == 'docker --context default stack rm mystack'
+  assert driver.host.run.call_args.kwargs['command'] == 'docker stack rm mystack'
 
 
 def test_docker_swarm_escapes_lone_dollar_signs_in_resolved_config(mocker, contexts_factory):

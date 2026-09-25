@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-import json
 import logging
 import os
 
+from ..core.context import DockerContextError
+from ..core.context import NodeContext
+from ..core.context import SetoConfig
 from ..core.driver import Driver
 from ..core.shell import Setting
 from .deploy import deploy_namespace_stack
@@ -23,24 +25,90 @@ from .deploy import deploy_seto_stack
 
 logger = logging.getLogger(__name__)
 
+CONFIG_DIR = '.seto'
+CONFIG_PATH = os.path.join(CONFIG_DIR, 'config.json')
+
 
 def execute_setup_command(args, driver: Driver) -> None:
   storage_replicas: list[Setting] = [items[0] for items in args.storage_replicas]
   clients: list[Setting] = [items[0] for items in args.clients]
 
   driver.connect()
-  deploy_seto_stack(args, driver)
-  deploy_namespace_stack(args, driver)
-  generate_ssh_keys(args, driver)
-  driver.setup_storage_node(storage_replicas, args.force)
-  driver.setup_nodes(clients, args.force)
-  driver.apply_storage_node_changes()
 
-  config_dir = '.seto'
-  os.makedirs(config_dir, exist_ok=True)
+  try:
+    # Host-level provisioning over the administrative SSH connection (NFS
+    # server/client packages, SSH key authorization, Docker daemon access).
+    generate_ssh_keys(args, driver)
+    driver.setup_storage_node(storage_replicas, args.force)
+    driver.setup_nodes(clients, args.force)
+
+    # Docker contexts are the canonical way Ṣeto reaches the Docker daemon of
+    # each configured node.
+    failed_nodes = provision_docker_contexts(driver, clients)
+
+    driver.contexts.config.driver = driver.slug
+    driver.contexts.config.storage_base_path = driver.storage_base_path
+    write_seto_config(driver.contexts.config)
+
+    if failed_nodes:
+      nodes = ', '.join(failed_nodes)
+      raise DockerContextError(
+        f'No usable Docker context could be established for nodes: {nodes}. The Docker contexts '
+        f'that were established have been saved in {CONFIG_PATH}; fix the reported errors and '
+        f"re-run 'seto setup' to repair the remaining nodes."
+      )
+
+    deploy_seto_stack(args, driver)
+    deploy_namespace_stack(args, driver)
+    driver.apply_storage_node_changes()
+  finally:
+    driver.terminate()
+
+
+def provision_docker_contexts(driver: Driver, clients: list[Setting]) -> list[str]:
+  """Create and verify the Docker context of every configured node.
+
+  Returns the hostnames of the nodes whose context could not be established.
+  Successfully verified contexts are recorded in the configuration; failing
+  nodes are recorded as incomplete so they are never targeted by a Compose
+  deployment until a later ``seto setup`` repairs them.
+  """
+  config = driver.contexts.config
+  manager = driver.contexts.manager
+  nodes = [
+    (NodeContext.from_setting(driver.storage_node.setting), True),
+    *[(NodeContext.from_setting(setting), False) for setting in clients],
+  ]
+
+  failed_nodes: list[str] = []
+
+  for node, is_storage_node in nodes:
+    # Reuse the context name persisted by a previous setup run.
+    configured = config.node_for(node.hostname)
+
+    if configured is not None:
+      node.docker_context = configured.docker_context
+
+    try:
+      context = manager.provision(node)
+    except DockerContextError as error:
+      logger.error("Error: unable to use node '%s' with Docker: %s", node.hostname, error)
+      node.docker_context = None
+      failed_nodes.append(node.hostname)
+    else:
+      node.docker_context = context
+      logger.info("Docker context '%s' is ready for node %s.", context, node.hostname)
+
+    config.upsert_node(node, storage_node=is_storage_node)
+
+  return failed_nodes
+
+
+def write_seto_config(config: SetoConfig) -> None:
+  os.makedirs(CONFIG_DIR, exist_ok=True)
 
   # Automatically add images/ to .seto/.gitignore
-  gitignore_path = os.path.join(config_dir, '.gitignore')
+  gitignore_path = os.path.join(CONFIG_DIR, '.gitignore')
 
   if os.path.exists(gitignore_path):
     with open(gitignore_path, encoding='utf-8') as file:
@@ -53,24 +121,9 @@ def execute_setup_command(args, driver: Driver) -> None:
     with open(gitignore_path, 'w', encoding='utf-8') as file:
       file.write('images/\n')
 
-  config_path = os.path.join(config_dir, 'config.json')
-  config_data = {
-    'driver': driver.slug,
-    'storage_base_path': driver.storage_base_path,
-    'storage_node': {
-      'hostname': driver.storage_node.setting.hostname,
-      'username': driver.storage_node.setting.username,
-      'ip': driver.storage_node.setting.ip,
-      'local': driver.storage_node.setting.local,
-    },
-  }
+  config.save(CONFIG_PATH)
 
-  with open(config_path, 'w', encoding='utf-8') as file:
-    json.dump(config_data, file, indent=2)
-
-  logger.info('Configuration file generated at %s\n', config_path)
-
-  driver.terminate()
+  logger.info('Configuration file generated at %s\n', CONFIG_PATH)
 
 
 def generate_ssh_keys(args, driver: Driver) -> None:
@@ -90,8 +143,8 @@ def generate_ssh_keys(args, driver: Driver) -> None:
 
 def print_ssh_copy_id_commands(args) -> None:
   pub_key_file_path = args.ssh_key + '.pub'
-  storage_replicas: list[Setting] = [items[0] for items in args.storage_replicas]
-  clients: list[Setting] = [items[0] for items in args.clients]
+  storage_replicas: list[Setting] = [items[0] for items in getattr(args, 'storage_replicas', [])]
+  clients: list[Setting] = [items[0] for items in getattr(args, 'clients', [])]
   remotes = storage_replicas + [
     item for item in clients if not any(item == setting for setting in storage_replicas)
   ]
@@ -100,10 +153,15 @@ def print_ssh_copy_id_commands(args) -> None:
 
   if remotes:
     for setting in remotes:
-      logger.info('\tssh-copy-id -i %s %s@%s', pub_key_file_path, Driver.setouser, setting.hostname)
+      logger.info(
+        '\tssh-copy-id -i %s %s@%s',
+        pub_key_file_path,
+        setting.username or '<user>',
+        setting.hostname,
+      )
   else:
-    logger.info('\tssh-copy-id -i %s %s@server1', pub_key_file_path, Driver.setouser)
-    logger.info('\tssh-copy-id -i %s %s@server2', pub_key_file_path, Driver.setouser)
-    logger.info('\tssh-copy-id -i %s %s@server3', pub_key_file_path, Driver.setouser)
+    logger.info('\tssh-copy-id -i %s <user>@server1', pub_key_file_path)
+    logger.info('\tssh-copy-id -i %s <user>@server2', pub_key_file_path)
+    logger.info('\tssh-copy-id -i %s <user>@server3', pub_key_file_path)
 
   logger.info('\nAfter copying the SSH keys, re-run the command to try again.')

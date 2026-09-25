@@ -137,7 +137,7 @@ def pick_label_value(labels: dict[str, Any], name: str) -> Any | str:
 def parse_compose_config(
   args,
   driver: Driver,
-  client: DockerClient,
+  manager_client: DockerClient,
   networks_list: list[str],
   swarm_config: dict,
   *,
@@ -147,7 +147,7 @@ def parse_compose_config(
 ) -> None:
   if compose_config['services']:
     compose = DockerCompose(
-      client=client,
+      client=manager_client,
       driver=driver,
       config=compose_config,
     )
@@ -326,9 +326,6 @@ def deploy_seto_stack(args, driver: Driver) -> None:
   driver.namespace = 'seto'
   driver.stack = None
 
-  # Building seto config
-  client = DockerClient.from_env()
-
   logger.info('Configuring seto services...')
   service_alias = 'seto-provider'
   internal_stack = {
@@ -351,7 +348,6 @@ def deploy_seto_stack(args, driver: Driver) -> None:
 
   logger.info('Deploying seto services...')
   swarm = DockerSwarm(
-    client=client,
     driver=driver,
     config=internal_stack,
   )
@@ -371,8 +367,6 @@ def deploy_namespace_stack(args, driver: Driver) -> None:
   driver.namespace = f'seto-{args.namespace}'
   driver.stack = None
 
-  # Building seto config
-  client = DockerClient.from_env()
   namespace_networks = resolve_global_networks(
     args.namespace,
     external_networks=[network.get('name', key) for key, network in SETO_INTERNAL_NETWORKS.items()],
@@ -412,7 +406,6 @@ def deploy_namespace_stack(args, driver: Driver) -> None:
 
   logger.info('Deploying namespace services...')
   swarm = DockerSwarm(
-    client=client,
     driver=driver,
     config=resolved_compose_data,
   )
@@ -428,7 +421,6 @@ def deploy_namespace_stack(args, driver: Driver) -> None:
 
 
 def execute_deploy_command(args, driver: Driver) -> None:
-  client = DockerClient.from_env()
   all_volumes = parse_volumes_args(args, driver)
 
   logger.info('Refreshing seto provider stack...')
@@ -450,8 +442,12 @@ def execute_deploy_command(args, driver: Driver) -> None:
   setattr(args, 'compose', False)
   swarm_config = resolve(args, driver, env_file=getattr(args, 'env_file', None))
 
+  # Swarm node discovery and Swarm orchestration both go through the manager
+  # Docker context (or the local daemon when no context is registered).
+  manager_client = driver.contexts.manager_client()
+
   swarm = DockerSwarm(
-    client=client,
+    client=manager_client,
     driver=driver,
     config=swarm_config,
   )
@@ -468,7 +464,7 @@ def execute_deploy_command(args, driver: Driver) -> None:
     execute=lambda config, placement: parse_compose_config(
       args,
       driver,
-      client,
+      manager_client,
       networks_list,
       swarm_config,
       compose_config=config,

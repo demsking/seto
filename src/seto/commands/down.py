@@ -14,8 +14,6 @@
 # ==============================================================================
 import logging
 
-from docker import DockerClient
-
 from ..core.docker import DockerCompose
 from ..core.docker import DockerSwarm
 from ..core.driver import Driver
@@ -25,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 def execute_down_command(args, driver: Driver) -> None:
-  client = DockerClient.from_env()
+  manager_client = driver.contexts.manager_client()
 
   # Docker Swarm
   logger.info('Stopping %s environment...', driver.stack_id)
@@ -33,7 +31,7 @@ def execute_down_command(args, driver: Driver) -> None:
 
   swarm = DockerSwarm(
     # stack=driver.stack_id,
-    client=client,
+    client=manager_client,
     driver=driver,
     config=resolve(args, driver, env_file=getattr(args, 'env_file', None)),
   )
@@ -47,7 +45,7 @@ def execute_down_command(args, driver: Driver) -> None:
   if config['services']:
     compose = DockerCompose(
       # stack=driver.stack_id,
-      client=client,
+      client=manager_client,
       driver=driver,
       config=config,
     )

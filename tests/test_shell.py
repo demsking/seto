@@ -310,3 +310,117 @@ def test_remote_shell_copy_file_uses_sudo_install_path(mocker):
     "sudo sh -c 'cp /tmp/seto-copy-id-model.bin /mnt/nfs/app/models/model.bin'"
   )
   mock_client.exec_command.assert_any_call("sudo sh -c 'rm -f /tmp/seto-copy-id-model.bin'")
+
+
+def test_provision_docker_access_authorizes_the_administrative_user_key(mocker, tmp_path):
+  from seto.drivers.nfs import NFSDriver
+  from seto.shells.local import LocalShell
+
+  key_file = tmp_path / 'id_rsa'
+  key_file.write_text('PRIVATE KEY', encoding='utf-8')
+  (tmp_path / 'id_rsa.pub').write_text('ssh-rsa AAAAB3Nza seto\n', encoding='utf-8')
+
+  setting = Setting(
+    hostname='client1', username='admin', password=None, local=False, ip='10.0.0.5'
+  )
+  shell = LocalShell(setting, str(key_file))
+  recorded: list[str] = []
+
+  def _run(command, **kwargs):
+    recorded.append(command)
+
+    if command.startswith('getent passwd'):
+      return '/home/admin\n'
+
+    return ''
+
+  mocker.patch.object(shell, 'run', side_effect=_run)
+  mkdir = mocker.patch.object(shell, 'mkdir')
+  authorized_keys = MagicMock()
+  authorized_keys.append.return_value = True
+  mocker.patch.object(shell, 'file', return_value=authorized_keys)
+
+  driver = NFSDriver(stack='app', namespace='ns', host=shell, storage_node=shell)
+  driver.provision_docker_access(shell, 'admin')
+
+  # No dedicated setouser account is created anymore
+  assert not any('useradd' in command for command in recorded)
+  assert not any('setouser' in command for command in recorded)
+  assert not any('adduser' in command for command in recorded)
+
+  # The administrative SSH user keeps its own key so the Docker context works
+  mkdir.assert_called_once_with('/home/admin/.ssh', user='admin', group='admin', mode='700')
+  authorized_keys.append.assert_called_once_with('ssh-rsa AAAAB3Nza seto\n')
+  authorized_keys.chown.assert_called_once_with('admin', 'admin')
+  authorized_keys.chmod.assert_called_once_with('600')
+
+  # The user can already use Docker: no group change is attempted
+  assert not any('usermod' in command for command in recorded)
+
+
+def test_provision_docker_access_grants_docker_group_only_when_needed(mocker, tmp_path):
+  from seto.drivers.nfs import NFSDriver
+  from seto.shells.local import LocalShell
+
+  key_file = tmp_path / 'id_rsa'
+  key_file.write_text('PRIVATE KEY', encoding='utf-8')
+  (tmp_path / 'id_rsa.pub').write_text('ssh-rsa AAAAB3Nza seto\n', encoding='utf-8')
+
+  setting = Setting(
+    hostname='client1', username='admin', password=None, local=False, ip='10.0.0.5'
+  )
+  shell = LocalShell(setting, str(key_file))
+  recorded: list[str] = []
+
+  def _run(command, **kwargs):
+    recorded.append(command)
+
+    if command.startswith('getent passwd'):
+      return '/home/admin\n'
+
+    if command.startswith('docker info'):
+      raise RuntimeError('permission denied while trying to connect to the Docker daemon')
+
+    return ''
+
+  mocker.patch.object(shell, 'run', side_effect=_run)
+  mocker.patch.object(shell, 'mkdir')
+  authorized_keys = MagicMock()
+  authorized_keys.append.return_value = False
+  mocker.patch.object(shell, 'file', return_value=authorized_keys)
+
+  driver = NFSDriver(stack='app', namespace='ns', host=shell, storage_node=shell)
+  driver.provision_docker_access(shell, 'admin')
+
+  assert 'usermod -aG docker admin' in recorded
+
+
+def test_provision_docker_access_skips_local_nodes(mocker):
+  from seto.drivers.nfs import NFSDriver
+  from seto.shells.local import LocalShell
+
+  setting = Setting(hostname='localhost', username=None, password=None, local=True, ip='127.0.0.1')
+  shell = LocalShell(setting)
+  run = mocker.patch.object(shell, 'run')
+
+  driver = NFSDriver(stack='app', namespace='ns', host=shell, storage_node=shell)
+  driver.provision_docker_access(shell, None)
+
+  run.assert_not_called()
+
+
+def test_provision_docker_access_requires_an_ssh_username(mocker):
+  from seto.core.context import DockerContextError
+  from seto.drivers.nfs import NFSDriver
+
+  setting = Setting(
+    hostname='client1', username=None, password=None, local=False, ip='10.0.0.5'
+  )
+  shell = MagicMock(spec=Shell)
+  shell.setting = setting
+  shell.hostname = 'client1'
+
+  driver = NFSDriver(stack='app', namespace='ns', host=shell, storage_node=shell)
+
+  with pytest.raises(DockerContextError, match='no SSH username'):
+    driver.provision_docker_access(shell, None)

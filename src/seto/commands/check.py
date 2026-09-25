@@ -14,8 +14,6 @@
 # ==============================================================================
 import logging
 
-from docker import DockerClient
-
 from ..core.docker import DockerCompose
 from ..core.driver import Driver
 from .resolve import resolve
@@ -23,23 +21,43 @@ from .resolve import resolve
 logger = logging.getLogger(__name__)
 
 
-def execute_check_command(args, driver: Driver) -> None:
-  client = DockerClient.from_env()
+def report_nodes(compose: DockerCompose) -> None:
+  """Report matched nodes along with their Docker context availability.
 
+  Host capability matching and Docker daemon accessibility are distinct: a node
+  may have the requested device and still be unusable as a Docker deployment
+  target because it has no Docker context registered by ``seto setup``.
+  """
+  matched_nodes = compose.matched_nodenames
+  deployable_nodes = set(compose.available_nodenames)
+
+  logger.info('Matched and verified nodes:')
+
+  for node in matched_nodes:
+    context = compose.contexts.context_for(node)
+
+    if node in deployable_nodes:
+      logger.info('  - %s (docker context: %s)', node, context)
+    elif context:
+      logger.info(
+        '  - %s (docker context: %s, excluded: physical device verification failed)', node, context
+      )
+    else:
+      logger.info('  - %s (no Docker context registered - run "seto setup")', node)
+
+
+def execute_check_command(args, driver: Driver) -> None:
   if args.constraint:
     # Use dynamic constraint from CLI
     compose_config = {
       'x-placement': args.constraint,
     }
     compose = DockerCompose(
-      client=client,
       driver=driver,
       config=compose_config,
     )
-    nodes = compose.nodenames
     logger.info('Nodes matching constraint %s:', args.constraint)
-    for node in nodes:
-      logger.info('  - %s', node)
+    report_nodes(compose)
   else:
     # Resolve placement from compose file
     setattr(args, 'compose', True)
@@ -48,7 +66,6 @@ def execute_check_command(args, driver: Driver) -> None:
     def parse_config(config, placement):
       if config['services']:
         compose = DockerCompose(
-          client=client,
           driver=driver,
           config=config,
         )
@@ -70,10 +87,6 @@ def execute_check_command(args, driver: Driver) -> None:
       logger.info('Target placement constraints: %s', compose.placement)
 
       try:
-        nodes = compose.nodenames
-        logger.info('Matched and verified nodes:')
-
-        for node in nodes:
-          logger.info('  - %s', node)
+        report_nodes(compose)
       except Exception as exception:
         logger.error('Error matching nodes: %s', exception)

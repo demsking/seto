@@ -14,6 +14,7 @@
 # ==============================================================================
 # pylint: disable=import-error,invalid-name,redefined-outer-name,no-member,use-implicit-booleaness-not-comparison
 import argparse
+import json
 import socket
 from argparse import Namespace
 from unittest.mock import MagicMock
@@ -169,9 +170,10 @@ def test_deploy_compose_only_stack_does_not_deploy_swarm(mocker):
   )
   driver = MagicMock()
   driver.stack_id = 'test_app'
+  manager_client = MagicMock()
+  driver.contexts.manager_client.return_value = manager_client
 
   mocker.patch('seto.commands.deploy.parse_volumes_args', return_value=[])
-  mocker.patch('seto.commands.deploy.DockerClient.from_env')
   refresh_provider = mocker.patch('seto.commands.deploy.deploy_seto_stack')
   resolved_configs = [
     {
@@ -208,6 +210,11 @@ def test_deploy_compose_only_stack_does_not_deploy_swarm(mocker):
   execute_deploy_command(args, driver)
 
   refresh_provider.assert_called_once_with(args, driver)
+
+  # Swarm node discovery and Compose deployments use the manager Docker context
+  driver.contexts.manager_client.assert_called_once_with()
+  assert swarm_cls.call_args.kwargs['client'] is manager_client
+  assert compose_cls.call_args.kwargs['client'] is manager_client
 
   swarm = swarm_cls.return_value
   swarm.build.assert_not_called()
@@ -388,3 +395,211 @@ def test_pull_and_push_images_reads_from_line_for_generated_images(mocker, tmp_p
 
   assert run.call_count == 2
   assert all('build' not in service for service in config['services'].values())
+
+
+def write_config_file(path, data):
+  directory = path / '.seto'
+  directory.mkdir(parents=True, exist_ok=True)
+  (directory / 'config.json').write_text(json.dumps(data), encoding='utf-8')
+
+
+def test_check_command_reloads_the_persisted_docker_context_mapping(mocker, tmp_path, monkeypatch):
+  monkeypatch.chdir(tmp_path)
+  write_config_file(
+    tmp_path,
+    {
+      'version': 2,
+      'driver': 'nfs',
+      'storage_node': {
+        'hostname': 'manager1',
+        'username': 'admin',
+        'ip': '10.0.0.1',
+        'local': False,
+        'docker_context': 'seto-manager1',
+      },
+      'nodes': [
+        {
+          'hostname': 'client1',
+          'username': 'admin',
+          'ip': '10.0.0.2',
+          'local': False,
+          'docker_context': 'seto-client1',
+        }
+      ],
+    },
+  )
+
+  check = mocker.patch('seto.execute_check_command')
+  mocker.patch('seto.core.shell.resolve_hostname', return_value='192.168.1.20')
+  mocker.patch('sys.argv', ['seto', 'check', '--constraint', 'host.device.gpu == true'])
+
+  with pytest.raises(SystemExit) as exc_info:
+    seto.run()
+
+  assert exc_info.value.code == 0
+  args, driver = check.call_args.args
+  assert args.namespace == tmp_path.name
+  assert driver.contexts.context_for('client1') == 'seto-client1'
+  assert driver.contexts.context_for('manager1') == 'seto-manager1'
+  assert driver.contexts.manager_context() == 'seto-manager1'
+
+
+def test_check_command_does_not_require_the_configuration_file(mocker, tmp_path, monkeypatch):
+  monkeypatch.chdir(tmp_path)
+
+  check = mocker.patch('seto.execute_check_command')
+  mocker.patch('seto.core.shell.resolve_hostname', return_value='192.168.1.20')
+  mocker.patch('sys.argv', ['seto', 'check', '--constraint', 'host.device.gpu == true'])
+
+  with pytest.raises(SystemExit) as exc_info:
+    seto.run()
+
+  assert exc_info.value.code == 0
+  _args, driver = check.call_args.args
+  assert driver.contexts.context_for('client1') is None
+  assert driver.contexts.manager_context() is None
+
+
+def test_nfs_stack_requires_the_setup_configuration(mocker, tmp_path, monkeypatch):
+  monkeypatch.chdir(tmp_path)
+  stack_dir = tmp_path / 'app'
+  stack_dir.mkdir()
+  (stack_dir / 'app.yaml').write_text(
+    'services:\n  web:\n    image: nginx\n    volumes-nfs:\n      - ./data:/data\n',
+    encoding='utf-8',
+  )
+
+  deploy = mocker.patch('seto.execute_deploy_command')
+  mocker.patch('seto.core.shell.resolve_hostname', return_value='192.168.1.20')
+  mocker.patch('sys.argv', ['seto', '--namespace', 'app', '--stack', 'app', 'deploy'])
+
+  with pytest.raises(SystemExit) as exc_info:
+    seto.run()
+
+  assert exc_info.value.code == 40
+  deploy.assert_not_called()
+
+
+def test_setup_command_reuses_the_existing_configuration(mocker, tmp_path, monkeypatch):
+  monkeypatch.chdir(tmp_path)
+  write_config_file(
+    tmp_path,
+    {
+      'version': 2,
+      'driver': 'nfs',
+      'storage_node': {
+        'hostname': 'manager1',
+        'username': 'admin',
+        'ip': '10.0.0.1',
+        'local': False,
+        'docker_context': 'seto-manager1',
+      },
+      'nodes': [],
+    },
+  )
+
+  mocker.patch('seto.execute_setup_command')
+  nfs_driver = mocker.patch('seto.NFSDriver')
+  mocker.patch('seto.core.shell.resolve_hostname', return_value='192.168.1.20')
+  mocker.patch(
+    'sys.argv',
+    [
+      'seto',
+      '--namespace',
+      'test',
+      'setup',
+      '--storage-node',
+      'nfs://admin@manager1',
+      '--storage-replicas',
+      'admin@replica1',
+      '--clients',
+      'admin@client1',
+    ],
+  )
+
+  with pytest.raises(SystemExit) as exc_info:
+    seto.run()
+
+  assert exc_info.value.code == 0
+  contexts = nfs_driver.call_args.kwargs['contexts']
+  assert contexts.context_for('manager1') == 'seto-manager1'
+
+
+def test_setup_command_starts_from_an_unusable_configuration_file(mocker, tmp_path, monkeypatch):
+  monkeypatch.chdir(tmp_path)
+  directory = tmp_path / '.seto'
+  directory.mkdir()
+  (directory / 'config.json').write_text('{ not json', encoding='utf-8')
+
+  mocker.patch('seto.execute_setup_command')
+  nfs_driver = mocker.patch('seto.NFSDriver')
+  mocker.patch('seto.core.shell.resolve_hostname', return_value='192.168.1.20')
+  mocker.patch(
+    'sys.argv',
+    [
+      'seto',
+      '--namespace',
+      'test',
+      'setup',
+      '--storage-node',
+      'nfs://admin@manager1',
+      '--storage-replicas',
+      'admin@replica1',
+      '--clients',
+      'admin@client1',
+    ],
+  )
+
+  with pytest.raises(SystemExit) as exc_info:
+    seto.run()
+
+  assert exc_info.value.code == 0
+  contexts = nfs_driver.call_args.kwargs['contexts']
+  assert contexts.config.storage_node is None
+
+
+def test_commands_without_nfs_volumes_still_load_the_docker_context_mapping(
+  mocker, tmp_path, monkeypatch
+):
+  monkeypatch.chdir(tmp_path)
+  write_config_file(
+    tmp_path,
+    {
+      'version': 2,
+      'driver': 'nfs',
+      'storage_node': {
+        'hostname': 'manager1',
+        'username': 'admin',
+        'ip': '10.0.0.1',
+        'local': False,
+        'docker_context': 'seto-manager1',
+      },
+      'nodes': [
+        {
+          'hostname': 'client1',
+          'username': 'admin',
+          'ip': '10.0.0.2',
+          'local': False,
+          'docker_context': 'seto-client1',
+        }
+      ],
+    },
+  )
+
+  stack_dir = tmp_path / 'app'
+  stack_dir.mkdir()
+  (stack_dir / 'app.yaml').write_text(
+    'services:\n  web:\n    image: nginx\n', encoding='utf-8'
+  )
+
+  deploy = mocker.patch('seto.execute_deploy_command')
+  mocker.patch('seto.core.shell.resolve_hostname', return_value='192.168.1.20')
+  mocker.patch('sys.argv', ['seto', '--namespace', 'app', '--stack', 'app', 'deploy'])
+
+  with pytest.raises(SystemExit) as exc_info:
+    seto.run()
+
+  assert exc_info.value.code == 0
+  _args, driver = deploy.call_args.args
+  assert driver.contexts.context_for('client1') == 'seto-client1'
+  assert driver.contexts.manager_context() == 'seto-manager1'

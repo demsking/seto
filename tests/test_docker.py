@@ -12,13 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-# pylint: disable=import-error,protected-access,invalid-name,unused-import,no-member
+# pylint: disable=import-error,protected-access,invalid-name,no-member
 from unittest.mock import MagicMock
 from urllib import error as urllib_error
 
+import pytest
+from seto.core.context import DockerContextUnavailableError
 from seto.core.docker import DockerCompose
 from seto.core.docker import DockerSwarm
 from seto.core.driver import Driver
+from seto.core.shell import Shell
 from seto.core.traefik import build_traefik_http_provider_state
 from seto.core.traefik import extract_traefik_route
 from seto.core.traefik import merge_traefik_provider_state
@@ -27,28 +30,38 @@ from seto.core.traefik import remove_traefik_http_registry_route
 from seto.core.traefik import sync_traefik_http_registry
 
 
-def test_docker_compose_node_hostname_replacement(mocker):
-  # Mock resolve_hostname and socket.gethostname
+def swarm_node(hostname, *, role='worker', labels=None, addr='10.42.0.5'):
+  node = MagicMock()
+  node.attrs = {
+    'Description': {'Hostname': hostname},
+    'Status': {'Addr': addr},
+    'Spec': {'Role': role, 'Labels': dict(labels or {})},
+  }
+
+  return node
+
+
+def docker_driver(mocker, contexts, *, debug=False, storage_node=False, stack_id='mystack'):
   mocker.patch('seto.core.shell.resolve_hostname', return_value='127.0.0.1')
   mocker.patch('socket.gethostname', return_value='local-host')
 
-  # Create driver mock
   driver = MagicMock(spec=Driver)
-  driver.stack_id = 'mystack'
-  driver.debug = True
-  driver.storage_node = False
-  driver.host = MagicMock()
+  driver.stack_id = stack_id
+  driver.debug = debug
+  driver.storage_node = storage_node
+  driver.host = MagicMock(spec=Shell)
+  driver.contexts = contexts
 
-  # Create client mock
+  return driver
+
+
+def test_docker_compose_targets_node_docker_context(mocker, contexts_factory):
+  contexts = contexts_factory(nodes={'node1': 'seto-node1'})
+  driver = docker_driver(mocker, contexts, debug=True)
+
   client = MagicMock()
-  node1 = MagicMock()
-  node1.attrs = {
-    'Description': {'Hostname': 'node1'},
-    'Spec': {'Role': 'worker', 'Labels': {}},
-  }
-  client.nodes.list.return_value = [node1]
+  client.nodes.list.return_value = [swarm_node('node1')]
 
-  # Configuration using template placeholder
   config = {
     'x-placement': ['node.hostname==node1'],
     'services': {
@@ -64,55 +77,238 @@ def test_docker_compose_node_hostname_replacement(mocker):
 
   compose = DockerCompose(config=config, driver=driver, client=client)
 
-  # Verify nodenames
   assert compose.nodenames == ['node1']
+  assert compose.matched_nodenames == ['node1']
 
-  # Mock _remote_node_run and shell.run
-  remote_node_run = mocker.patch.object(compose, '_remote_node_run')
-  mocker.patch.object(compose.shell, 'run')
-
-  # Run info()
+  # info()
   compose.info()
 
-  # Verify that _remote_node_run was called with replaced hostname in the input
-  remote_node_run.assert_called_once()
-  _args, kwargs = remote_node_run.call_args
-  assert kwargs['hostname'] == 'node1'
-  assert 'node1' in kwargs['input']
-  assert '{{ .Node.Hostname }}' not in kwargs['input']
-  assert '{{.Node.Hostname}}' not in kwargs['input']
+  assert driver.host.run.call_count == 1
+  command = driver.host.run.call_args.kwargs['command']
+  assert command.startswith('docker --context seto-node1 compose ')
+  assert 'ssh' not in command
+  assert '--context default' not in command
 
-  # Reset mock and run deploy()
-  remote_node_run.reset_mock()
+  payload = driver.host.run.call_args.kwargs['input']
+  assert 'node1' in payload
+  assert '{{ .Node.Hostname }}' not in payload
+  assert '{{.Node.Hostname}}' not in payload
+
+  # deploy() targets the same context, never the current/local one
+  driver.host.run.reset_mock()
   compose.deploy()
 
-  # Verify that _remote_node_run was called with replaced hostname in the input
-  remote_node_run.assert_called_once()
-  _args, kwargs = remote_node_run.call_args
-  assert kwargs['hostname'] == 'node1'
-  assert 'node1' in kwargs['input']
-  assert '{{ .Node.Hostname }}' not in kwargs['input']
-  assert '{{.Node.Hostname}}' not in kwargs['input']
+  assert driver.host.run.call_count == 1
+  assert driver.host.run.call_args.kwargs['command'].startswith('docker --context seto-node1 compose ')
+  assert 'node1' in driver.host.run.call_args.kwargs['input']
 
 
-def test_docker_compose_uses_defined_project_name_for_compose_commands(mocker):
-  mocker.patch('seto.core.shell.resolve_hostname', return_value='127.0.0.1')
-  mocker.patch('socket.gethostname', return_value='local-host')
-
-  driver = MagicMock(spec=Driver)
-  driver.stack_id = 'fallback_stack'
-  driver.debug = False
-  driver.storage_node = False
-  driver.host = MagicMock()
+@pytest.mark.parametrize(
+  'operation',
+  ['pull', 'info', 'deploy', 'ps', 'logs', 'down'],
+)
+def test_docker_compose_lifecycle_operations_always_target_the_node_context(
+  mocker, contexts_factory, operation
+):
+  contexts = contexts_factory(nodes={'node1': 'seto-node1'})
+  driver = docker_driver(mocker, contexts)
 
   client = MagicMock()
-  node = MagicMock()
-  node.attrs = {
-    'Description': {'Hostname': 'node1'},
-    'Status': {'Addr': '10.42.0.5'},
-    'Spec': {'Role': 'worker', 'Labels': {}},
-  }
-  client.nodes.list.return_value = [node]
+  client.nodes.list.return_value = [swarm_node('node1')]
+
+  compose = DockerCompose(
+    config={
+      'x-placement': ['node.hostname==node1'],
+      'services': {'app': {'image': 'nginx'}},
+    },
+    driver=driver,
+    client=client,
+  )
+
+  mocker.patch.object(compose, 'prepare_traefik_publication')
+  mocker.patch.object(compose, '_publish_traefik_routes')
+  mocker.patch.object(compose, '_remove_traefik_routes')
+
+  getattr(compose, operation)()
+
+  assert driver.host.run.call_count >= 1
+
+  for call in driver.host.run.call_args_list:
+    command = call.kwargs['command']
+    assert command.startswith('docker --context seto-node1 compose ')
+    assert '--context default' not in command
+    assert not command.startswith('ssh')
+
+
+def test_docker_compose_excludes_matching_node_without_docker_context(mocker, contexts_factory):
+  contexts = contexts_factory(nodes={'node1': 'seto-node1'})
+  driver = docker_driver(mocker, contexts)
+
+  client = MagicMock()
+  client.nodes.list.return_value = [swarm_node('node1'), swarm_node('node2')]
+
+  compose = DockerCompose(
+    config={
+      'x-placement': ['node.role==worker'],
+      'services': {'app': {'image': 'nginx'}},
+    },
+    driver=driver,
+    client=client,
+  )
+
+  # node2 matches the hardware constraints but has no Docker context: it must
+  # never become a Compose deployment target.
+  assert compose.matched_nodenames == ['node1', 'node2']
+  assert compose.available_nodenames == ['node1']
+  assert compose.nodenames == ['node1']
+
+  compose.deploy()
+
+  assert driver.host.run.call_count == 1
+  assert 'seto-node1' in driver.host.run.call_args.kwargs['command']
+
+
+def test_docker_compose_rejects_placement_without_any_docker_context(mocker, contexts_factory):
+  contexts = contexts_factory()
+  driver = docker_driver(mocker, contexts)
+
+  client = MagicMock()
+  client.nodes.list.return_value = [swarm_node('node1')]
+
+  compose = DockerCompose(
+    config={'x-placement': ['node.role==worker'], 'services': {'app': {'image': 'nginx'}}},
+    driver=driver,
+    client=client,
+  )
+
+  assert compose.matched_nodenames == ['node1']
+  assert not compose.available_nodenames
+
+  with pytest.raises(ValueError, match='seto setup'):
+    _ = compose.nodenames
+
+  with pytest.raises(ValueError):
+    compose.deploy()
+
+  driver.host.run.assert_not_called()
+
+
+def test_docker_compose_targets_every_context_backed_matching_node(mocker, contexts_factory):
+  contexts = contexts_factory(nodes={'node1': 'seto-node1', 'node2': 'seto-node2'})
+  driver = docker_driver(mocker, contexts, debug=True)
+
+  client = MagicMock()
+  client.nodes.list.return_value = [swarm_node('node1'), swarm_node('node2')]
+
+  compose = DockerCompose(
+    config={
+      'x-placement': ['node.role==worker'],
+      'services': {'app': {'image': 'nginx'}},
+    },
+    driver=driver,
+    client=client,
+  )
+
+  assert compose.nodenames == ['node1', 'node2']
+
+  compose.deploy()
+
+  commands = [call.kwargs['command'] for call in driver.host.run.call_args_list]
+  assert any('--context seto-node1 compose' in command for command in commands)
+  assert any('--context seto-node2 compose' in command for command in commands)
+
+
+def test_docker_compose_matches_host_role_and_name_constraints(mocker, contexts_factory):
+  contexts = contexts_factory(
+    nodes={'worker-node-1': 'seto-worker-node-1', 'manager-1': 'seto-manager-1'}
+  )
+  driver = docker_driver(mocker, contexts)
+
+  client = MagicMock()
+  client.nodes.list.return_value = [
+    swarm_node('worker-node-1'),
+    swarm_node('manager-1', role='manager'),
+  ]
+
+  by_role = DockerCompose(
+    config={'x-placement': ['host.role == worker'], 'services': {'app': {'image': 'nginx'}}},
+    driver=driver,
+    client=client,
+  )
+  assert by_role.nodenames == ['worker-node-1']
+
+  by_name = DockerCompose(
+    config={
+      'x-placement': ['host.name == manager-1'],
+      'services': {'app': {'image': 'nginx'}},
+    },
+    driver=driver,
+    client=client,
+  )
+  assert by_name.nodenames == ['manager-1']
+
+
+def test_docker_compose_verifies_devices_over_administrative_ssh(mocker, contexts_factory):
+  contexts = contexts_factory(nodes={'node1': 'seto-node1'})
+  driver = docker_driver(mocker, contexts, debug=True)
+
+  node_shell = MagicMock(spec=Shell)
+  mocker.patch.object(contexts, 'node_shell', return_value=node_shell)
+
+  client = MagicMock()
+  client.nodes.list.return_value = [swarm_node('node1')]
+
+  compose = DockerCompose(
+    config={
+      'x-placement': ['host.device.gpu == true'],
+      'services': {'app': {'image': 'nginx'}},
+    },
+    driver=driver,
+    client=client,
+  )
+
+  assert compose.nodenames == ['node1']
+  node_shell.connect.assert_called_once()
+  node_shell.run.assert_called_once()
+  assert 'nvidia' in node_shell.run.call_args.args[0]
+
+
+def test_docker_compose_excludes_node_whose_device_check_fails(mocker, contexts_factory, caplog):
+  contexts = contexts_factory(nodes={'node1': 'seto-node1', 'node2': 'seto-node2'})
+  driver = docker_driver(mocker, contexts)
+
+  failing_shell = MagicMock(spec=Shell)
+  failing_shell.run.side_effect = Exception('GPU device not found or not configured for Docker')
+  good_shell = MagicMock(spec=Shell)
+
+  def node_shell(hostname):
+    return failing_shell if hostname == 'node1' else good_shell
+
+  mocker.patch.object(contexts, 'node_shell', side_effect=node_shell)
+
+  client = MagicMock()
+  client.nodes.list.return_value = [swarm_node('node1'), swarm_node('node2')]
+
+  compose = DockerCompose(
+    config={
+      'x-placement': ['host.device.gpu == true'],
+      'services': {'app': {'image': 'nginx'}},
+    },
+    driver=driver,
+    client=client,
+  )
+
+  assert compose.matched_nodenames == ['node1', 'node2']
+  assert compose.available_nodenames == ['node2']
+  assert 'physical check failed' in caplog.text
+
+
+def test_docker_compose_uses_defined_project_name_for_compose_commands(mocker, contexts_factory):
+  contexts = contexts_factory(nodes={'node1': 'seto-node1'})
+  driver = docker_driver(mocker, contexts)
+
+  client = MagicMock()
+  client.nodes.list.return_value = [swarm_node('node1')]
 
   compose = DockerCompose(
     config={
@@ -137,30 +333,18 @@ def test_docker_compose_uses_defined_project_name_for_compose_commands(mocker):
   compose.logs()
   compose.down()
 
-  assert run_calls[0][0] == 'docker compose -p original-project -f - up -d --remove-orphans'
-  assert run_calls[1][0] == 'docker compose -p original-project -f - ps'
-  assert run_calls[2][0] == 'docker compose -p original-project -f - logs -n 10'
-  assert run_calls[3][0] == 'docker compose -p original-project -f - down'
+  assert run_calls[0][0] == 'compose -p original-project -f - up -d --remove-orphans'
+  assert run_calls[1][0] == 'compose -p original-project -f - ps'
+  assert run_calls[2][0] == 'compose -p original-project -f - logs -n 10'
+  assert run_calls[3][0] == 'compose -p original-project -f - down'
 
 
-def test_docker_compose_falls_back_to_stack_id_without_project_name(mocker):
-  mocker.patch('seto.core.shell.resolve_hostname', return_value='127.0.0.1')
-  mocker.patch('socket.gethostname', return_value='local-host')
-
-  driver = MagicMock(spec=Driver)
-  driver.stack_id = 'fallback_stack'
-  driver.debug = False
-  driver.storage_node = False
-  driver.host = MagicMock()
+def test_docker_compose_falls_back_to_stack_id_without_project_name(mocker, contexts_factory):
+  contexts = contexts_factory(nodes={'node1': 'seto-node1'})
+  driver = docker_driver(mocker, contexts, stack_id='fallback_stack')
 
   client = MagicMock()
-  node = MagicMock()
-  node.attrs = {
-    'Description': {'Hostname': 'node1'},
-    'Status': {'Addr': '10.42.0.5'},
-    'Spec': {'Role': 'worker', 'Labels': {}},
-  }
-  client.nodes.list.return_value = [node]
+  client.nodes.list.return_value = [swarm_node('node1')]
 
   compose = DockerCompose(
     config={
@@ -174,15 +358,60 @@ def test_docker_compose_falls_back_to_stack_id_without_project_name(mocker):
   assert compose.compose_project_name == 'fallback_stack'
 
 
-def test_docker_swarm_escapes_lone_dollar_signs_in_resolved_config(mocker):
-  mocker.patch('seto.core.shell.resolve_hostname', return_value='127.0.0.1')
-  mocker.patch('socket.gethostname', return_value='local-host')
+def test_docker_compose_build_and_push_run_on_the_local_docker_context(mocker, contexts_factory):
+  contexts = contexts_factory(nodes={'node1': 'seto-node1'})
+  driver = docker_driver(mocker, contexts)
 
-  driver = MagicMock(spec=Driver)
-  driver.stack_id = 'fallback_stack'
-  driver.debug = False
-  driver.storage_node = False
-  driver.host = MagicMock()
+  compose = DockerCompose(
+    config={'services': {'app': {'image': 'nginx'}}},
+    driver=driver,
+    client=MagicMock(),
+  )
+
+  mocker.patch.object(compose, 'prepare_traefik_publication')
+  compose.localshell = MagicMock(spec=Shell)
+  compose.build()
+  compose.push()
+
+  commands = [call.kwargs['command'] for call in compose.localshell.run.call_args_list]
+  assert commands[0] == "docker --context default compose -p mystack -f - build --no-cache"
+  assert commands[1] == 'docker --context default compose -p mystack -f - push'
+
+
+def test_docker_swarm_targets_the_manager_docker_context(mocker, contexts_factory):
+  contexts = contexts_factory(storage_node=('manager1', 'seto-manager1'))
+  driver = docker_driver(mocker, contexts, storage_node=MagicMock(), stack_id='demo_stack')
+
+  swarm = DockerSwarm(config={'services': {'app': {'image': 'nginx'}}}, driver=driver)
+  swarm.deploy()
+  swarm.ps()
+  swarm.logs()
+  swarm.down()
+
+  commands = [call.kwargs['command'] for call in driver.host.run.call_args_list]
+  assert commands[0].startswith('docker --context seto-manager1 stack deploy ')
+  assert commands[0].endswith('demo_stack')
+  assert commands[1] == 'docker --context seto-manager1 stack ps --no-trunc demo_stack'
+  assert commands[2] == 'docker --context seto-manager1 stack services demo_stack'
+  assert commands[3] == 'docker --context seto-manager1 service logs -n 10 demo_stack_app'
+  assert commands[4] == 'docker --context seto-manager1 stack rm demo_stack'
+
+
+def test_docker_swarm_falls_back_to_the_local_context_without_manager_context(
+  mocker, contexts_factory
+):
+  contexts = contexts_factory(storage_node=('manager1', None))
+  driver = docker_driver(mocker, contexts, storage_node=MagicMock())
+
+  swarm = DockerSwarm(config={'services': {}}, driver=driver)
+  swarm.down()
+
+  assert driver.host.run.call_args.kwargs['command'] == 'docker --context default stack rm mystack'
+
+
+def test_docker_swarm_escapes_lone_dollar_signs_in_resolved_config(mocker, contexts_factory):
+  contexts = contexts_factory(storage_node=('manager1', 'seto-manager1'))
+  driver = docker_driver(mocker, contexts, storage_node=False)
 
   client = MagicMock()
   client.networks.list.return_value = []
@@ -390,24 +619,12 @@ def test_remove_traefik_http_registry_route_falls_back_to_localhost(mocker):
   assert ok is True
 
 
-def test_compose_publishes_only_traefik_services_with_router_and_port(mocker):
-  mocker.patch('seto.core.shell.resolve_hostname', return_value='127.0.0.1')
-  mocker.patch('socket.gethostname', return_value='local-host')
-
-  driver = MagicMock(spec=Driver)
-  driver.stack_id = 'oremi_iot_mali'
-  driver.debug = False
-  driver.storage_node = False
-  driver.host = MagicMock()
+def test_compose_publishes_only_traefik_services_with_router_and_port(mocker, contexts_factory):
+  contexts = contexts_factory(nodes={'mali': 'seto-mali'})
+  driver = docker_driver(mocker, contexts, stack_id='oremi_iot_mali')
 
   client = MagicMock()
-  node = MagicMock()
-  node.attrs = {
-    'Description': {'Hostname': 'mali'},
-    'Status': {'Addr': '10.42.0.5'},
-    'Spec': {'Role': 'worker', 'Labels': {}},
-  }
-  client.nodes.list.return_value = [node]
+  client.nodes.list.return_value = [swarm_node('mali')]
 
   config = {
     'x-placement': ['node.hostname==mali'],
@@ -465,24 +682,14 @@ def test_compose_publishes_only_traefik_services_with_router_and_port(mocker):
   )
 
 
-def test_compose_publishes_distinct_host_ports_for_multiple_traefik_services(mocker):
-  mocker.patch('seto.core.shell.resolve_hostname', return_value='127.0.0.1')
-  mocker.patch('socket.gethostname', return_value='local-host')
-
-  driver = MagicMock(spec=Driver)
-  driver.stack_id = 'oremi_iot_mali'
-  driver.debug = False
-  driver.storage_node = False
-  driver.host = MagicMock()
+def test_compose_publishes_distinct_host_ports_for_multiple_traefik_services(
+  mocker, contexts_factory
+):
+  contexts = contexts_factory(nodes={'mali': 'seto-mali'})
+  driver = docker_driver(mocker, contexts, stack_id='oremi_iot_mali')
 
   client = MagicMock()
-  node = MagicMock()
-  node.attrs = {
-    'Description': {'Hostname': 'mali'},
-    'Status': {'Addr': '10.42.0.5'},
-    'Spec': {'Role': 'worker', 'Labels': {}},
-  }
-  client.nodes.list.return_value = [node]
+  client.nodes.list.return_value = [swarm_node('mali')]
 
   config = {
     'x-placement': ['node.hostname==mali'],
@@ -509,9 +716,9 @@ def test_compose_publishes_distinct_host_ports_for_multiple_traefik_services(moc
   assert compose.config['services']['ps4']['ports'] == ['3000', '8082']
 
   def _exec_output_stub(command, _nodename):
-    if command.startswith('docker compose -p oremi_iot_mali port ps4 3000'):
+    if command.endswith('port ps4 3000'):
       return '0.0.0.0:32772\n'
-    if command.startswith('docker compose -p oremi_iot_mali port ps4 8082'):
+    if command.endswith('port ps4 8082'):
       return '0.0.0.0:32773\n'
     return ''
 
@@ -541,24 +748,12 @@ def test_compose_publishes_distinct_host_ports_for_multiple_traefik_services(moc
   )
 
 
-def test_compose_publish_falls_back_to_remote_node_sync(mocker):
-  mocker.patch('seto.core.shell.resolve_hostname', return_value='127.0.0.1')
-  mocker.patch('socket.gethostname', return_value='local-host')
-
-  driver = MagicMock(spec=Driver)
-  driver.stack_id = 'oremi_iot_mali'
-  driver.debug = False
-  driver.storage_node = False
-  driver.host = MagicMock()
+def test_compose_publish_falls_back_to_remote_node_sync(mocker, contexts_factory):
+  contexts = contexts_factory(nodes={'mali': 'seto-mali'})
+  driver = docker_driver(mocker, contexts, stack_id='oremi_iot_mali')
 
   client = MagicMock()
-  node = MagicMock()
-  node.attrs = {
-    'Description': {'Hostname': 'mali'},
-    'Status': {'Addr': '10.42.0.5'},
-    'Spec': {'Role': 'worker', 'Labels': {}},
-  }
-  client.nodes.list.return_value = [node]
+  client.nodes.list.return_value = [swarm_node('mali')]
 
   config = {
     'x-placement': ['node.hostname==mali'],
@@ -578,39 +773,28 @@ def test_compose_publish_falls_back_to_remote_node_sync(mocker):
   compose._traefik_service_specs = specs
 
   def _exec_output_stub(command, _nodename):
-    if command.startswith('docker compose -p oremi_iot_mali port zigbee2mqtt 8080'):
+    if command.endswith('port zigbee2mqtt 8080'):
       return '0.0.0.0:49152\n'
-    if command.startswith('python -c '):
-      return '1\n'
     return ''
 
   exec_output_mock = mocker.patch.object(compose, '_exec_output', side_effect=_exec_output_stub)
+  node_capture_mock = mocker.patch.object(compose, '_node_capture', return_value='1\n')
   sync_mock = mocker.patch('seto.core.docker.sync_traefik_http_registry', return_value=False)
 
   compose._publish_traefik_routes('mali')
 
   assert sync_mock.call_count >= 1
-  assert exec_output_mock.call_count >= 2
+  assert exec_output_mock.call_count >= 1
+  node_capture_mock.assert_called_once()
+  assert node_capture_mock.call_args.kwargs['hostname'] == 'mali'
 
 
-def test_compose_deploy_pins_random_ports_for_manual_restart(mocker):
-  mocker.patch('seto.core.shell.resolve_hostname', return_value='127.0.0.1')
-  mocker.patch('socket.gethostname', return_value='local-host')
-
-  driver = MagicMock(spec=Driver)
-  driver.stack_id = 'oremi_iot_mali'
-  driver.debug = False
-  driver.storage_node = False
-  driver.host = MagicMock()
+def test_compose_deploy_pins_random_ports_for_manual_restart(mocker, contexts_factory):
+  contexts = contexts_factory(nodes={'mali': 'seto-mali'})
+  driver = docker_driver(mocker, contexts, stack_id='oremi_iot_mali')
 
   client = MagicMock()
-  node = MagicMock()
-  node.attrs = {
-    'Description': {'Hostname': 'mali'},
-    'Status': {'Addr': '10.42.0.5'},
-    'Spec': {'Role': 'worker', 'Labels': {}},
-  }
-  client.nodes.list.return_value = [node]
+  client.nodes.list.return_value = [swarm_node('mali')]
 
   config = {
     'x-placement': ['node.hostname==mali'],
@@ -637,9 +821,9 @@ def test_compose_deploy_pins_random_ports_for_manual_restart(mocker):
     run_calls.append((command, nodename, resolved_config))
 
   def _exec_output_stub(command, _nodename):
-    if command.startswith('docker compose -p oremi_iot_mali port ps4 3000'):
+    if command.endswith('port ps4 3000'):
       return '0.0.0.0:32772\n'
-    if command.startswith('docker compose -p oremi_iot_mali port ps4 8082'):
+    if command.endswith('port ps4 8082'):
       return '0.0.0.0:32773\n'
     return ''
 
@@ -654,3 +838,20 @@ def test_compose_deploy_pins_random_ports_for_manual_restart(mocker):
   assert run_calls[1][0].endswith('up -d --remove-orphans')
   assert compose.config['services']['ps4']['ports'] == ['32772:3000', '32773:8082']
   publish_mock.assert_called_once_with('mali')
+
+
+def test_docker_compose_reports_swarm_listing_failures(mocker, contexts_factory):
+  contexts = contexts_factory(nodes={'node1': 'seto-node1'})
+  driver = docker_driver(mocker, contexts)
+
+  client = MagicMock()
+  client.nodes.list.side_effect = Exception('ssh: connect to host node1 port 22: refused')
+
+  compose = DockerCompose(
+    config={'x-placement': ['node.role==worker'], 'services': {'app': {'image': 'nginx'}}},
+    driver=driver,
+    client=client,
+  )
+
+  with pytest.raises(DockerContextUnavailableError, match='refused'):
+    _ = compose.matched_nodenames

@@ -14,7 +14,10 @@
 # ==============================================================================
 import logging
 import posixpath
+import shlex
 
+from ..core.context import DockerContextError
+from ..core.context import DockerContextResolver
 from ..core.shell import File
 from ..core.shell import Setting
 from ..core.shell import Shell
@@ -27,8 +30,6 @@ logger = logging.getLogger(__name__)
 
 # pylint: disable=too-many-public-methods
 class Driver:
-  setouser = 'setouser'
-
   def __init__(
     self,
     stack: str,
@@ -38,6 +39,7 @@ class Driver:
     storage_node: Shell,
     storage_base_path: str = '/mnt/nfs',
     debug: bool = False,
+    contexts: DockerContextResolver | None = None,
   ) -> None:
     self.stack: str | None = stack
     self.namespace = namespace
@@ -45,6 +47,7 @@ class Driver:
     self.storage_node = storage_node
     self.storage_base_path = storage_base_path.rstrip('/') or '/'
     self.debug = debug
+    self.contexts = contexts if contexts is not None else DockerContextResolver()
 
   @property
   def shell(self) -> Shell:
@@ -90,65 +93,84 @@ class Driver:
   def connect(self) -> None:
     self.storage_node.connect()
 
-  def create_seto_user(self, node: Shell) -> None:
-    # if node.check_user_exists(self.setouser):
-    #   node.run(f'deluser --system --remove-home {self.setouser}', quiet=True)
+  def provision_docker_access(self, node: Shell, username: str | None) -> None:
+    """Grant an administrative SSH user access to the node Docker daemon.
 
-    if not node.check_user_exists(self.setouser):
-      # node.run(f'adduser {self.setouser} --quiet --system --disabled-login --disabled-password --ingroup docker', quiet=not True)
-      node.run(
-        (
-          f'if command -v useradd >/dev/null 2>&1; then '
-          f'useradd --system -m -U {self.setouser}; '
-          f'elif [ -x /usr/sbin/useradd ]; then '
-          f'/usr/sbin/useradd --system -m -U {self.setouser}; '
-          f'else '
-          f'adduser {self.setouser} --quiet --system --disabled-login '
-          f'--disabled-password --group; '
-          f'fi'
-        ),
-        sudo=True,
-        quiet=True,
+    Docker operations no longer run over SSH: they go through the Docker context
+    created by ``seto setup``. This host-level step only makes that context
+    usable, by authorizing the generated SSH key for the administrative user and
+    by ensuring the user may reach the Docker daemon.
+
+    No dedicated ``setouser`` account is created.
+    """
+    if node.setting.local:
+      return
+
+    user = (username or node.setting.username or '').strip()
+
+    if not user:
+      raise DockerContextError(
+        f"Node '{node.hostname}' has no SSH username; a Docker context for a remote node "
+        f'requires an administrative SSH user'
       )
-      node.run(
-        (
-          f'if command -v usermod >/dev/null 2>&1; then '
-          f'usermod -aG docker {self.setouser}; '
-          f'elif [ -x /usr/sbin/usermod ]; then '
-          f'/usr/sbin/usermod -aG docker {self.setouser}; '
-          f'fi'
-        ),
-        sudo=True,
-        quiet=True,
-      )
-      node.run(f'id {self.setouser}', quiet=True)
 
-      # Resolve the user home from passwd to support distro-specific defaults.
-      user_home = node.run(
-        f'getent passwd {self.setouser} | cut -d: -f6',
-        sudo=True,
-        quiet=True,
-      ).strip()
+    user_home = self.get_user_home(node, user)
+    ssh_dir = f'{user_home}/.ssh'
 
-      if user_home in ('', '/', '/nonexistent'):
-        user_home = f'/home/{self.setouser}'
+    node.mkdir(ssh_dir, user=user, group=user, mode='700')
 
-      ssh_home = f'{user_home}/.ssh'
-      authorized_keys_file = f'{ssh_home}/authorized_keys'
-
-      node.mkdir(ssh_home, user=self.setouser, group=self.setouser, mode='700')
-      node.run(f'touch {authorized_keys_file}', sudo=True, quiet=True)
+    if node.ssh_pub_key:
+      authorized_keys_file = f'{ssh_dir}/authorized_keys'
+      node.run(f'touch {shlex.quote(authorized_keys_file)}', sudo=True, quiet=True)
       authorized_keys = node.file(authorized_keys_file)
 
-      # Append the SSH public key to authorized_keys file
-      if node.ssh_pub_key:
-        authorized_keys.append(node.ssh_pub_key)
+      if authorized_keys.append(node.ssh_pub_key):
+        logger.info('Authorized the SSH key of %s on node %s.', user, node.hostname)
 
-      authorized_keys.chown(self.setouser, self.setouser)
+      authorized_keys.chown(user, user)
       authorized_keys.chmod('600')
+    else:
+      logger.warning(
+        'No SSH public key found for %s; Docker contexts target remote nodes through SSH, so '
+        'key-based authentication is required.',
+        user,
+      )
+
+    self.ensure_docker_group_access(node, user)
+
+  def ensure_docker_group_access(self, node: Shell, user: str) -> None:
+    """Ensure the SSH user may use the Docker daemon of a remote node."""
+    try:
+      node.run('docker info', quiet=True, stdout=False)
+      return
+    except Exception:  # pylint: disable=broad-except
+      pass
+
+    logger.info('Granting Docker daemon access to %s on node %s...', user, node.hostname)
+
+    try:
+      node.run(f'usermod -aG docker {shlex.quote(user)}', sudo=True, quiet=True)
+    except Exception as error:  # pylint: disable=broad-except
+      logger.warning(
+        'Unable to add %s to the "docker" group on node %s: %s', user, node.hostname, error
+      )
+
+  @staticmethod
+  def get_user_home(node: Shell, user: str) -> str:
+    # Resolve the user home from passwd to support distro-specific defaults.
+    user_home = node.run(
+      f'getent passwd {shlex.quote(user)} | cut -d: -f6',
+      sudo=True,
+      quiet=True,
+    ).strip()
+
+    if user_home in ('', '/', '/nonexistent'):
+      user_home = f'/home/{user}'
+
+    return user_home
 
   def setup_storage_node(self, storage_replicas: list[Setting], force: bool = False) -> None:
-    self.create_seto_user(self.storage_node)
+    self.provision_docker_access(self.storage_node, self.storage_node.setting.username)
 
   def apply_storage_node_changes(self) -> None:
     raise NotImplementedError()
@@ -168,7 +190,7 @@ class Driver:
       shell.connect()
 
       logger.info('\nSetting %s client %s...', self.driver_name, node_setting.hostname)
-      self.create_seto_user(shell)
+      self.provision_docker_access(shell, node_setting.username)
       self.setup_node(shell, force)
 
   def setup_node(self, shell: Shell, force: bool = False) -> None:

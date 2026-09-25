@@ -16,6 +16,10 @@
 - [Features](#features)
 - [Traefik Configuration](#traefik-configuration)
 - [Installation](#installation)
+- [Docker Contexts](#docker-contexts)
+  - [How Nodes Map to Docker Contexts](#how-nodes-map-to-docker-contexts)
+  - [Host Administration vs Docker Access](#host-administration-vs-docker-access)
+  - [Troubleshooting Docker Contexts](#troubleshooting-docker-contexts)
 - [Usage](#usage)
   - [Configuration & Command Dependencies](#configuration--command-dependencies)
   - [Global Options](#global-options)
@@ -71,7 +75,7 @@ Deploying containerized applications across multiple servers (using Docker Swarm
 Ṣeto wraps and extends standard Docker orchestration mechanisms. It manages the lifecycle of your application cluster through three main phases:
 
 1. **Infrastructure Provisioning (`setup`)**:
-   During the initialization phase, Ṣeto connects to all configured target hosts via SSH. It automates the environment setup by installing `nfs-kernel-server` on the designated Storage Node and `nfs-common` on the Client Nodes. It also establishes SSH key-based authentication across nodes and generates a local configuration file (`.seto/config.json`).
+   During the initialization phase, Ṣeto connects to all configured target hosts via SSH. It automates the environment setup by installing `nfs-kernel-server` on the designated Storage Node and `nfs-common` on the Client Nodes, and it authorizes the administrative SSH key used to reach each node. It then creates a **Docker Context** for every configured node on the machine running Ṣeto, verifies that each context can actually reach its Docker daemon, and persists the node to context mapping in `.seto/config.json`. No dedicated `setouser` account is created: Docker operations never require a shared system account anymore.
 
 2. **Volume Synchronization (`volumes create`)**:
    For any shared volumes specified via the custom `volumes-nfs` extension in your compose file, Ṣeto:
@@ -91,7 +95,8 @@ To help you get started, here are the main concepts used throughout the Ṣeto e
 - **Stack**: A collection of containerized services, networks, and persistent storage definitions declared in a Compose file that are managed and deployed as a single unit.
 - **Storage Node**: The host computer configured to act as the primary, central NFS server. It is the single source of truth for all shared cluster-wide persistent directories.
 - **Storage Replicas**: Secondary node locations configured as backup/redundant targets to replicate volumes from the Storage Node for redundancy.
-- **Client Nodes**: Target execution hosts (either Swarm worker hosts or independent Docker servers) that run application containers and mount persistent directories.
+- **Client Nodes**: Target execution hosts (either Swarm worker hosts or independent Docker servers) that run application containers and mount persistent directories. Every client node gets a Docker Context during `setup`.
+- **Docker Context**: Docker's native mechanism for addressing a specific Docker daemon. Ṣeto creates one context per configured node (for example `seto-client1`) and uses it for every Docker operation, so the Docker daemon of each node is always addressed explicitly. Remote contexts use the Docker CLI's native SSH transport; the daemon is never exposed over TCP.
 - **volumes-nfs**: A custom YAML extension key that declares shared cluster-wide directories, auto-configuring backend NFS exports and mounts.
 - **volumes-image**: A custom YAML extension key used to bundle and bake static folders or files directly into container images during the build/compilation phase.
 - **x-mode**: Specifies whether to run the stack deployment in standard Docker Swarm mode (`swarm`) or localized Docker Compose mode (`compose`).
@@ -136,7 +141,7 @@ flowchart TD
 
 ### Key Capabilities
 
-- **Automated Infrastructure Setup**: Configures SSH, NFS server utilities on the Storage Node, installs client packages, and sets up SSH keys on all nodes.
+- **Automated Infrastructure Setup**: Configures SSH access, installs NFS server utilities on the Storage Node, installs client packages, and creates and verifies a Docker Context for every configured node.
 - **Declarative Storage Management**: Synchronizes local folders to remote storage locations and handles volume mounting/unmounting lifecycle transparently.
 - **Advanced YAML Extensions**: Extends standard Docker Compose files with `volumes-nfs` (for automatic cluster-wide NFS configuration) and `volumes-image` (for baking static assets directly into target images).
 - **Flexible Execution Modes**: Deploys services using Docker Swarm (default) or falls back to multi-host Docker Compose (`x-mode: compose`) when direct hardware access (e.g., GPUs, USB devices, cameras) is required.
@@ -146,7 +151,9 @@ flowchart TD
 Ṣeto has been **tested and validated** on **Fedora 44, 45**.
 
 Other Linux distributions (RHEL, Ubuntu, AlmaLinux) may work but are not officially tested.
-All remote nodes must have **SSH**, **Docker**, and **NFS client utilities** installed.
+All remote nodes must have **SSH**, **Docker**, and **NFS client utilities** installed, and the
+administrative SSH user must be allowed to use the Docker daemon (for example through the
+`docker` group). The machine running Ṣeto needs the **Docker CLI** with the `compose` plugin.
 
 ## Features
 
@@ -155,7 +162,7 @@ All remote nodes must have **SSH**, **Docker**, and **NFS client utilities** ins
 - **`volumes` Command group** – Manage shared volumes (create, sync, mount, unmount).
 - **`deploy` Command** – Deploys or updates Compose/Swarm stacks.
 - **`down` Command** – Stops and removes containers, networks, and resources.
-- **`check` Command** – Verifies and lists nodes matching placement constraints.
+- **`check` Command** – Verifies and lists nodes matching placement constraints, along with their Docker Context availability.
 
 ## Traefik Configuration
 
@@ -264,19 +271,137 @@ If you are using the modern `uv` Python packaging tool, you can install it as a 
 uv tool install seto
 ```
 
+## Docker Contexts
+
+Ṣeto identifies and accesses the Docker daemon of every configured node through a
+**Docker Context**. This replaces the previous architecture, in which a dedicated
+`setouser` account was created on every node and Docker commands were executed over
+SSH.
+
+`seto setup` creates one context per configured node on the machine where Ṣeto
+runs, then verifies with `docker --context <context> info` that the context can
+actually reach the target daemon. A context that cannot be verified is never
+recorded as ready.
+
+### How Nodes Map to Docker Contexts
+
+Context names are deterministic and derived from the node identity:
+
+```text
+client1        -> seto-client1        -> ssh://<user>@client1
+client2        -> seto-client2        -> ssh://<user>@client2
+worker-node-1  -> seto-worker-node-1  -> ssh://<user>@worker-node-1
+localhost      -> seto-localhost      -> unix:///var/run/docker.sock
+```
+
+- Remote nodes are reached with the Docker CLI's native SSH transport
+  (`ssh://<user>@<node>`), which reuses the SSH keys of the machine running Ṣeto.
+- Local nodes (the machine running Ṣeto) use its local Docker socket.
+- Hostnames that are not valid context names get a stable digest suffix, so two
+  different hostnames can never collapse into the same context name.
+
+The persisted `.seto/config.json` stores, for every configured node, the Docker
+context that reaches its daemon:
+
+```json
+{
+  "version": 2,
+  "driver": "nfs",
+  "storage_base_path": "/mnt/nfs",
+  "storage_node": {
+    "hostname": "manager1",
+    "username": "admin",
+    "ip": "10.0.0.1",
+    "local": false,
+    "docker_context": "seto-manager1"
+  },
+  "nodes": [
+    {
+      "hostname": "client1",
+      "username": "admin",
+      "ip": "10.0.0.2",
+      "local": false,
+      "docker_context": "seto-client1"
+    }
+  ]
+}
+```
+
+Only the context _name_ is persisted; endpoints are always derived from the node
+identity, so a changed SSH user or hostname is picked up instead of being kept as
+stale state. A node whose context could not be created or verified is stored with
+`"docker_context": null` and is therefore never used as a deployment target.
+
+`setup` is idempotent: an existing context that matches the expected endpoint is
+reused, and a context that exists with a different endpoint is reported as a
+conflict instead of being overwritten.
+
+### Host Administration vs Docker Access
+
+Ṣeto distinguishes two access paths:
+
+```text
+                  Ṣeto
+                   │
+       ┌───────────┴───────────┐
+       │                       │
+       ▼                       ▼
+   SSH / host ops        Docker Context
+       │                       │
+       ▼                       ▼
+  NFS / filesystem       Docker daemon
+  prerequisites           containers
+```
+
+- **SSH (host administration)**: NFS server/client packages, `/etc/exports`,
+  mounts and `/etc/fstab`, NFS data synchronization, physical device detection,
+  and authorizing the administrative SSH key.
+- **Docker Context (daemon access)**: every Docker command — Compose deployments,
+  Swarm stack operations, status, logs and removal. Commands are always explicit
+  (`docker --context <context> ...`); Ṣeto never relies on the current Docker
+  context of the operator and never switches it.
+
+`setouser` is no longer required for Docker operations, and Ṣeto does not create
+it. Existing installations keep it untouched; if you want to remove it, do so
+manually on the affected nodes.
+
+### Troubleshooting Docker Contexts
+
+Inspect the contexts created by Ṣeto:
+
+```bash
+docker context ls
+docker context inspect seto-client1
+docker --context seto-client1 info
+```
+
+| Symptom                                                               | Cause and fix                                                                                                                                    |
+| :-------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Docker context '<name>' already exists with the Docker endpoint ...` | Another node already uses that context name with a different endpoint. Remove it (`docker context rm <name>`) and re-run `seto setup`.           |
+| `Docker context '<name>' cannot reach its Docker daemon`              | The SSH user cannot reach the node, is not allowed to use Docker, or the node has no Docker CLI. Fix the reported error and re-run `seto setup`. |
+| `Node '<host>' has no Docker context registered`                      | The stack targets a node that `setup` never registered (or its context failed). Run `seto setup` again — it repairs missing contexts.            |
+| Contexts work for `setup` but fail later                              | The SSH key authorized during `setup` may have been removed, or the user was removed from the `docker` group. Re-run `seto setup`.               |
+
+> [!NOTE]
+> Docker contexts address remote daemons through the `ssh` client (`ssh://user@host`).
+> Make sure the machine running Ṣeto can reach each node with its SSH configuration
+> (key or agent) and that the Docker CLI is installed on the node.
+
 ## Usage
 
 Ṣeto provides a command-line interface structured around global options and subcommands.
 
 ### Configuration & Command Dependencies
 
-Several subcommands depend on the `.seto/config.json` base configuration file generated by the `setup` command (including persisted storage settings such as the NFS storage base path). This establishes a strict operational workflow dependency:
+Several subcommands depend on the `.seto/config.json` base configuration file generated by the `setup` command (persisted storage settings such as the NFS storage base path, plus the node to Docker Context mapping). This establishes a strict operational workflow dependency:
 
 - **NFS Management Commands** (`volumes create`, `volumes sync`, `volumes mount`, `volumes unmount`) **always** require the `setup` command to have been executed beforehand.
 - **Orchestration and Utility Commands** (`resolve`, `deploy`, `down`) require the `setup` command to have been executed beforehand **only if** the target stack definitions declare NFS (`volumes-nfs`) volumes. If NFS volumes are not used, these commands can be run independently without any prior setup.
-- **Node Validation Command** (`check`) evaluates placement constraints without performing volume resolution. It **never** requires the `setup` command to have been executed or the configuration file to exist.
+- **Node Validation Command** (`check`) evaluates placement constraints without performing volume resolution. It **never** requires the `setup` command to have been executed or the configuration file to exist, but it uses the persisted node to context mapping whenever that file is present.
 
 If a dependent command is run before `setup` has generated the configuration file, the command will exit with an error indicating that the setup command has not yet been performed.
+
+Docker operations of `x-mode: compose` stacks additionally require a verified Docker Context for every targeted node: a node that matches the placement constraints but has no registered context is reported and excluded instead of being deployed to.
 
 ### Global Options
 
@@ -315,22 +440,24 @@ These options apply globally to the `seto` CLI tool and must be specified before
 
 ### 1. Setup Command
 
-Sets up the **storage node**, **storage replica**, and **client** nodes for NFS synchronization, and generates the `.seto/config.json` base configuration file.
+Sets up the **storage node**, **storage replica**, and **client** nodes for NFS synchronization, creates a verified Docker Context for every configured node, and generates the `.seto/config.json` base configuration file.
 
 When provided, `--storage-path` is also persisted into `.seto/config.json` and reused by subsequent commands.
+
+`setup` is idempotent and safe to re-run. It reuses existing Docker contexts that match the expected node, detects conflicting contexts, and only records nodes whose context was verified against the target Docker daemon. If a context cannot be established, the contexts that were created successfully are still persisted, the failing nodes are reported, and the command exits with a runtime error; re-running `setup` repairs the missing contexts.
 
 ```bash
 seto --namespace <namespace-name> [--stack <stack-name>] \
   setup --storage-node <storage-node-uri> --storage-replicas <storage-replica-strings> --clients <client-strings> [--storage-path <path>] [--force]
 ```
 
-| Option               | Description                                                                                    |
-| :------------------- | :--------------------------------------------------------------------------------------------- |
-| `--storage-node`     | Required. Storage node URI. Format: `nfs://username:password@hostname`.                        |
-| `--storage-replicas` | Required. Storage replica nodes to setup: `user:pass@hostname`.                                |
-| `--clients`          | Required. Client nodes to setup: `user:pass@hostname`.                                         |
-| `--storage-path`     | Optional. Remote NFS storage base path persisted in `.seto/config.json` (default: `/mnt/nfs`). |
-| `--force`            | Optional. Forces re-running setup tasks.                                                       |
+| Option               | Description                                                                                        |
+| :------------------- | :------------------------------------------------------------------------------------------------- |
+| `--storage-node`     | Required. Storage node URI. Format: `nfs://username:password@hostname`.                            |
+| `--storage-replicas` | Required. Storage replica nodes to setup: `user:pass@hostname`.                                    |
+| `--clients`          | Required. Client nodes to setup: `user:pass@hostname`. A Docker Context is created for every node. |
+| `--storage-path`     | Optional. Remote NFS storage base path persisted in `.seto/config.json` (default: `/mnt/nfs`).     |
+| `--force`            | Optional. Forces re-running setup tasks.                                                           |
 
 **Example:**
 
@@ -435,7 +562,7 @@ seto --namespace my-namespace --stack my-stack volumes unmount
 Deploys a stack to the Swarm cluster or to multiple nodes via Compose (if `x-mode: compose` is set).
 
 > [!IMPORTANT]
-> The `deploy` command must be run on the **Swarm Manager** node to perform Swarm service orchestration.
+> Swarm service orchestration is performed through the Swarm **manager**. When `setup` registered a Docker Context for the storage node (the manager), Ṣeto targets it explicitly (`docker --context seto-<manager> stack ...`) and the CLI can run from any machine. Without a registered manager context, Swarm commands fall back to the local Docker daemon, which requires running `deploy`/`down` on the Swarm Manager itself.
 
 > [!NOTE]
 > If any shared NFS volumes (`volumes-nfs`) are defined in the stack services, the `deploy` command will automatically connect to the storage node, create and synchronize the volumes, and update the exports configuration before the services are started. Deploy-time synchronization copies only new files by default; pass `-f` or `--force` to overwrite existing files.
@@ -587,7 +714,11 @@ seto --namespace my-namespace --stack my-stack deploy
 
 Ṣeto provides reliable error handling:
 
-- Missing or invalid arguments exit with a **non-zero status**.
+- Missing or invalid arguments exit with a **non-zero status** (bad arguments `40`).
+- SSH authentication failures exit with `41` and print the `ssh-copy-id` commands to run.
+- Remote and Docker failures exit with `50`; Docker context creation failures,
+  conflicting contexts, unreachable daemons and missing node contexts are reported
+  explicitly.
 - Remote errors are captured and clearly reported.
 - Commands are **idempotent** — safe to re-run if interrupted.
 - Execution stops immediately on critical errors.
@@ -791,15 +922,32 @@ Supported constraint keys include:
 - `node.role == <role>` / `node.hostname == <hostname>` (legacy).
 
 During deployment, lifecycle management, status checks, logging, or removal,
-Ṣeto loops over each targeted host to execute the corresponding action.
+Ṣeto loops over each targeted host and executes the action through that host's
+Docker Context (`docker --context <node-context> compose ...`). The target node
+is never inferred from the current Docker context.
+
+A matched node is only a valid Compose target when **both** conditions hold:
+
+```text
+hardware/placement matches  +  Docker context available (created and verified by setup)  =  valid Compose target
+```
+
+A node that matches the hardware constraints but has no registered Docker
+Context is reported with a warning and excluded from the deployment. `seto check`
+reports both: the nodes that match the constraints and whether each one is a
+usable Compose target.
 
 ### Physical Device Verification
 
 When a placement query contains a device constraint (using
 `host.device.<name> == <value>` or legacy labels like
 `node.labels.device == <name>` / `device == <name>`), Ṣeto connects to the
-matching nodes and runs a physical hardware/device check. If the check fails,
-the node is excluded from deployment.
+matching nodes over their administrative SSH connection and runs a physical
+hardware/device check. If the check fails, the node is excluded from deployment.
+
+Host capability detection is deliberately kept separate from Docker daemon
+accessibility: a node may have a GPU and still be unusable as a Compose target
+if its Docker context is missing or unreachable.
 
 Supported devices and their validation commands:
 

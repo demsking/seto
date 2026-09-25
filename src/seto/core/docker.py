@@ -24,10 +24,14 @@ from urllib import parse as urllib_parse
 
 from docker import DockerClient  # pylint: disable=import-self
 
+from .context import DockerContextResolver
+from .context import DockerContextUnavailableError
 from .driver import Driver
 from .parser import resolve_env_vars  # pylint: disable=deprecated-module
 from .shell import Setting
 from .shell import Shell
+from .targets import ComposeTargetResolver
+from .targets import ComposeTargets
 from .traefik import DEFAULT_TRAEFIK_HTTP_ENDPOINT
 from .traefik import extract_traefik_route
 from .traefik import get_traefik_http_labels
@@ -47,18 +51,34 @@ class Docker:
     self,
     config: dict,
     driver: Driver,
-    client: DockerClient,
+    client: DockerClient | None = None,
+    contexts: DockerContextResolver | None = None,
   ) -> None:
     self.driver = driver
-    self.client = client
+    self.contexts = contexts if contexts is not None else driver.contexts
     self.config = config
+    self._client = client
     self.localshell = Driver.get_shell(
       Setting.from_connection_string(self.hostname),
     )
 
   @property
   def shell(self) -> Shell:
+    """Shell of the host running Ṣeto (where Docker CLI commands execute)."""
     return self.driver.host
+
+  @property
+  def client(self) -> DockerClient:
+    """Docker SDK client of the Swarm manager daemon.
+
+    The manager daemon is reached through its Docker context when ``seto setup``
+    registered one; otherwise the local Docker daemon is used, which preserves
+    the historical workflow of running the CLI on the Swarm manager.
+    """
+    if self._client is None:
+      self._client = self.contexts.manager_client()
+
+    return self._client
 
   @property
   def resolved_config(self) -> str:
@@ -82,15 +102,20 @@ class Docker:
 
     return name if isinstance(name, str) and name.strip() else self.driver.stack_id
 
+  def compose_command(self, subcommand: str) -> str:
+    return f'compose -p {shlex.quote(self.compose_project_name)} -f - {subcommand}'
+
   def build(self) -> None:
+    # Images are always built on the host running Ṣeto: pin the local Docker
+    # context so a user-switched current context cannot redirect the build.
     self.localshell.run(
-      command=f'docker compose -f - -p {self.compose_project_name} build --no-cache',
+      command=self.contexts.local_cli(self.compose_command('build --no-cache')),
       input=self.resolved_config,
     )
 
   def push(self) -> None:
     self.localshell.run(
-      command=f'docker compose -f - -p {self.compose_project_name} push',
+      command=self.contexts.local_cli(self.compose_command('push')),
       input=self.resolved_config,
     )
 
@@ -118,79 +143,20 @@ def _escape_docker_interpolation(content: str) -> str:
   return re.sub(r'(?<!\$)\$(?!\$)', lambda _match: '$$', content)
 
 
-def _match_node_constraint(node: Any, key: str, value: str) -> bool:
-  if not node.attrs:
-    return False
-
-  # Support host.device.<name> (compose internal constraint) and node.labels.<name> (swarm constraint)
-  if key.startswith('host.device.'):
-    device_name = key[len('host.device.'):]
-    labels = node.attrs.get('Spec', {}).get('Labels') or {}
-    node_val = labels.get(key)
-
-    if node_val is None:
-      node_val = labels.get(key[len('host.'):])  # Try "device.<name>"
-
-    if node_val is None:
-      node_val = labels.get(key[len('host.device.'):])  # Try "<name>"
-
-    if node_val is not None:
-      return str(node_val).strip() == str(value).strip()
-
-    # If label is not present on the node, return True to allow physical verification to decide
-    # only for supported non-audio devices
-    if device_name in ('gpu', 'bluetooth', 'camera', 'coral', 'zigbee', 'zwave'):
-      return True
-
-    return False
-
-  elif key.startswith('node.labels.'):
-    actual_key = key[len('node.labels.'):]
-    labels = node.attrs.get('Spec', {}).get('Labels') or {}
-    node_val = labels.get(actual_key)
-
-    if node_val is not None:
-      return str(node_val).strip() == str(value).strip()
-
-    # If this is a device constraint and label is missing, let physical check decide
-    if actual_key == 'device' and value not in ('mic', 'audio'):
-      return True
-
-    return False
-
-  elif key in ('host.role', 'node.role'):
-    role = node.attrs.get('Spec', {}).get('Role')
-
-    return role is not None and str(role).strip() == str(value).strip()
-
-  elif key in ('host.name', 'host.hostname', 'node.hostname'):
-    hostname = node.attrs.get('Description', {}).get('Hostname')
-
-    return hostname is not None and str(hostname).strip() == str(value).strip()
-
-  else:
-    # Fallback to direct label matching for backward compatibility
-    labels = node.attrs.get('Spec', {}).get('Labels') or {}
-    node_val = labels.get(key)
-
-    if node_val is not None:
-      return str(node_val).strip() == str(value).strip()
-
-    # Direct fallback for device key
-    if key == 'device' and value not in ('mic', 'audio'):
-      return True
-
-    return False
-
-
 class DockerCompose(Docker):
   _TRAEFIK_SERVICE_PORT_RE = re.compile(
     r'^traefik\.http\.services\.([^.]+)\.loadbalancer\.server\.port$'
   )
   _TRAEFIK_PROVIDER_PORT = 8080
 
-  def __init__(self, config: dict, driver: Driver, client: DockerClient) -> None:
-    super().__init__(config=config, driver=driver, client=client)
+  def __init__(
+    self,
+    config: dict,
+    driver: Driver,
+    client: DockerClient | None = None,
+    contexts: DockerContextResolver | None = None,
+  ) -> None:
+    super().__init__(config=config, driver=driver, client=client, contexts=contexts)
     self._traefik_service_specs: dict[str, dict[str, Any]] = {}
     self._traefik_prepared = False
 
@@ -200,187 +166,50 @@ class DockerCompose(Docker):
 
     return value if isinstance(value, list) else [value]
 
-  @property
+  def _list_swarm_nodes(self) -> list[Any]:
+    if self.driver.debug:
+      logger.debug('Listing Swarm nodes through the manager Docker context...')
+
+    try:
+      return list(self.client.nodes.list())
+    except Exception as error:
+      raise DockerContextUnavailableError(f'Unable to list the Swarm nodes: {error}') from error
+
   @functools.lru_cache(maxsize=128)
+  def _resolve_targets(self) -> ComposeTargets:
+    if self.driver.debug:
+      logger.debug('Resolving Compose targets for placement: %s', self.placement)
+
+    return ComposeTargetResolver(
+      placement=self.placement,
+      nodes=self._list_swarm_nodes(),
+      contexts=self.contexts,
+      debug=self.driver.debug,
+    ).resolve()
+
+  @property
+  def matched_nodenames(self) -> list[str]:
+    """Swarm node hostnames matching the placement constraints."""
+    return list(self._resolve_targets().matched)
+
+  @property
+  def available_nodenames(self) -> list[str]:
+    """Matched nodes that are usable Compose targets (context + device verified)."""
+    return list(self._resolve_targets().deployable)
+
+  @property
   def nodenames(self) -> list[str]:
-    if not self.placement:
-      raise ValueError('Missing required x-placement field')
+    targets = self._resolve_targets()
 
-    # Normalize to constraint groups (each group is a list of strings to be ANDed)
-    groups = []
-
-    for p in self.placement:
-      if isinstance(p, list):
-        group = [c.strip() for c in p if isinstance(c, str) and '==' in c]
-
-        if group:
-          groups.append(group)
-      elif isinstance(p, str):
-        if '==' in p:
-          groups.append([p.strip()])
-
-    if self.driver.debug:
-      logger.debug('Placement constraints: %s', self.placement)
-      logger.debug('Constraint groups resolved: %s', groups)
-      logger.debug('Listing Swarm nodes...')
-
-    nodes = self.client.nodes.list()
-    matched_nodes = []
-
-    for node in nodes:
-      if not node.attrs:
-        if self.driver.debug:
-          logger.debug('Node has no attributes: %s', node)
-        continue
-
-      hostname = node.attrs.get('Description', {}).get('Hostname', 'unknown')
-
-      if self.driver.debug:
-        logger.debug("Evaluating node '%s'", hostname)
-        logger.debug('  Role: %s', node.attrs.get('Spec', {}).get('Role'))
-        logger.debug('  Labels: %s', node.attrs.get('Spec', {}).get('Labels'))
-
-      # Check if this node matches at least one group (OR between groups)
-      for group in groups:
-        match_all = True
-        if self.driver.debug:
-          logger.debug('  Checking group: %s', group)
-
-        for constraint in group:
-          label_key, label_value = constraint.split('==', 1)
-          label_key = label_key.strip()
-          value = label_value.strip()
-
-          matched = _match_node_constraint(node, label_key, value)
-          if self.driver.debug:
-            logger.debug(
-              '    Constraint: %s == %s -> %s', label_key, value, 'MATCHED' if matched else 'FAILED'
-            )
-
-          if not matched:
-            match_all = False
-            break
-
-        if match_all:
-          if self.driver.debug:
-            logger.debug("  Node '%s' matched group constraints.", hostname)
-          if hostname not in matched_nodes:
-            matched_nodes.append(hostname)
-          break  # Already matched, move to next node
-        else:
-          if self.driver.debug:
-            logger.debug("  Node '%s' failed group constraints.", hostname)
-
-    if self.driver.debug:
-      logger.debug('Matched nodes (before physical device checks): %s', matched_nodes)
-
-    if not matched_nodes:
-      raise ValueError(f'Unable to found node for placement "{self.placement}"')
-
-    supported_device_checks = {
-      'gpu': r'(test -c /dev/nvidiactl || test -c /dev/nvidia0) && (docker info 2>/dev/null | grep -iq nvidia || which nvidia-smi >/dev/null 2>&1) && echo "OK" || (echo "GPU device not found or not configured for Docker" >&2; exit 1)',  # pylint: disable=line-too-long
-      'bluetooth': r'(ls -d /sys/class/bluetooth/hci* >/dev/null 2>&1 || hciconfig 2>/dev/null | grep -q "hci") && echo "OK" || (echo "No active Bluetooth controller found" >&2; exit 1)',  # pylint: disable=line-too-long
-      'camera': r'ls /dev/video* >/dev/null 2>&1 && echo "OK" || (echo "No video capture device (camera) found" >&2; exit 1)',
-      'coral': r'(test -e /dev/apex_0 || lsusb 2>/dev/null | grep -E -iq "Google|Global Unichip") && echo "OK" || (echo "Google Coral Edge TPU not found" >&2; exit 1)',  # pylint: disable=line-too-long
-      'zigbee': r'(test -e /dev/ttyUSB0 || test -e /dev/ttyACM0 || test -d /dev/serial) && echo "OK" || (echo "Zigbee device not found" >&2; exit 1)',
-      'zwave': r'(test -e /dev/ttyUSB0 || test -e /dev/ttyACM0 || test -d /dev/serial) && echo "OK" || (echo "ZWave device not found" >&2; exit 1)',
-    }
-
-    verified_nodes = []
-    for nodename in matched_nodes:
-      # Find the node object to check its constraints
-      node_obj = next(
-        n for n in nodes if n.attrs and n.attrs['Description']['Hostname'] == nodename
-      )
-
-      # Determine if we need to verify devices based on the matching group
-      device_checks = []
-
-      for group in groups:
-        match_group = True
-
-        for constraint in group:
-          label_key, label_value = constraint.split('==', 1)
-          label_key = label_key.strip()
-          value = label_value.strip()
-
-          if not _match_node_constraint(node_obj, label_key, value):
-            match_group = False
-            break
-
-        if match_group:
-          for constraint in group:
-            label_key, label_value = constraint.split('==', 1)
-            label_key = label_key.strip()
-            value = label_value.strip()
-
-            if label_key.startswith('host.device.'):
-              device_name = label_key[len('host.device.'):]
-              device_checks.append((device_name, value))
-            elif label_key == 'node.labels.device' or label_key == 'device':
-              device_checks.append((value, 'true'))
-          break
-
-      # Run the physical checks on the node
-      has_all_devices = True
-      if self.driver.debug and device_checks:
-        logger.debug("Running physical device verification for node '%s'...", nodename)
-
-      for device_name, expected_val in device_checks:
-        if str(expected_val).lower().strip() in ('false', '0'):
-          if self.driver.debug:
-            logger.debug(
-              "  Skipping physical check for '%s' because expected value is '%s'",
-              device_name,
-              expected_val,
-            )
-          continue
-
-        device_key = device_name.lower().strip()
-        check_cmd = supported_device_checks.get(
-          device_key,
-          f'test -e /dev/{device_name} && echo "OK" || (echo "{device_name} device not found" >&2; exit 1)',
-        )
-
-        if self.driver.debug:
-          logger.debug(
-            "  Checking device '%s' on '%s' using command: '%s'", device_name, nodename, check_cmd
-          )
-
-        try:
-          if self.hostname == nodename:
-            self.shell.run(check_cmd, quiet=True, stdout=False, stderr=True)
-          else:
-            setting = Setting.from_connection_string(f'{Driver.setouser}@{nodename}')
-            remote_shell = Driver.get_shell(setting, self.shell.key_file_path)
-            remote_shell.connect()
-            remote_shell.run(check_cmd, quiet=True, stdout=False, stderr=True)
-            remote_shell.close()
-          if self.driver.debug:
-            logger.debug("  Device '%s' verified successfully on '%s'", device_name, nodename)
-        except Exception as e:
-          if self.driver.debug:
-            logger.debug(
-              "  Physical verification failed for device '%s' on '%s': %s", device_name, nodename, e
-            )
-          logger.warning(
-            "WARNING: Node '%s' matched label constraints but physical check failed for device '%s': %s. Excluding node.",
-            nodename,
-            device_name,
-            e,
-          )
-          has_all_devices = False
-          break
-
-      if has_all_devices:
-        verified_nodes.append(nodename)
-
-    if not verified_nodes:
+    if not targets.deployable:
       raise ValueError(
-        f'Unable to found node for placement "{self.placement}" (physical device verification failed for all matched nodes)'
+        f'Unable to found a deployable node for placement "{self.placement}": matched nodes '
+        f'{targets.matched} are not usable Compose targets (missing Docker context or failed '
+        f"physical device verification). Run 'seto setup' to create and verify their Docker "
+        f'contexts.'
       )
 
-    return verified_nodes
+    return list(targets.deployable)
 
   @property
   def nodename(self) -> str:
@@ -413,40 +242,45 @@ class DockerCompose(Docker):
 
     return [raw]
 
-  def _remote_node_run(self, command: str, *, hostname: str, input: str) -> None:  # pylint: disable=redefined-builtin
-    setting = Setting.from_connection_string(f'{Driver.setouser}@{hostname}')
-    node = Driver.get_shell(setting, self.shell.key_file_path)
+  def _node_run(self, command: str, *, hostname: str, input: str) -> None:  # pylint: disable=redefined-builtin
+    """Run a host-level command on a node over its administrative SSH connection."""
+    node = self.contexts.node_shell(hostname)
 
     node.connect()
-    node.run(command, input=input)
-    node.close()
 
-  def _remote_node_capture(self, command: str, *, hostname: str) -> str:
-    setting = Setting.from_connection_string(f'{Driver.setouser}@{hostname}')
-    node = Driver.get_shell(setting, self.shell.key_file_path)
+    try:
+      node.run(command, input=input)
+    finally:
+      node.close()
+
+  def _node_capture(self, command: str, *, hostname: str) -> str:
+    """Capture a host-level command output from a node over SSH."""
+    node = self.contexts.node_shell(hostname)
 
     node.connect()
+
     try:
       return node.run(command, quiet=True, stdout=False)
     finally:
       node.close()
 
   def _exec(self, command: str, nodename: str, *, resolved_config: str | None = None) -> None:
+    """Run a Docker command against the Docker context of a node.
+
+    The Docker CLI runs on the host running Ṣeto and reaches the remote Docker
+    daemon through the node Docker context; no Docker command is ever executed
+    over SSH or against the current Docker context.
+    """
     config_to_use = resolved_config if resolved_config is not None else self.resolved_config
-    if self.hostname == nodename:
-      self.shell.run(command=command, input=config_to_use)
-    else:
-      self._remote_node_run(
-        command,
-        hostname=nodename,
-        input=config_to_use,
-      )
+    self.shell.run(command=self.contexts.node_cli(nodename, command), input=config_to_use)
 
   def _exec_output(self, command: str, nodename: str) -> str:
-    if self.hostname == nodename:
-      return self.shell.run(command=command, quiet=True, stdout=False)
-
-    return self._remote_node_capture(command, hostname=nodename)
+    """Capture the output of a Docker command executed through a node context."""
+    return self.shell.run(
+      command=self.contexts.node_cli(nodename, command),
+      quiet=True,
+      stdout=False,
+    )
 
   def _service_traefik_router_names(self, service: dict[str, Any]) -> set[str]:
     labels = get_traefik_http_labels(service)
@@ -685,7 +519,7 @@ class DockerCompose(Docker):
     )
 
     command = f'python3 -c {shlex.quote(script)} {shlex.quote(payload)} {shlex.quote(json.dumps(endpoints))}'
-    output = self._exec_output(command, nodename)
+    output = self._node_capture(command, hostname=nodename)
 
     return output.strip().splitlines()[-1:] == ['1']
 
@@ -693,18 +527,15 @@ class DockerCompose(Docker):
     self.prepare_traefik_publication()
 
     for nodename in self.nodenames:
-      self._exec(f'docker compose -p {self.compose_project_name} -f - pull', nodename)
+      self._exec(self.compose_command('pull'), nodename)
 
   def info(self) -> None:
     self.prepare_traefik_publication()
 
     if self.driver.storage_node:
-      command = f'docker compose -p {self.compose_project_name} -f - config'
+      command = self.compose_command('config')
     else:
-      command = (
-        f'docker compose -p {self.compose_project_name} -f - config '
-        '--no-env-resolution --skip-interpolation'
-      )
+      command = self.compose_command('config --no-env-resolution --skip-interpolation')
 
     for nodename in self.nodenames:
       self._exec(
@@ -724,7 +555,7 @@ class DockerCompose(Docker):
     for nodename in nodenames:
       logger.info('Deploying on %s...', nodename)
       self._exec(
-        f'docker compose -p {self.compose_project_name} -f - up -d --remove-orphans',
+        self.compose_command('up -d --remove-orphans'),
         nodename,
         resolved_config=re.sub(NODE_HOSTNAME_RE, nodename, self.resolved_config),
       )
@@ -734,7 +565,7 @@ class DockerCompose(Docker):
       # the same published port.
       if len(nodenames) == 1 and self._pin_current_published_ports(nodename):
         self._exec(
-          f'docker compose -p {self.compose_project_name} -f - up -d --remove-orphans',
+          self.compose_command('up -d --remove-orphans'),
           nodename,
           resolved_config=re.sub(NODE_HOSTNAME_RE, nodename, self.resolved_config),
         )
@@ -786,7 +617,7 @@ class DockerCompose(Docker):
           continue
 
         port_output = self._exec_output(
-          f'docker compose -p {self.compose_project_name} port {service_name} {target_port}',
+          self.compose_command(f'port {service_name} {target_port}'),
           nodename,
         )
         host_port = self._parse_published_host_port(port_output)
@@ -833,7 +664,7 @@ class DockerCompose(Docker):
           host_port = resolved_by_target_port.get(target_port)
           if host_port is None:
             port_output = self._exec_output(
-              f'docker compose -p {self.compose_project_name} port {service_name} {target_port}',
+              self.compose_command(f'port {service_name} {target_port}'),
               nodename,
             )
             host_port = self._parse_published_host_port(port_output)
@@ -936,38 +767,39 @@ class DockerCompose(Docker):
   def ps(self) -> None:
     for nodename in self.nodenames:
       logger.info('--- Services on %s ---', nodename)
-      self._exec(f'docker compose -p {self.compose_project_name} -f - ps', nodename)
+      self._exec(self.compose_command('ps'), nodename)
 
   def logs(self) -> None:
     for nodename in self.nodenames:
       logger.info('--- Logs on %s ---', nodename)
-      self._exec(f'docker compose -p {self.compose_project_name} -f - logs -n 10', nodename)
+      self._exec(self.compose_command('logs -n 10'), nodename)
 
   def down(self) -> None:
     for nodename in self.nodenames:
       logger.info('Removing stack from %s...', nodename)
-      self._exec(f'docker compose -p {self.compose_project_name} -f - down', nodename)
+      self._exec(self.compose_command('down'), nodename)
 
     self._remove_traefik_routes()
 
 
 class DockerSwarm(Docker):
-  @property
-  def shell(self) -> Shell:
-    return Driver.get_shell(
-      Setting.from_connection_string(self.hostname),
-    )
+  """Swarm orchestration.
+
+  Swarm commands are always issued against the Swarm *manager*: its Docker
+  context when ``seto setup`` registered one, otherwise the local Docker daemon
+  (the historical requirement that the CLI runs on the manager).
+  """
 
   def pull(self) -> None:
     pass
 
   def info(self) -> None:
     if self.driver.storage_node:
-      command = 'docker stack config -c -'
+      command = self.contexts.manager_cli('stack config -c -')
     else:
-      command = 'docker stack config -c - --skip-interpolation'
+      command = self.contexts.manager_cli('stack config -c - --skip-interpolation')
 
-    self.shell.run(command, input=self.resolved_config)
+    self.shell.run(command=command, input=self.resolved_config)
 
   def deploy(self) -> None:
     for service in self.config.get('services', {}).values():
@@ -975,19 +807,31 @@ class DockerSwarm(Docker):
         del service['build']
 
     self.shell.run(
-      command=f'docker stack deploy --prune --detach=true --resolve-image=always -c - {self.driver.stack_id}',
+      command=self.contexts.manager_cli(
+        f'stack deploy --prune --detach=true --resolve-image=always -c - {self.driver.stack_id}'
+      ),
       input=self.resolved_config,
     )
 
   def ps(self) -> None:
-    self.shell.run(f'docker stack ps --no-trunc {self.driver.stack_id}', stderr=False, check=False)
-    self.shell.run(f'docker stack services {self.driver.stack_id}', stderr=False, check=False)
+    self.shell.run(
+      command=self.contexts.manager_cli(f'stack ps --no-trunc {self.driver.stack_id}'),
+      stderr=False,
+      check=False,
+    )
+    self.shell.run(
+      command=self.contexts.manager_cli(f'stack services {self.driver.stack_id}'),
+      stderr=False,
+      check=False,
+    )
 
   def logs(self) -> None:
     for service in self.config.get('services', {}).keys():
       self.shell.run(
-        f'docker service logs -n 10 {self.driver.stack_id}_{service}', stderr=False, check=False
+        command=self.contexts.manager_cli(f'service logs -n 10 {self.driver.stack_id}_{service}'),
+        stderr=False,
+        check=False,
       )
 
   def down(self) -> None:
-    self.shell.run(f'docker stack rm {self.driver.stack_id}')
+    self.shell.run(command=self.contexts.manager_cli(f'stack rm {self.driver.stack_id}'))

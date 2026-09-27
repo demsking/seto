@@ -396,7 +396,9 @@ def deploy_seto_stack(args, driver: Driver) -> None:
     config=internal_stack,
   )
 
-  swarm.info()
+  if driver.debug:
+    swarm.info()
+
   swarm.deploy()
   swarm.ps()
   swarm.logs()
@@ -539,9 +541,7 @@ def execute_deploy_command(args, driver: Driver) -> None:
 
       swarm.deploy()
       swarm.ps()
-
-      if driver.debug:
-        swarm.logs()
+      swarm.logs()
 
     if composes_items:
       if not use_pull:
@@ -561,9 +561,7 @@ def execute_deploy_command(args, driver: Driver) -> None:
       for compose in composes_items:
         compose.deploy()
         compose.ps()
-
-        if driver.debug:
-          compose.logs()
+        compose.logs()
 
       logger.info('Refreshing seto provider stack...')
       deploy_seto_stack(args, driver)

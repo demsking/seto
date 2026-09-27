@@ -24,9 +24,11 @@ import seto
 from seto import nodes_type
 from seto import storage_node_type
 from seto import storage_replica_type
+from seto.commands.deploy import deploy_stack_images
 from seto.commands.deploy import execute_deploy_command
 from seto.commands.deploy import parse_compose_config
 from seto.commands.deploy import pull_and_push_images
+from seto.core.docker import DockerCompose
 
 
 def test_storage_node_type(mocker):
@@ -206,6 +208,7 @@ def test_deploy_compose_only_stack_does_not_deploy_swarm(mocker):
   resolve = mocker.patch('seto.commands.deploy.resolve', side_effect=resolve_side_effect)
   swarm_cls = mocker.patch('seto.commands.deploy.DockerSwarm')
   compose_cls = mocker.patch('seto.commands.deploy.DockerCompose')
+  compose_cls.return_value.has_builds = True
 
   execute_deploy_command(args, driver)
 
@@ -227,6 +230,128 @@ def test_deploy_compose_only_stack_does_not_deploy_swarm(mocker):
   compose.deploy.assert_called_once()
   assert resolve.call_args_list[0].args[:2] == (args, driver)
   assert args.compose is True
+
+
+def test_deploy_skips_compose_build_without_build_entry(mocker):
+  args = Namespace(
+    namespace='test',
+    stack='app',
+    image_prefix='',
+    default_volume_mount_mode='rw',
+    default_nfs_options='rw,hard,noatime,nodiratime,nfsvers=4',
+    sync=True,
+    force=False,
+  )
+  driver = MagicMock()
+  driver.stack_id = 'test_app'
+  driver.contexts.manager_client.return_value = MagicMock()
+
+  mocker.patch('seto.commands.deploy.parse_volumes_args', return_value=[])
+  mocker.patch('seto.commands.deploy.deploy_seto_stack')
+  swarm_config = {
+    'x-placement': None,
+    'configs': {},
+    'networks': {},
+    'volumes': {},
+    'secrets': {},
+    'services': {'server': {'image': 'nginx'}},
+  }
+  compose_config = {
+    'x-placement': ['host.name == worker'],
+    'configs': {},
+    'networks': {},
+    'volumes': {},
+    'secrets': {},
+    'services': {'worker': {'image': 'busybox'}},
+  }
+  resolved_configs = [swarm_config, compose_config]
+
+  def resolve_side_effect(*_args, **kwargs):
+    resolved = resolved_configs.pop(0)
+    execute = kwargs.get('execute')
+
+    if execute and resolved['services']:
+      execute(resolved, resolved['x-placement'] or [])
+
+    return resolved
+
+  mocker.patch('seto.commands.deploy.resolve', side_effect=resolve_side_effect)
+  swarm_cls = mocker.patch('seto.commands.deploy.DockerSwarm')
+  compose_cls = mocker.patch('seto.commands.deploy.DockerCompose')
+  swarm_cls.return_value.has_builds = False
+  compose_cls.return_value.has_builds = False
+
+  execute_deploy_command(args, driver)
+
+  # No service declares a `build` entry: nothing to build, so neither `compose
+  # build` nor `compose push` may run — the images comes from the registry.
+  swarm_cls.return_value.build.assert_not_called()
+  swarm_cls.return_value.push.assert_not_called()
+  compose_cls.return_value.build.assert_not_called()
+  compose_cls.return_value.push.assert_not_called()
+
+  # The deploy itself still happens.
+  swarm_cls.return_value.deploy.assert_called_once()
+  compose_cls.return_value.deploy.assert_called_once()
+
+
+def test_deploy_builds_swarm_when_a_service_declares_build(mocker):
+  args = Namespace(
+    namespace='test',
+    stack='app',
+    image_prefix='registry.example.com/',
+    default_volume_mount_mode='rw',
+    default_nfs_options='rw,hard,noatime,nodiratime,nfsvers=4',
+    sync=True,
+    force=False,
+  )
+  driver = MagicMock()
+  driver.stack_id = 'test_app'
+  driver.contexts.manager_client.return_value = MagicMock()
+
+  mocker.patch('seto.commands.deploy.parse_volumes_args', return_value=[])
+  mocker.patch('seto.commands.deploy.deploy_seto_stack')
+  resolve = mocker.patch(
+    'seto.commands.deploy.resolve',
+    return_value={
+      'x-placement': None,
+      'configs': {},
+      'networks': {},
+      'volumes': {},
+      'secrets': {},
+      'services': {
+        'api': {
+          'image': 'registry.example.com/app-api:1.0',
+          'build': {'context': '.', 'dockerfile': '.seto/images/app-api.dockerfile'},
+        }
+      },
+    },
+  )
+  swarm_cls = mocker.patch('seto.commands.deploy.DockerSwarm')
+  mocker.patch('seto.commands.deploy.DockerCompose')
+  swarm_cls.return_value.has_builds = True
+
+  execute_deploy_command(args, driver)
+
+  assert resolve.call_count == 2
+  swarm_cls.return_value.build.assert_called_once()
+  swarm_cls.return_value.push.assert_called_once()
+
+
+def test_deploy_stack_images_builds_only_when_a_build_entry_is_declared(mocker):
+  stack = MagicMock(spec=DockerCompose)
+  stack.has_builds = False
+
+  deploy_stack_images(stack, 'test_app')
+
+  stack.build.assert_not_called()
+  stack.push.assert_not_called()
+
+  stack.has_builds = True
+  deploy_stack_images(stack, 'test_app')
+
+  stack.build.assert_called_once()
+  stack.push.assert_called_once()
 
 
 def test_parse_compose_config_injects_seto_agent(mocker):

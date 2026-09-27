@@ -105,6 +105,24 @@ class Docker:
   def compose_command(self, subcommand: str) -> str:
     return f'compose -p {shlex.quote(self.compose_project_name)} -f - {subcommand}'
 
+  @property
+  def has_builds(self) -> bool:
+    """Whether any service in the resolved config declares a ``build`` entry.
+
+    A ``build`` entry is either a context path or a mapping (``context``,
+    ``dockerfile``, ``args``, ...), including the auto-generated Dockerfile of
+    Ṣeto's ``volumes-image`` handling. Services that only have an ``image`` are
+    pulled from their registry, so callers use this to skip ``compose build``
+    entirely instead of paying for a no-op build of the whole config.
+    """
+    services = self.config.get('services') or {}
+
+    for service in services.values():
+      if isinstance(service, dict) and service.get('build') is not None:
+        return True
+
+    return False
+
   def build(self) -> None:
     # Images are always built on the host running Ṣeto: pin the local Docker
     # context so a user-switched current context cannot redirect the build.

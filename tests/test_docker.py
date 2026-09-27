@@ -378,6 +378,31 @@ def test_docker_compose_build_and_push_run_on_the_local_docker_context(mocker, c
   assert commands[1] == 'docker --context default compose -p mystack -f - push'
 
 
+def test_docker_compose_has_builds_reflects_declared_build_entries(mocker, contexts_factory):
+  contexts = contexts_factory()
+  driver = docker_driver(mocker, contexts)
+
+  def compose_with(services):
+    return DockerCompose(config={'services': services}, driver=driver, client=MagicMock())
+
+  generated_build = {
+    'image': 'x/app:1',
+    'build': {'context': '.', 'dockerfile': '.seto/images/app.dockerfile'},
+  }
+  mixed = {'plain': {'image': 'nginx:alpine'}, 'built': {'build': {'context': '.'}}}
+
+  # No service declares a build entry: nothing can be built locally.
+  assert compose_with({'app': {'image': 'nginx:alpine'}}).has_builds is False
+  assert compose_with({}).has_builds is False
+
+  # A volumes-image generated build (mapping) and a plain context path both count.
+  assert compose_with({'app': generated_build}).has_builds is True
+  assert compose_with({'app': {'build': './app'}}).has_builds is True
+
+  # One buildable service among plain images is enough to require a build pass.
+  assert compose_with(mixed).has_builds is True
+
+
 def test_docker_swarm_targets_the_manager_docker_context(mocker, contexts_factory):
   contexts = contexts_factory(storage_node=('manager1', 'seto-manager1'))
   driver = docker_driver(mocker, contexts, storage_node=MagicMock(), stack_id='demo_stack')

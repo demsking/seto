@@ -20,6 +20,7 @@ from typing import Any
 from docker import DockerClient
 
 from ..core.command import parse_volumes_args
+from ..core.docker import Docker
 from ..core.docker import DockerCompose
 from ..core.docker import DockerSwarm
 from ..core.docker import NODE_HOSTNAME_RE
@@ -345,6 +346,25 @@ def pull_and_push_images(configs: list[dict], image_prefix: str) -> None:
     service.pop('build', None)
 
 
+def deploy_stack_images(stack: Docker, stack_id: str) -> None:
+  """Build and push the images of ``stack``, only when it declares build entries.
+
+  Services that only have an ``image`` entry are pulled from their registry, so a
+  config without any ``build`` entry has nothing to build: skip ``compose build``
+  instead of running a full-config no-op build followed by a ``compose push`` that
+  has no local image to publish.
+  """
+  if not stack.has_builds:
+    logger.info('No build entry declared on %s services, skipping build.', stack_id)
+    return
+
+  logger.info('Building %s images...', stack_id)
+  stack.build()
+
+  logger.info('Pushing %s images...', stack_id)
+  stack.push()
+
+
 def deploy_seto_stack(args, driver: Driver) -> None:
   # Temporary rewrite driver config
   driver.namespace = 'seto'
@@ -510,10 +530,7 @@ def execute_deploy_command(args, driver: Driver) -> None:
 
     if swarm_config['services']:
       if not use_pull:
-        swarm.build()
-
-        logger.info('Pushing %s images...', driver.stack_id)
-        swarm.push()
+        deploy_stack_images(swarm, driver.stack_id)
 
       logger.info('Deploying %s swarm environment...', driver.stack_id)
 
@@ -528,11 +545,8 @@ def execute_deploy_command(args, driver: Driver) -> None:
 
     if composes_items:
       if not use_pull:
-        logger.info('Building %s compose images...', driver.stack_id)
-
         for compose in composes_items:
-          compose.build()
-          compose.push()
+          deploy_stack_images(compose, driver.stack_id)
 
       logger.info('Pulling %s compose images...', driver.stack_id)
 

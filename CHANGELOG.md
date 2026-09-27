@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## Unreleased
+
+### Improvements
+
+- `seto deploy` now runs the image build pass only when a Swarm or Compose service declares a `build` entry. Stacks made exclusively of `image` services (and services whose `build` entry was already removed by `--pull`) skip `compose build` and `compose push` instead of running a no-op build of the whole configuration.
+
 ## 5.0.0 - 2026-09-25
 
 ### Breaking Changes

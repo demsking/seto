@@ -28,6 +28,7 @@ from .context import DockerContextResolver
 from .context import DockerContextUnavailableError
 from .driver import Driver
 from .parser import resolve_env_vars  # pylint: disable=deprecated-module
+from .ports import PortCache
 from .shell import Setting
 from .shell import Shell
 from .targets import ComposeTargetResolver
@@ -173,10 +174,13 @@ class DockerCompose(Docker):
     driver: Driver,
     client: DockerClient | None = None,
     contexts: DockerContextResolver | None = None,
+    *,
+    port_cache: PortCache | None = None,
   ) -> None:
     super().__init__(config=config, driver=driver, client=client, contexts=contexts)
     self._traefik_service_specs: dict[str, dict[str, Any]] = {}
     self._traefik_prepared = False
+    self._port_cache = port_cache if port_cache is not None else PortCache()
 
   @property
   def placement(self) -> list:
@@ -354,7 +358,9 @@ class DockerCompose(Docker):
       else:
         deploy_cfg.pop('labels', None)
 
-  def _ensure_random_host_port_binding(self, service: dict[str, Any], target_port: int) -> None:
+  def _ensure_host_port_binding(
+    self, service: dict[str, Any], service_name: str, target_port: int
+  ) -> int | None:
     ports = service.get('ports', [])
     filtered_ports: list[Any] = []
 
@@ -371,9 +377,19 @@ class DockerCompose(Docker):
             continue
           filtered_ports.append(entry)
 
-    # Compose syntax "<target_port>" publishes on a random host port.
-    filtered_ports.append(str(target_port))
+    # Compose syntax "<target_port>" publishes on a random host port. A port
+    # reserved by a previous deployment is published explicitly so a
+    # redeployment keeps the exact same host binding.
+    reserved_port = self._port_cache.get(
+      project=self.compose_project_name,
+      service=service_name,
+      target_port=target_port,
+    )
+    binding = f'{reserved_port}:{target_port}' if reserved_port is not None else str(target_port)
+    filtered_ports.append(binding)
     service['ports'] = filtered_ports
+
+    return reserved_port
 
   def _parse_published_host_port(self, output: str) -> int | None:
     line = output.strip().splitlines()[0].strip() if output.strip() else ''
@@ -429,12 +445,21 @@ class DockerCompose(Docker):
 
       target_ports = self._service_traefik_target_ports(traefik_labels)
       for target_port in sorted(set(target_ports.values())):
-        self._ensure_random_host_port_binding(service, target_port)
-        logger.info(
-          'Compose service %s: mapped Traefik target port %s to random host port binding.',
-          service_name,
-          target_port,
-        )
+        reserved_port = self._ensure_host_port_binding(service, service_name, target_port)
+
+        if reserved_port is None:
+          logger.info(
+            'Compose service %s: mapped Traefik target port %s to a random host port binding.',
+            service_name,
+            target_port,
+          )
+        else:
+          logger.info(
+            'Compose service %s: reused reserved host port %s for Traefik target port %s.',
+            service_name,
+            reserved_port,
+            target_port,
+          )
 
       extracted[service_name] = {
         'labels': traefik_labels,
@@ -594,6 +619,8 @@ class DockerCompose(Docker):
     self, service: dict[str, Any], *, target_port: int, published_port: int
   ) -> bool:
     ports = service.get('ports', [])
+    original_ports = list(ports) if isinstance(ports, list) else []
+    explicit_binding = f'{published_port}:{target_port}'
     filtered_ports: list[Any] = []
     replaced = False
 
@@ -602,23 +629,28 @@ class DockerCompose(Docker):
         if isinstance(entry, str):
           candidate = entry.split(':')[-1].split('/')[0]
           if candidate.isdigit() and int(candidate) == target_port:
-            replaced = True
+            if not replaced:
+              filtered_ports.append(explicit_binding)
+              replaced = True
             continue
           filtered_ports.append(entry)
         elif isinstance(entry, dict):
           candidate = entry.get('target')
           if isinstance(candidate, int) and candidate == target_port:
-            replaced = True
+            if not replaced:
+              filtered_ports.append(explicit_binding)
+              replaced = True
             continue
           filtered_ports.append(entry)
 
-    explicit_binding = f'{published_port}:{target_port}'
-    if explicit_binding not in filtered_ports:
+    if not replaced:
       filtered_ports.append(explicit_binding)
 
     service['ports'] = filtered_ports
 
-    return replaced
+    # Only report a real change so an already pinned binding does not trigger a
+    # needless container recreation (which would briefly drop the route).
+    return filtered_ports != original_ports
 
   def _pin_current_published_ports(self, nodename: str) -> bool:
     changed = False
@@ -643,6 +675,14 @@ class DockerCompose(Docker):
         if host_port is None:
           continue
 
+        # Keep the first port Docker picked so a redeployment reuses it.
+        self._port_cache.reserve(
+          project=self.compose_project_name,
+          service=service_name,
+          target_port=target_port,
+          host_port=host_port,
+        )
+
         if self._replace_target_port_binding(
           service, target_port=target_port, published_port=host_port
         ):
@@ -653,6 +693,8 @@ class DockerCompose(Docker):
             host_port,
             target_port,
           )
+
+    self._port_cache.flush()
 
     return changed
 

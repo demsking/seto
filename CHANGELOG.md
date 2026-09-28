@@ -11,6 +11,7 @@ All notable changes to this project are documented in this file.
 ### Improvements
 
 - `seto deploy` now runs the image build pass only when a Swarm or Compose service declares a `build` entry. Stacks made exclusively of `image` services (and services whose `build` entry was already removed by `--pull`) skip `compose build` and `compose push` instead of running a no-op build of the whole configuration.
+- `seto deploy` now reserves the random host port Docker assigns to a Compose Traefik target port in `.seto/ports.json` and reuses it on later deployments, so redeploying a service keeps the same published binding and the Traefik route stays valid. A reserved binding is applied before the first `docker compose up`, which also removes the extra container recreation previously needed to pin a freshly assigned random port.
 
 ### Fixes
 

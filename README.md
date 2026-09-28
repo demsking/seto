@@ -238,6 +238,10 @@ services:
 
 During deployment, Ṣeto reads those labels, translates them into a Traefik HTTP configuration payload, and pushes the result to the registry endpoint. The Traefik instance then exposes the route without needing to query the remote Docker daemon hosting the service.
 
+### Stable host ports
+
+A Traefik service target port does not define an explicit host port, so Docker Compose publishes it on a random host port chosen at container start. Ṣeto reads that port from Docker and points the Traefik route at it. To keep the route valid across redeployments, the first assigned port is reserved in `.seto/ports.json` and published explicitly on the next `seto deploy`, so a redeployed service reuses the exact same host binding instead of picking a new random port. If a reserved port is taken by another process before a later deployment, remove its entry from `.seto/ports.json` (or delete the file) so Docker can assign a new one.
+
 ### Cleanup behavior
 
 Routes are automatically refreshed and pruned using a short TTL. By default,Ṣeto keeps registry entries for 30 seconds and removes stale entries when services disappear or are brought down. This prevents dead routes from lingering in Traefik after a remote Compose service is stopped.
@@ -383,7 +387,7 @@ docker --context seto-client1 info
 | `Docker context '<name>' already exists with the Docker endpoint ...` | Another node already uses that context name with a different endpoint. Remove it (`docker context rm <name>`) and re-run `seto setup`.           |
 | `Docker context '<name>' cannot reach its Docker daemon`              | The SSH user cannot reach the node, is not allowed to use Docker, or the node has no Docker CLI. Fix the reported error and re-run `seto setup`. |
 | `Node '<host>' has no Docker context registered`                      | The stack targets a node that `setup` never registered (or its context failed). Run `seto setup` again — it repairs missing contexts.            |
-| Contexts work for `setup` but fail later                              | The SSH key authorized during `setup` may have been removed, or the user was removed from the `docker` group. Re-run `seto setup`.               |
+| Contexts work for `setup` but fail later                              | The SSH key authorized during the first `setup` may have been removed, or the user was removed from the `docker` group. Host-level access is only provisioned on the first run: restore it manually, or delete `.seto/config.json` and re-run `seto setup` for a full re-provision. |
 
 > [!NOTE]
 > Docker contexts address remote daemons through the `ssh` client (`ssh://user@host`).

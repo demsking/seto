@@ -21,6 +21,7 @@ from seto.core.context import DockerContextUnavailableError
 from seto.core.docker import DockerCompose
 from seto.core.docker import DockerSwarm
 from seto.core.driver import Driver
+from seto.core.ports import PortCache
 from seto.core.shell import Shell
 from seto.core.traefik import build_traefik_http_provider_state
 from seto.core.traefik import extract_traefik_route
@@ -814,14 +815,8 @@ def test_compose_publish_falls_back_to_remote_node_sync(mocker, contexts_factory
   assert node_capture_mock.call_args.kwargs['hostname'] == 'mali'
 
 
-def test_compose_deploy_pins_random_ports_for_manual_restart(mocker, contexts_factory):
-  contexts = contexts_factory(nodes={'mali': 'seto-mali'})
-  driver = docker_driver(mocker, contexts, stack_id='oremi_iot_mali')
-
-  client = MagicMock()
-  client.nodes.list.return_value = [swarm_node('mali')]
-
-  config = {
+def traefik_ports_config():
+  return {
     'x-placement': ['node.hostname==mali'],
     'services': {
       'ps4': {
@@ -838,22 +833,37 @@ def test_compose_deploy_pins_random_ports_for_manual_restart(mocker, contexts_fa
     },
   }
 
-  compose = DockerCompose(config=config, driver=driver, client=client)
+
+def published_port_stub(command, _nodename):
+  if command.endswith('port ps4 3000'):
+    return '0.0.0.0:32772\n'
+  if command.endswith('port ps4 8082'):
+    return '0.0.0.0:32773\n'
+  return ''
+
+
+def test_compose_deploy_pins_random_ports_for_manual_restart(mocker, contexts_factory, tmp_path):
+  contexts = contexts_factory(nodes={'mali': 'seto-mali'})
+  driver = docker_driver(mocker, contexts, stack_id='oremi_iot_mali')
+
+  client = MagicMock()
+  client.nodes.list.return_value = [swarm_node('mali')]
+
+  port_cache = PortCache(str(tmp_path / 'ports.json'))
+  compose = DockerCompose(
+    config=traefik_ports_config(),
+    driver=driver,
+    client=client,
+    port_cache=port_cache,
+  )
 
   run_calls = []
 
   def _exec_stub(command, nodename, *, resolved_config=None):
     run_calls.append((command, nodename, resolved_config))
 
-  def _exec_output_stub(command, _nodename):
-    if command.endswith('port ps4 3000'):
-      return '0.0.0.0:32772\n'
-    if command.endswith('port ps4 8082'):
-      return '0.0.0.0:32773\n'
-    return ''
-
   mocker.patch.object(compose, '_exec', side_effect=_exec_stub)
-  mocker.patch.object(compose, '_exec_output', side_effect=_exec_output_stub)
+  mocker.patch.object(compose, '_exec_output', side_effect=published_port_stub)
   publish_mock = mocker.patch.object(compose, '_publish_traefik_routes')
 
   compose.deploy()
@@ -863,6 +873,58 @@ def test_compose_deploy_pins_random_ports_for_manual_restart(mocker, contexts_fa
   assert run_calls[1][0].endswith('up -d --remove-orphans')
   assert compose.config['services']['ps4']['ports'] == ['32772:3000', '32773:8082']
   publish_mock.assert_called_once_with('mali')
+
+  # The randomly assigned ports are cached so a redeployment reuses them.
+  assert PortCache(str(tmp_path / 'ports.json')).get(
+    project='oremi_iot_mali', service='ps4', target_port=3000
+  ) == 32772
+  assert PortCache(str(tmp_path / 'ports.json')).get(
+    project='oremi_iot_mali', service='ps4', target_port=8082
+  ) == 32773
+
+
+def test_compose_deploy_reuses_cached_host_ports_without_recreating(
+  mocker, contexts_factory, tmp_path
+):
+  contexts = contexts_factory(nodes={'mali': 'seto-mali'})
+  driver = docker_driver(mocker, contexts, stack_id='oremi_iot_mali')
+
+  client = MagicMock()
+  client.nodes.list.return_value = [swarm_node('mali')]
+
+  port_cache = PortCache(str(tmp_path / 'ports.json'))
+  port_cache.reserve(
+    project='oremi_iot_mali', service='ps4', target_port=3000, host_port=32772
+  )
+  port_cache.reserve(
+    project='oremi_iot_mali', service='ps4', target_port=8082, host_port=32773
+  )
+  port_cache.flush()
+
+  # A redeployment runs in a fresh process: reload the reservations from disk.
+  compose = DockerCompose(
+    config=traefik_ports_config(),
+    driver=driver,
+    client=client,
+    port_cache=PortCache(str(tmp_path / 'ports.json')),
+  )
+
+  run_calls = []
+
+  def _exec_stub(command, nodename, *, resolved_config=None):
+    run_calls.append((command, nodename, resolved_config))
+
+  mocker.patch.object(compose, '_exec', side_effect=_exec_stub)
+  mocker.patch.object(compose, '_exec_output', side_effect=published_port_stub)
+  mocker.patch.object(compose, '_publish_traefik_routes')
+
+  compose.deploy()
+
+  # The cached bindings are applied before the first `up`, so Docker never
+  # assigns a new random port and no recreation is needed.
+  assert compose.config['services']['ps4']['ports'] == ['32772:3000', '32773:8082']
+  assert len(run_calls) == 1
+  assert run_calls[0][0].endswith('up -d --remove-orphans')
 
 
 def test_docker_compose_reports_swarm_listing_failures(mocker, contexts_factory):

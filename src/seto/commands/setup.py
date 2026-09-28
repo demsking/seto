@@ -83,7 +83,7 @@ def execute_setup_command(args, driver: Driver) -> None:
     if refresh_namespace:
       deploy_namespace_stack(args, driver)
       config.global_networks_fingerprint = fingerprint
-      write_seto_config(config)
+      write_seto_config(config, announce=False)
       driver.apply_storage_node_changes()
     else:
       logger.info('Global networks are unchanged; keeping the namespace deployment as is.')
@@ -131,7 +131,7 @@ def provision_docker_contexts(driver: Driver, clients: list[Setting]) -> list[st
   return failed_nodes
 
 
-def write_seto_config(config: SetoConfig) -> None:
+def write_seto_config(config: SetoConfig, *, announce: bool = True) -> None:
   os.makedirs(CONFIG_DIR, exist_ok=True)
 
   # Automatically add images/ to .seto/.gitignore
@@ -150,7 +150,8 @@ def write_seto_config(config: SetoConfig) -> None:
 
   config.save(CONFIG_PATH)
 
-  logger.info('Configuration file generated at %s\n', CONFIG_PATH)
+  if announce:
+    logger.info('Configuration file generated at %s\n', CONFIG_PATH)
 
 
 def generate_ssh_keys(args, driver: Driver) -> None:

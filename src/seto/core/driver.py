@@ -100,8 +100,6 @@ class Driver:
     created by ``seto setup``. This host-level step only makes that context
     usable, by authorizing the generated SSH key for the administrative user and
     by ensuring the user may reach the Docker daemon.
-
-    No dedicated ``setouser`` account is created.
     """
     if node.setting.local:
       return

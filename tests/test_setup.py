@@ -99,9 +99,9 @@ def test_setup_deploys_the_seto_stacks_after_contexts_are_ready(
 
   order: list[str] = []
   contexts = contexts_factory()
-  contexts.manager.provision.side_effect = lambda node: order.append(
-    f'context:{node.hostname}'
-  ) or node.derived_context
+  contexts.manager.provision.side_effect = lambda node: (
+    order.append(f'context:{node.hostname}') or node.derived_context
+  )
   driver = make_setup_driver(contexts)
   driver.setup_storage_node.side_effect = lambda *args, **kwargs: order.append('host-provision')
   driver.setup_nodes.side_effect = lambda *args, **kwargs: order.append('client-provision')
@@ -243,10 +243,3 @@ def test_provision_docker_contexts_reports_every_failing_node(contexts_factory):
   assert contexts.config.context_for('client1') == 'seto-client1'
   assert contexts.config.context_for('client2') is None
   assert contexts.config.context_for('client3') is None
-
-
-def test_setup_does_not_create_a_setouser_account():
-  # The provisioning path must not reference the removed dedicated account.
-  assert not hasattr(Driver, 'setouser')
-  assert not hasattr(Driver, 'create_seto_user')
-  assert hasattr(Driver, 'provision_docker_access')

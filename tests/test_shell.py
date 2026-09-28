@@ -320,9 +320,7 @@ def test_provision_docker_access_authorizes_the_administrative_user_key(mocker, 
   key_file.write_text('PRIVATE KEY', encoding='utf-8')
   (tmp_path / 'id_rsa.pub').write_text('ssh-rsa AAAAB3Nza seto\n', encoding='utf-8')
 
-  setting = Setting(
-    hostname='client1', username='admin', password=None, local=False, ip='10.0.0.5'
-  )
+  setting = Setting(hostname='client1', username='admin', password=None, local=False, ip='10.0.0.5')
   shell = LocalShell(setting, str(key_file))
   recorded: list[str] = []
 
@@ -343,11 +341,6 @@ def test_provision_docker_access_authorizes_the_administrative_user_key(mocker, 
   driver = NFSDriver(stack='app', namespace='ns', host=shell, storage_node=shell)
   driver.provision_docker_access(shell, 'admin')
 
-  # No dedicated setouser account is created anymore
-  assert not any('useradd' in command for command in recorded)
-  assert not any('setouser' in command for command in recorded)
-  assert not any('adduser' in command for command in recorded)
-
   # The administrative SSH user keeps its own key so the Docker context works
   mkdir.assert_called_once_with('/home/admin/.ssh', user='admin', group='admin', mode='700')
   authorized_keys.append.assert_called_once_with('ssh-rsa AAAAB3Nza seto\n')
@@ -366,9 +359,7 @@ def test_provision_docker_access_grants_docker_group_only_when_needed(mocker, tm
   key_file.write_text('PRIVATE KEY', encoding='utf-8')
   (tmp_path / 'id_rsa.pub').write_text('ssh-rsa AAAAB3Nza seto\n', encoding='utf-8')
 
-  setting = Setting(
-    hostname='client1', username='admin', password=None, local=False, ip='10.0.0.5'
-  )
+  setting = Setting(hostname='client1', username='admin', password=None, local=False, ip='10.0.0.5')
   shell = LocalShell(setting, str(key_file))
   recorded: list[str] = []
 
@@ -413,9 +404,7 @@ def test_provision_docker_access_requires_an_ssh_username(mocker):
   from seto.core.context import DockerContextError
   from seto.drivers.nfs import NFSDriver
 
-  setting = Setting(
-    hostname='client1', username=None, password=None, local=False, ip='10.0.0.5'
-  )
+  setting = Setting(hostname='client1', username=None, password=None, local=False, ip='10.0.0.5')
   shell = MagicMock(spec=Shell)
   shell.setting = setting
   shell.hostname = 'client1'

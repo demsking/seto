@@ -182,6 +182,26 @@ def build_docker_client(endpoint: str | None = None) -> DockerClient:
   return DockerClient(base_url=endpoint)
 
 
+def is_local_hostname(hostname: str) -> bool:
+  """Return whether ``hostname`` identifies the machine running Ṣeto.
+
+  The machine running Ṣeto is reachable through Docker's built-in ``default``
+  context, so it never needs a persisted node entry or a ``seto-<hostname>``
+  context clone to be used as a Compose target.
+  """
+  normalized = (hostname or '').strip().lower()
+
+  if not normalized:
+    return False
+
+  if normalized == 'localhost':
+    return True
+
+  local = socket.gethostname().strip().lower()
+
+  return normalized in (local, local.split('.')[0])
+
+
 def local_setting() -> Setting:
   """Return the setting of the host running Ṣeto."""
   return Setting(
@@ -451,6 +471,11 @@ class DockerContextManager:
     with a different Docker endpoint is never overwritten: it is reported as a
     conflict so the operator can decide what to do with it.
     """
+    if node.local:
+      # The machine running Ṣeto already ships the built-in ``default`` context
+      # pointing at its own Docker daemon: no ``seto-<hostname>`` clone is needed.
+      return LOCAL_DOCKER_CONTEXT, False
+
     context = validate_context_name(node.docker_context or node.derived_context)
     endpoint = node.endpoint
 
@@ -477,6 +502,13 @@ class DockerContextManager:
 
   def provision(self, node: NodeContext) -> str:
     """Create (or reuse) and verify the Docker context of a node."""
+    if node.local:
+      # The current node uses the built-in ``default`` context. It is verified
+      # but never created or refreshed: it is Docker's own context, so a stale
+      # or unreachable daemon is reported instead of being silently rewritten.
+      self.verify(LOCAL_DOCKER_CONTEXT)
+      return LOCAL_DOCKER_CONTEXT
+
     context, created = self.ensure(node)
 
     try:
@@ -527,10 +559,26 @@ class DockerContextResolver:
     return self._manager
 
   def node_for(self, hostname: str) -> NodeContext | None:
-    return self.config.node_for(hostname)
+    node = self.config.node_for(hostname)
+
+    if node is not None:
+      return node
+
+    if is_local_hostname(hostname):
+      # The current node is always reachable through Docker's built-in
+      # ``default`` context, even when it was never persisted by ``seto setup``.
+      return NodeContext(
+        hostname=(hostname or '').strip(),
+        local=True,
+        docker_context=LOCAL_DOCKER_CONTEXT,
+      )
+
+    return None
 
   def context_for(self, hostname: str) -> str | None:
-    return self.config.context_for(hostname)
+    node = self.node_for(hostname)
+
+    return node.docker_context if node is not None else None
 
   def require_context(self, hostname: str) -> str:
     context = self.context_for(hostname)

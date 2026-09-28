@@ -95,7 +95,7 @@ To help you get started, here are the main concepts used throughout the Ṣeto e
 - **Stack**: A collection of containerized services, networks, and persistent storage definitions declared in a Compose file that are managed and deployed as a single unit.
 - **Storage Node**: The host computer configured to act as the primary, central NFS server. It is the single source of truth for all shared cluster-wide persistent directories.
 - **Storage Replicas**: Secondary node locations configured as backup/redundant targets to replicate volumes from the Storage Node for redundancy.
-- **Client Nodes**: Target execution hosts (either Swarm worker hosts or independent Docker servers) that run application containers and mount persistent directories. Every client node gets a Docker Context during `setup`.
+- **Client Nodes**: Target execution hosts (either Swarm worker hosts or independent Docker servers) that run application containers and mount persistent directories. Every remote client node gets a Docker Context during `setup`; the machine running Ṣeto uses its built-in `default` context.
 - **Docker Context**: Docker's native mechanism for addressing a specific Docker daemon. Ṣeto creates one context per configured node (for example `seto-client1`) and uses it for every Docker operation, so the Docker daemon of each node is always addressed explicitly. Remote contexts use the Docker CLI's native SSH transport; the daemon is never exposed over TCP.
 - **volumes-nfs**: A custom YAML extension key that declares shared cluster-wide directories, auto-configuring backend NFS exports and mounts.
 - **volumes-image**: A custom YAML extension key used to bundle and bake static folders or files directly into container images during the build/compilation phase.
@@ -289,12 +289,16 @@ Context names are deterministic and derived from the node identity:
 client1        -> seto-client1        -> ssh://<user>@client1
 client2        -> seto-client2        -> ssh://<user>@client2
 worker-node-1  -> seto-worker-node-1  -> ssh://<user>@worker-node-1
-localhost      -> seto-localhost      -> unix:///var/run/docker.sock
+localhost      -> default             -> unix:///var/run/docker.sock
 ```
 
 - Remote nodes are reached with the Docker CLI's native SSH transport
   (`ssh://<user>@<node>`), which reuses the SSH keys of the machine running Ṣeto.
-- Local nodes (the machine running Ṣeto) use its local Docker socket.
+- The current node (the machine running Ṣeto) uses Docker's built-in `default`
+  context, which already points at its local Docker socket. `setup` verifies it
+  and persists it as `"docker_context": "default"` instead of creating a
+  redundant `seto-<hostname>` context, and any `host.name == <current-hostname>`
+  placement resolves to it even when the node was never persisted.
 - Hostnames that are not valid context names get a stable digest suffix, so two
   different hostnames can never collapse into the same context name.
 
@@ -449,7 +453,7 @@ seto --namespace <namespace-name> [--stack <stack-name>] \
 | :------------------- | :------------------------------------------------------------------------------------------------- |
 | `--storage-node`     | Required. Storage node URI. Format: `nfs://username:password@hostname`.                            |
 | `--storage-replicas` | Required. Storage replica nodes to setup: `user:pass@hostname`.                                    |
-| `--clients`          | Required. Client nodes to setup: `user:pass@hostname`. A Docker Context is created for every node. |
+| `--clients`          | Required. Client nodes to setup: `user:pass@hostname`. A Docker Context is created for every remote node (the current node uses the built-in `default` context). |
 | `--storage-path`     | Optional. Remote NFS storage base path persisted in `.seto/config.json` (default: `/mnt/nfs`).     |
 | `--force`            | Optional. Forces re-running setup tasks.                                                           |
 
@@ -930,6 +934,11 @@ A node that matches the hardware constraints but has no registered Docker
 Context is reported with a warning and excluded from the deployment. `seto check`
 reports both: the nodes that match the constraints and whether each one is a
 usable Compose target.
+
+The machine running Ṣeto is always a valid Compose target: it resolves through
+Docker's built-in `default` context, so `host.name == <current-hostname>` works
+without registering the node in `.seto/config.json` or creating a Docker context
+for it.
 
 ### Physical Device Verification
 

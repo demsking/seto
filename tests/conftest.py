@@ -18,12 +18,16 @@ from unittest.mock import MagicMock
 import pytest
 from seto.core.context import DockerContextManager
 from seto.core.context import DockerContextResolver
+from seto.core.context import LOCAL_DOCKER_CONTEXT
 from seto.core.context import NodeContext
 from seto.core.context import SetoConfig
 
 
 def default_provision(node: NodeContext) -> str:
-  """Mirror the real manager: reuse the persisted context name, else derive it."""
+  """Mirror the real manager: the local node uses the default context."""
+  if node.local:
+    return LOCAL_DOCKER_CONTEXT
+
   return node.docker_context or node.derived_context
 
 

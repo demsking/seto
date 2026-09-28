@@ -107,6 +107,23 @@ def test_target_resolver_selects_only_context_backed_nodes():
   assert targets.deployable == ['node1']
 
 
+def test_target_resolver_treats_the_current_node_as_context_backed(mocker):
+  mocker.patch('seto.core.context.socket.gethostname', return_value='kama')
+
+  resolver = ComposeTargetResolver(
+    placement=['host.name == kama'],
+    nodes=[swarm_node('kama')],
+    contexts=make_contexts({}),
+  )
+
+  targets = resolver.resolve()
+
+  # The machine running Ṣeto always resolves through the built-in default
+  # context, even though it has no persisted entry in .seto/config.json.
+  assert targets.matched == ['kama']
+  assert targets.deployable == ['kama']
+
+
 def test_target_resolver_verifies_devices_over_administrative_ssh(mocker):
   contexts = make_contexts({'node1': 'seto-node1', 'node2': 'seto-node2'})
   failing_shell = MagicMock(spec=Shell)

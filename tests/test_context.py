@@ -26,6 +26,8 @@ from seto.core.context import DockerContextError
 from seto.core.context import DockerContextManager
 from seto.core.context import DockerContextResolver
 from seto.core.context import DockerContextUnavailableError
+from seto.core.context import is_local_hostname
+from seto.core.context import LOCAL_DOCKER_CONTEXT
 from seto.core.context import LOCAL_DOCKER_ENDPOINT
 from seto.core.context import NodeContext
 from seto.core.context import NodeContextMissingError
@@ -301,6 +303,46 @@ def test_docker_context_manager_verifies_context_reachability():
   assert 'docker --context seto-client1 info' in calls
 
 
+def test_docker_context_manager_uses_the_builtin_default_context_for_local_nodes():
+  calls: list[str] = []
+  manager, _calls = make_manager({'docker context ls': 'default\n'}, calls=calls)
+
+  node = NodeContext(hostname='localhost', username='ndemnou', local=True)
+  context, created = manager.ensure(node)
+
+  assert context == LOCAL_DOCKER_CONTEXT
+  assert created is False
+  assert not calls
+
+
+def test_docker_context_manager_verifies_the_default_context_of_local_nodes():
+  calls: list[str] = []
+  manager, _calls = make_manager(
+    {'docker --context default info': 'Server Version: 29.0.0\n'},
+    calls=calls,
+  )
+
+  node = NodeContext(hostname='localhost', username='ndemnou', local=True)
+
+  assert manager.provision(node) == LOCAL_DOCKER_CONTEXT
+  assert calls == ['docker --context default info']
+
+
+def test_docker_context_manager_never_rewrites_the_default_context():
+  calls: list[str] = []
+  manager, _calls = make_manager(
+    {'docker --context default info': Exception('cannot connect to the daemon')},
+    calls=calls,
+  )
+
+  node = NodeContext(hostname='localhost', username='ndemnou', local=True)
+
+  with pytest.raises(DockerContextUnavailableError, match='cannot reach its Docker daemon'):
+    manager.provision(node)
+
+  assert not any(command.startswith('docker context update') for command in calls)
+
+
 def test_docker_context_manager_refreshes_a_stale_context():
   calls: list[str] = []
   attempts = {'count': 0}
@@ -503,6 +545,45 @@ def test_resolver_reports_unregistered_nodes():
 
   with pytest.raises(NodeContextMissingError, match='not registered'):
     resolver.node_shell('client2')
+
+
+def test_is_local_hostname_matches_localhost_and_the_current_host(mocker):
+  mocker.patch('seto.core.context.socket.gethostname', return_value='kama.local')
+
+  assert is_local_hostname('localhost') is True
+  assert is_local_hostname('kama.local') is True
+  assert is_local_hostname('kama') is True
+  assert is_local_hostname('KAMA') is True
+  assert is_local_hostname('remote1') is False
+  assert is_local_hostname('') is False
+
+
+def test_resolver_maps_the_current_node_to_the_default_context(mocker):
+  mocker.patch('seto.core.context.socket.gethostname', return_value='kama')
+  resolver = DockerContextResolver(SetoConfig())
+
+  assert resolver.node_for('kama').local is True
+  assert resolver.context_for('kama') == LOCAL_DOCKER_CONTEXT
+  assert resolver.require_context('kama') == LOCAL_DOCKER_CONTEXT
+  assert resolver.node_cli('kama', 'compose up') == 'docker --context default compose up'
+
+
+def test_resolver_uses_the_local_shell_for_the_current_node(mocker):
+  mocker.patch('seto.core.context.socket.gethostname', return_value='kama')
+  resolver = DockerContextResolver(SetoConfig(), key_file_path='~/.ssh/id_rsa')
+
+  shell = resolver.node_shell('kama')
+
+  assert isinstance(shell, LocalShell)
+  assert shell.setting.local is True
+
+
+def test_resolver_leaves_unregistered_remote_nodes_unresolved(mocker):
+  mocker.patch('seto.core.context.socket.gethostname', return_value='kama')
+  resolver = DockerContextResolver(SetoConfig())
+
+  assert resolver.node_for('remote1') is None
+  assert resolver.context_for('remote1') is None
 
 
 def test_resolver_never_targets_the_current_context():

@@ -71,7 +71,8 @@ def provision_docker_contexts(driver: Driver, clients: list[Setting]) -> list[st
   Returns the hostnames of the nodes whose context could not be established.
   Successfully verified contexts are recorded in the configuration; failing
   nodes are recorded as incomplete so they are never targeted by a Compose
-  deployment until a later ``seto setup`` repairs them.
+  deployment until a later ``seto setup`` repairs them. The machine running
+  Ṣeto is always mapped to Docker's built-in ``default`` context.
   """
   config = driver.contexts.config
   manager = driver.contexts.manager

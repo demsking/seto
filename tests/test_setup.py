@@ -21,10 +21,36 @@ import pytest
 from seto.commands.setup import execute_setup_command
 from seto.commands.setup import provision_docker_contexts
 from seto.core.context import DockerContextError
+from seto.core.context import DockerContextManager
+from seto.core.context import DockerContextResolver
+from seto.core.context import LOCAL_DOCKER_CONTEXT
 from seto.core.context import NodeContext
 from seto.core.context import SetoConfig
 from seto.core.driver import Driver
 from seto.core.shell import Setting
+
+
+class FakeDockerShell:
+  """Docker CLI stub for a host that only has the built-in default context."""
+
+  def __init__(self) -> None:
+    self.contexts = ['default']
+    self.calls: list[str] = []
+
+  def run(self, command, **_kwargs):
+    self.calls.append(command)
+
+    if command.startswith('docker context ls'):
+      return ''.join(f'{name}\n' for name in self.contexts)
+
+    if command.startswith('docker context create'):
+      self.contexts.append(command.split()[3])
+      return ''
+
+    if command.startswith('docker --context') and command.endswith(' info'):
+      return 'Server Version: 29.0.0\n'
+
+    raise AssertionError(f'unexpected Docker command: {command}')
 
 
 def make_setting(hostname: str, *, local: bool = False) -> Setting:
@@ -90,6 +116,32 @@ def test_setup_creates_a_docker_context_for_every_configured_node(
   driver.setup_storage_node.assert_called_once()
   driver.setup_nodes.assert_called_once()
   assert (tmp_path / '.seto' / '.gitignore').read_text(encoding='utf-8') == 'images/\n'
+
+
+def test_setup_persists_the_default_context_of_the_current_node(mocker, tmp_path, monkeypatch):
+  monkeypatch.chdir(tmp_path)
+
+  shell = FakeDockerShell()
+  contexts = DockerContextResolver(SetoConfig(), manager=DockerContextManager(shell=shell))
+  driver = make_setup_driver(contexts, storage_node='localhost')
+  driver.storage_node.setting = make_setting('localhost', local=True)
+
+  args = make_setup_args(tmp_path)
+  args.clients = [[make_setting('localhost', local=True)]]
+
+  mocker.patch('seto.commands.setup.deploy_seto_stack')
+  mocker.patch('seto.commands.setup.deploy_namespace_stack')
+
+  execute_setup_command(args, driver)
+
+  config = SetoConfig.load(str(tmp_path / '.seto' / 'config.json'))
+
+  # The current node relies on Docker's built-in default context; no
+  # seto-localhost clone is created for it.
+  assert config.storage_node.local is True
+  assert config.storage_node.docker_context == LOCAL_DOCKER_CONTEXT
+  assert config.context_for('localhost') == LOCAL_DOCKER_CONTEXT
+  assert not any(command.startswith('docker context create') for command in shell.calls)
 
 
 def test_setup_deploys_the_seto_stacks_after_contexts_are_ready(

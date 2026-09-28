@@ -4,6 +4,10 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+### Breaking Changes
+
+- `seto setup` now provisions the NFS hosts (SSH key pair generation, NFS server/client packages, SSH authorization) only on the first run, i.e. while `.seto/config.json` is missing. Later runs start from the persisted configuration, only create/verify/repair Docker contexts, skip the `seto` provider stack, and redeploy the namespace agent stack only when the global `networks/*.yaml` definitions changed. The fingerprint of those definitions is persisted as `global_networks_fingerprint` in `.seto/config.json`.
+
 ### Improvements
 
 - `seto deploy` now runs the image build pass only when a Swarm or Compose service declares a `build` entry. Stacks made exclusively of `image` services (and services whose `build` entry was already removed by `--pull`) skip `compose build` and `compose push` instead of running a no-op build of the whole configuration.

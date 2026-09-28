@@ -27,6 +27,7 @@ from seto.core.context import LOCAL_DOCKER_CONTEXT
 from seto.core.context import NodeContext
 from seto.core.context import SetoConfig
 from seto.core.driver import Driver
+from seto.core.network import global_networks_fingerprint
 from seto.core.shell import Setting
 
 
@@ -295,3 +296,99 @@ def test_provision_docker_contexts_reports_every_failing_node(contexts_factory):
   assert contexts.config.context_for('client1') == 'seto-client1'
   assert contexts.config.context_for('client2') is None
   assert contexts.config.context_for('client3') is None
+
+
+def test_setup_persists_the_global_networks_fingerprint(
+  mocker, tmp_path, monkeypatch, contexts_factory
+):
+  monkeypatch.chdir(tmp_path)
+
+  contexts = contexts_factory()
+  driver = make_setup_driver(contexts)
+  args = make_setup_args(tmp_path)
+
+  mocker.patch('seto.commands.setup.deploy_seto_stack')
+  mocker.patch('seto.commands.setup.deploy_namespace_stack')
+
+  execute_setup_command(args, driver)
+
+  config = SetoConfig.load(str(tmp_path / '.seto' / 'config.json'))
+  assert config.global_networks_fingerprint == global_networks_fingerprint('test')
+
+
+def test_setup_rerun_skips_host_provisioning_and_provider_stack(
+  mocker, tmp_path, monkeypatch, contexts_factory
+):
+  monkeypatch.chdir(tmp_path)
+
+  contexts = contexts_factory()
+  driver = make_setup_driver(contexts)
+  args = make_setup_args(tmp_path)
+  args.setup_fresh = False
+
+  generate_keys = mocker.patch('seto.commands.setup.generate_ssh_keys')
+  deploy_seto = mocker.patch('seto.commands.setup.deploy_seto_stack')
+  deploy_namespace = mocker.patch('seto.commands.setup.deploy_namespace_stack')
+
+  execute_setup_command(args, driver)
+
+  # Host-level NFS provisioning never runs again once the configuration exists.
+  generate_keys.assert_not_called()
+  driver.setup_storage_node.assert_not_called()
+  driver.setup_nodes.assert_not_called()
+  deploy_seto.assert_not_called()
+  # Docker contexts are still provisioned so a re-run repairs missing contexts.
+  driver.contexts.manager.provision.assert_called()
+  # The stored configuration predates fingerprints, so the namespace stack is
+  # refreshed on the first re-run.
+  driver.connect.assert_called_once()
+  deploy_namespace.assert_called_once()
+
+
+def test_setup_rerun_skips_namespace_deploy_when_networks_are_unchanged(
+  mocker, tmp_path, monkeypatch, contexts_factory
+):
+  monkeypatch.chdir(tmp_path)
+
+  contexts = contexts_factory()
+  contexts.config.global_networks_fingerprint = global_networks_fingerprint('test')
+  driver = make_setup_driver(contexts)
+  args = make_setup_args(tmp_path)
+  args.setup_fresh = False
+
+  mocker.patch('seto.commands.setup.generate_ssh_keys')
+  mocker.patch('seto.commands.setup.deploy_seto_stack')
+  deploy_namespace = mocker.patch('seto.commands.setup.deploy_namespace_stack')
+
+  execute_setup_command(args, driver)
+
+  deploy_namespace.assert_not_called()
+  # Nothing changed, so the NFS hosts are not contacted at all.
+  driver.connect.assert_not_called()
+  driver.apply_storage_node_changes.assert_not_called()
+
+  config = SetoConfig.load(str(tmp_path / '.seto' / 'config.json'))
+  assert config.global_networks_fingerprint == global_networks_fingerprint('test')
+
+
+def test_setup_rerun_redeploys_namespace_when_networks_change(
+  mocker, tmp_path, monkeypatch, contexts_factory
+):
+  monkeypatch.chdir(tmp_path)
+
+  contexts = contexts_factory()
+  contexts.config.global_networks_fingerprint = 'stale-fingerprint'
+  driver = make_setup_driver(contexts)
+  args = make_setup_args(tmp_path)
+  args.setup_fresh = False
+
+  mocker.patch('seto.commands.setup.generate_ssh_keys')
+  mocker.patch('seto.commands.setup.deploy_seto_stack')
+  deploy_namespace = mocker.patch('seto.commands.setup.deploy_namespace_stack')
+
+  execute_setup_command(args, driver)
+
+  deploy_namespace.assert_called_once()
+
+  config = SetoConfig.load(str(tmp_path / '.seto' / 'config.json'))
+  assert config.global_networks_fingerprint == global_networks_fingerprint('test')

@@ -683,6 +683,81 @@ def test_setup_command_starts_from_an_unusable_configuration_file(mocker, tmp_pa
   assert contexts.config.storage_node is None
 
 
+def test_setup_is_fresh_when_the_configuration_file_is_missing(mocker, tmp_path, monkeypatch):
+  monkeypatch.chdir(tmp_path)
+
+  setup = mocker.patch('seto.execute_setup_command')
+  mocker.patch('seto.NFSDriver')
+  mocker.patch('seto.core.shell.resolve_hostname', return_value='192.168.1.20')
+  mocker.patch(
+    'sys.argv',
+    [
+      'seto',
+      '--namespace',
+      'test',
+      'setup',
+      '--storage-node',
+      'nfs://admin@manager1',
+      '--storage-replicas',
+      'admin@replica1',
+      '--clients',
+      'admin@client1',
+    ],
+  )
+
+  with pytest.raises(SystemExit) as exc_info:
+    seto.run()
+
+  assert exc_info.value.code == 0
+  args = setup.call_args.args[0]
+  assert args.setup_fresh is True
+
+
+def test_setup_is_not_fresh_when_the_configuration_file_exists(mocker, tmp_path, monkeypatch):
+  monkeypatch.chdir(tmp_path)
+  write_config_file(
+    tmp_path,
+    {
+      'version': 2,
+      'driver': 'nfs',
+      'storage_node': {
+        'hostname': 'manager1',
+        'username': 'admin',
+        'ip': '10.0.0.1',
+        'local': False,
+        'docker_context': 'seto-manager1',
+      },
+      'nodes': [],
+    },
+  )
+
+  setup = mocker.patch('seto.execute_setup_command')
+  mocker.patch('seto.NFSDriver')
+  mocker.patch('seto.core.shell.resolve_hostname', return_value='192.168.1.20')
+  mocker.patch(
+    'sys.argv',
+    [
+      'seto',
+      '--namespace',
+      'test',
+      'setup',
+      '--storage-node',
+      'nfs://admin@manager1',
+      '--storage-replicas',
+      'admin@replica1',
+      '--clients',
+      'admin@client1',
+    ],
+  )
+
+  with pytest.raises(SystemExit) as exc_info:
+    seto.run()
+
+  assert exc_info.value.code == 0
+  args = setup.call_args.args[0]
+  assert args.setup_fresh is False
+
+
 def test_commands_without_nfs_volumes_still_load_the_docker_context_mapping(
   mocker, tmp_path, monkeypatch
 ):

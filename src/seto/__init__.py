@@ -384,6 +384,10 @@ def run() -> None:
       storage_base_path = args.storage_base_path
       # Re-running setup must reuse the Docker contexts it created before.
       config = load_seto_config(strict=False)
+      # `seto setup` only provisions the NFS hosts (SSH keys, server/client
+      # packages) on the first run, i.e. while .seto/config.json is missing.
+      # Later runs start from the persisted configuration and only refresh it.
+      setattr(args, 'setup_fresh', not os.path.exists(DEFAULT_CONFIG_PATH))
     else:
       # Determine if the config file is needed (i.e. if volumes-nfs needs parsing)
       needs_nfs = False

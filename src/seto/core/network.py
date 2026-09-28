@@ -13,6 +13,8 @@
 # limitations under the License.
 # ==============================================================================
 import glob
+import hashlib
+import json
 import os
 from typing import Any
 
@@ -33,6 +35,11 @@ SETO_NETWORK = {
 }
 
 SETO_INTERNAL_NETWORKS = {'network': SETO_NETWORK}
+
+
+def internal_network_names() -> list[str]:
+  """Return the names of the seto-owned internal networks."""
+  return [network.get('name', key) for key, network in SETO_INTERNAL_NETWORKS.items()]
 
 
 def resolve_networks(
@@ -88,3 +95,21 @@ def resolve_global_networks(
       network_data['name'] = network_name
 
   return merged_data
+
+
+def namespace_networks(namespace: str) -> dict:
+  """Return the global networks the namespace agent is attached to."""
+  return resolve_global_networks(namespace, external_networks=internal_network_names())
+
+
+def global_networks_fingerprint(namespace: str) -> str:
+  """Return a deterministic fingerprint of the resolved global networks.
+
+  ``seto setup`` persists it so a re-run can tell whether the ``networks/``
+  definitions still match what the namespace stack was deployed with.
+  """
+  payload = json.dumps(
+    namespace_networks(namespace), sort_keys=True, separators=(',', ':'), default=str
+  )
+
+  return hashlib.sha256(payload.encode('utf-8')).hexdigest()

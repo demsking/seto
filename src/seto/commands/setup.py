@@ -19,6 +19,7 @@ from ..core.context import DockerContextError
 from ..core.context import NodeContext
 from ..core.context import SetoConfig
 from ..core.driver import Driver
+from ..core.network import global_networks_fingerprint
 from ..core.shell import Setting
 from .deploy import deploy_namespace_stack
 from .deploy import deploy_seto_stack
@@ -32,23 +33,38 @@ CONFIG_PATH = os.path.join(CONFIG_DIR, 'config.json')
 def execute_setup_command(args, driver: Driver) -> None:
   storage_replicas: list[Setting] = [items[0] for items in args.storage_replicas]
   clients: list[Setting] = [items[0] for items in args.clients]
+  fresh_setup = getattr(args, 'setup_fresh', True)
 
-  driver.connect()
+  config = driver.contexts.config
+  fingerprint = global_networks_fingerprint(args.namespace)
+  # The namespace agent is the only seto-owned stack that depends on the global
+  # networks, so it is the only one a re-run may have to refresh.
+  refresh_namespace = fresh_setup or config.global_networks_fingerprint != fingerprint
+
+  # The storage-node SSH connection is only opened when the NFS hosts or the
+  # namespace stack actually need work; a re-run that only repairs Docker
+  # contexts stays local.
+  if refresh_namespace:
+    driver.connect()
 
   try:
-    # Host-level provisioning over the administrative SSH connection (NFS
-    # server/client packages, SSH key authorization, Docker daemon access).
-    generate_ssh_keys(args, driver)
-    driver.setup_storage_node(storage_replicas, args.force)
-    driver.setup_nodes(clients, args.force)
+    if fresh_setup:
+      # Host-level provisioning over the administrative SSH connection (NFS
+      # server/client packages, SSH key authorization, Docker daemon access).
+      # It only runs while .seto/config.json is missing: a re-run never touches
+      # the NFS hosts again.
+      generate_ssh_keys(args, driver)
+      driver.setup_storage_node(storage_replicas, args.force)
+      driver.setup_nodes(clients, args.force)
 
     # Docker contexts are the canonical way Ṣeto reaches the Docker daemon of
-    # each configured node.
+    # each configured node. They are always provisioned so a re-run can repair
+    # a context that was removed or went stale.
     failed_nodes = provision_docker_contexts(driver, clients)
 
-    driver.contexts.config.driver = driver.slug
-    driver.contexts.config.storage_base_path = driver.storage_base_path
-    write_seto_config(driver.contexts.config)
+    config.driver = driver.slug
+    config.storage_base_path = driver.storage_base_path
+    write_seto_config(config)
 
     if failed_nodes:
       nodes = ', '.join(failed_nodes)
@@ -58,9 +74,19 @@ def execute_setup_command(args, driver: Driver) -> None:
         f"re-run 'seto setup' to repair the remaining nodes."
       )
 
-    deploy_seto_stack(args, driver)
-    deploy_namespace_stack(args, driver)
-    driver.apply_storage_node_changes()
+    # The seto provider stack is only deployed on a first setup; the namespace
+    # stack is redeployed only when the ``networks/`` definitions changed since
+    # the fingerprinted deployment.
+    if fresh_setup:
+      deploy_seto_stack(args, driver)
+
+    if refresh_namespace:
+      deploy_namespace_stack(args, driver)
+      config.global_networks_fingerprint = fingerprint
+      write_seto_config(config)
+      driver.apply_storage_node_changes()
+    else:
+      logger.info('Global networks are unchanged; keeping the namespace deployment as is.')
   finally:
     driver.terminate()
 

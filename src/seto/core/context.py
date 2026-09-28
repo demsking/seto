@@ -293,6 +293,10 @@ class SetoConfig:
   storage_base_path: str = '/mnt/nfs'
   storage_node: NodeContext | None = None
   nodes: list[NodeContext] = field(default_factory=list)
+  # Fingerprint of the global networks deployed by the last ``seto setup``.
+  # A re-run only refreshes the namespace stack when the current ``networks/``
+  # definitions no longer match it.
+  global_networks_fingerprint: str | None = None
   version: int = CONFIG_VERSION
 
   def all_nodes(self) -> list[NodeContext]:
@@ -337,6 +341,7 @@ class SetoConfig:
       'storage_base_path': self.storage_base_path,
       'storage_node': self.storage_node.to_dict() if self.storage_node else None,
       'nodes': [node.to_dict() for node in self.nodes],
+      'global_networks_fingerprint': self.global_networks_fingerprint,
     }
 
   @classmethod
@@ -357,6 +362,11 @@ class SetoConfig:
       storage_base_path=str(data.get('storage_base_path', '/mnt/nfs')),
       storage_node=NodeContext.from_dict(storage_node_data) if storage_node_data else None,
       nodes=[NodeContext.from_dict(item) for item in nodes_data],
+      global_networks_fingerprint=(
+        str(data['global_networks_fingerprint'])
+        if data.get('global_networks_fingerprint')
+        else None
+      ),
       version=int(data.get('version') or 1),
     )
 

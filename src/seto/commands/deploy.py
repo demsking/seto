@@ -25,7 +25,7 @@ from ..core.docker import DockerCompose
 from ..core.docker import DockerSwarm
 from ..core.docker import NODE_HOSTNAME_RE
 from ..core.driver import Driver
-from ..core.network import resolve_global_networks
+from ..core.network import namespace_networks
 from ..core.network import SETO_INTERNAL_NETWORKS
 from ..core.parser import resolve_compose_file
 from .resolve import resolve
@@ -413,19 +413,16 @@ def deploy_namespace_stack(args, driver: Driver) -> None:
   driver.namespace = f'seto-{args.namespace}'
   driver.stack = None
 
-  namespace_networks = resolve_global_networks(
-    args.namespace,
-    external_networks=[network.get('name', key) for key, network in SETO_INTERNAL_NETWORKS.items()],
-  )
+  namespace_networks_config = namespace_networks(args.namespace)
 
   logger.info('Configuring namespace agent...')
   internal_stack = {
-    'networks': namespace_networks,
+    'networks': namespace_networks_config,
     'services': {
       'agent': {
         'image': 'busybox',
         'command': ['sleep', 'infinity'],
-        'networks': list(namespace_networks.keys()),
+        'networks': list(namespace_networks_config.keys()),
         'deploy': {
           'mode': 'global',
         },

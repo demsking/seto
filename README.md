@@ -325,7 +325,8 @@ context that reaches its daemon:
       "local": false,
       "docker_context": "seto-client1"
     }
-  ]
+  ],
+  "global_networks_fingerprint": "9f2c…"
 }
 ```
 
@@ -333,6 +334,10 @@ Only the context _name_ is persisted; endpoints are always derived from the node
 identity, so a changed SSH user or hostname is picked up instead of being kept as
 stale state. A node whose context could not be created or verified is stored with
 `"docker_context": null` and is therefore never used as a deployment target.
+
+`global_networks_fingerprint` is the digest of the global networks resolved from
+`networks/*.yaml` when the namespace stack was last deployed. It lets a later
+`seto setup` detect that those definitions changed.
 
 `setup` is idempotent: an existing context that matches the expected endpoint is
 reused, and a context that exists with a different endpoint is reported as a
@@ -440,6 +445,11 @@ These options apply globally to the `seto` CLI tool and must be specified before
 
 Sets up the **storage node**, **storage replica**, and **client** nodes for NFS synchronization, creates a verified Docker Context for every configured node, and generates the `.seto/config.json` base configuration file.
 
+The command has two modes, selected by whether `.seto/config.json` already exists:
+
+- **First run (`config.json` missing)** — full provisioning: generates the SSH key pair, installs and configures the NFS server/client prerequisites on the hosts, creates and verifies a Docker Context for every configured node, writes `.seto/config.json`, and deploys both the `seto` provider stack and the namespace agent stack.
+- **Later runs (`config.json` exists)** — host-level NFS provisioning (SSH key generation, NFS packages, SSH authorization) is **not** executed again. Docker Contexts are still created, verified and repaired, and the namespace agent stack is redeployed **only if the global networks changed** since the last setup (compared through `global_networks_fingerprint`). The `seto` provider stack is not redeployed.
+
 When provided, `--storage-path` is also persisted into `.seto/config.json` and reused by subsequent commands.
 
 `setup` is idempotent and safe to re-run. It reuses existing Docker contexts that match the expected node, detects conflicting contexts, and only records nodes whose context was verified against the target Docker daemon. If a context cannot be established, the contexts that were created successfully are still persisted, the failing nodes are reported, and the command exits with a runtime error; re-running `setup` repairs the missing contexts.
@@ -455,7 +465,7 @@ seto --namespace <namespace-name> [--stack <stack-name>] \
 | `--storage-replicas` | Required. Storage replica nodes to setup: `user:pass@hostname`.                                    |
 | `--clients`          | Required. Client nodes to setup: `user:pass@hostname`. A Docker Context is created for every remote node (the current node uses the built-in `default` context). |
 | `--storage-path`     | Optional. Remote NFS storage base path persisted in `.seto/config.json` (default: `/mnt/nfs`).     |
-| `--force`            | Optional. Forces re-running setup tasks.                                                           |
+| `--force`            | Optional. Forces the first-run NFS provisioning tasks (host provisioning never re-runs once the configuration exists). |
 
 **Example:**
 

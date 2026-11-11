@@ -17,6 +17,7 @@ import argparse
 import json
 import socket
 from argparse import Namespace
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -24,11 +25,15 @@ import seto
 from seto import nodes_type
 from seto import storage_node_type
 from seto import storage_replica_type
+from seto.commands.deploy import deploy_seto_stack
 from seto.commands.deploy import deploy_stack_images
 from seto.commands.deploy import execute_deploy_command
 from seto.commands.deploy import parse_compose_config
 from seto.commands.deploy import pull_and_push_images
+from seto.commands.deploy import seto_provider_command
+from seto.commands.deploy import seto_provider_script
 from seto.core.docker import DockerCompose
+from seto.core.traefik import DEFAULT_TRAEFIK_ROUTE_TTL_SECONDS
 
 
 def test_storage_node_type(mocker):
@@ -803,3 +808,53 @@ def test_commands_without_nfs_volumes_still_load_the_docker_context_mapping(
   _args, driver = deploy.call_args.args
   assert driver.contexts.context_for('client1') == 'seto-client1'
   assert driver.contexts.manager_context() == 'seto-manager1'
+
+
+def test_seto_provider_script_ships_the_provider_module_source():
+  script = seto_provider_script()
+
+  assert 'class RouteRegistry' in script
+  assert 'class ProviderHandler' in script
+  assert 'def drop_expired' in script
+  assert 'ThreadingHTTPServer' in script
+
+  # The script must be the real, linted module source, not a hand-maintained copy.
+  module_path = Path(seto_provider_script.__globals__['__file__']).resolve()
+  server_module = module_path.parent.parent / 'core' / 'provider_server.py'
+
+  assert script == server_module.read_text(encoding='utf-8')
+
+
+def test_seto_provider_command_returns_python_with_ttl_argument():
+  command = seto_provider_command()
+
+  assert command[0:3] == ['python', '-u', '-c']
+  assert command[3] == seto_provider_script()
+  assert command[4] == str(DEFAULT_TRAEFIK_ROUTE_TTL_SECONDS)
+  assert len(command) == 5
+
+
+def test_seto_provider_command_forwards_explicit_ttl():
+  command = seto_provider_command(ttl_seconds=17)
+
+  assert command[4] == '17'
+
+
+def test_seto_provider_stack_uses_the_provider_command(mocker):
+  driver = MagicMock()
+  driver.namespace = 'app'
+  driver.stack = 'app'
+  driver.debug = False
+  args = Namespace(namespace='app', stack='app')
+
+  deploy_mock = mocker.patch('seto.commands.deploy.DockerSwarm')
+
+  deploy_seto_stack(args, driver)
+
+  config = deploy_mock.call_args.kwargs['config']
+  command = config['services']['provider']['command']
+
+  assert command[0:3] == ['python', '-u', '-c']
+  assert command[3] == seto_provider_script()
+  assert command[4] == str(DEFAULT_TRAEFIK_ROUTE_TTL_SECONDS)
+  deploy_mock.return_value.deploy.assert_called_once_with()

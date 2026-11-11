@@ -24,9 +24,9 @@ from seto.core.driver import Driver
 from seto.core.ports import PortCache
 from seto.core.shell import Shell
 from seto.core.traefik import build_traefik_http_provider_state
+from seto.core.traefik import expire_stale_traefik_routes
 from seto.core.traefik import extract_traefik_route
 from seto.core.traefik import merge_traefik_provider_state
-from seto.core.traefik import prune_stale_traefik_routes
 from seto.core.traefik import remove_traefik_http_registry_route
 from seto.core.traefik import sync_traefik_http_registry
 
@@ -496,8 +496,14 @@ def test_traefik_compose_route_registration_and_cleanup():
     },
   }
 
-  pruned = prune_stale_traefik_routes(stale, ttl_seconds=30)
-  assert not pruned
+  surviving = expire_stale_traefik_routes(
+    stale,
+    registered_at={'seto-demo-api': 0.0, 'seto-demo-bis': 0.0},
+    now=30.0,
+    ttl_seconds=5,
+    probe=lambda _route: True,
+  )
+  assert not surviving
 
 
 def test_traefik_provider_state_merge_keeps_registry_and_http_routes():
@@ -686,20 +692,19 @@ def test_compose_publishes_only_traefik_services_with_router_and_port(mocker, co
   )
 
   mocker.patch.object(compose, '_exec_output', return_value='0.0.0.0:49152\n')
-  attempted_endpoints = []
-
-  def _sync_stub(_routes, *, endpoint=None):
-    attempted_endpoints.append(endpoint)
-    return endpoint == 'http://10.42.0.5:8080/traefik'
-
-  sync_mock = mocker.patch('seto.core.docker.sync_traefik_http_registry', side_effect=_sync_stub)
+  mocker.patch('seto.core.docker.fetch_traefik_http_provider_state', return_value=None)
+  register_mock = mocker.patch(
+    'seto.core.docker.register_traefik_http_route',
+    side_effect=lambda route_id, route, **_kwargs: (True, {'http': route['http']}),
+  )
 
   compose._publish_traefik_routes('mali')
 
-  assert sync_mock.call_count >= 1
-  assert 'http://10.42.0.5:8080/traefik' in attempted_endpoints
-  routes_payload = sync_mock.call_args.args[0]
-  route = routes_payload['oremi_iot_mali-zigbee2mqtt']
+  registered_ids = [call.args[0] for call in register_mock.call_args_list]
+  assert 'oremi_iot_mali-zigbee2mqtt' in registered_ids
+
+  published_routes = {call.args[0]: call.args[1] for call in register_mock.call_args_list}
+  route = published_routes['oremi_iot_mali-zigbee2mqtt']
 
   assert route['http']['routers']['zigbee2mqtt']['rule'] == 'Host(`zigbee2mqtt.example.com`)'
   assert (
@@ -750,19 +755,18 @@ def test_compose_publishes_distinct_host_ports_for_multiple_traefik_services(
 
   mocker.patch.object(compose, '_exec_output', side_effect=_exec_output_stub)
 
-  published_payloads = []
+  published_routes = {}
 
-  def _sync_stub(routes, *, endpoint=None):
-    published_payloads.append((endpoint, routes))
-    return True
+  def _register_stub(route_id, route, *, probe_route=True, endpoint=None):
+    published_routes[route_id] = route
+    return True, {'http': route['http'], 'route_id': route_id}
 
-  mocker.patch('seto.core.docker.sync_traefik_http_registry', side_effect=_sync_stub)
+  mocker.patch('seto.core.docker.register_traefik_http_route', side_effect=_register_stub)
 
   compose._publish_traefik_routes('mali')
 
-  assert published_payloads
-  routes_payload = published_payloads[0][1]
-  route = routes_payload['oremi_iot_mali-ps4-ws']
+  assert list(published_routes) == ['oremi_iot_mali-ps4-ws']
+  route = published_routes['oremi_iot_mali-ps4-ws']
 
   assert (
     route['http']['services']['ps4']['loadBalancer']['servers'][0]['url']
@@ -804,15 +808,28 @@ def test_compose_publish_falls_back_to_remote_node_sync(mocker, contexts_factory
     return ''
 
   exec_output_mock = mocker.patch.object(compose, '_exec_output', side_effect=_exec_output_stub)
-  node_capture_mock = mocker.patch.object(compose, '_node_capture', return_value='1\n')
-  sync_mock = mocker.patch('seto.core.docker.sync_traefik_http_registry', return_value=False)
+  node_run_mock = mocker.patch.object(compose, '_node_run')
+  register_mock = mocker.patch(
+    'seto.core.docker.register_traefik_http_route',
+    return_value=(False, {'http': {'routers': {}, 'services': {}}, 'route_id': 'zigbee2mqtt'}),
+  )
 
   compose._publish_traefik_routes('mali')
 
-  assert sync_mock.call_count >= 1
+  assert register_mock.call_count >= 1
   assert exec_output_mock.call_count >= 1
-  node_capture_mock.assert_called_once()
-  assert node_capture_mock.call_args.kwargs['hostname'] == 'mali'
+  # The host cannot reach the provider: a detached watchdog renews from the node.
+  node_run_mock.assert_called_once()
+  assert node_run_mock.call_args.kwargs['hostname'] == 'mali'
+  assert 'oremi_iot_mali-zigbee2mqtt' in node_run_mock.call_args.args[0]
+
+  # The watchdog helper exits gracefully when the node rejects the launch.
+  mocker.patch.object(compose, '_node_run', side_effect=RuntimeError('ssh refused'))
+  compose._start_traefik_route_watchdog(
+    'mali',
+    {'oremi_iot_mali-zigbee2mqtt': {'http': {}}},
+    ['http://10.42.0.5:8080/traefik'],
+  )
 
 
 def traefik_ports_config():

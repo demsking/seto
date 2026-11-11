@@ -244,7 +244,13 @@ A Traefik service target port does not define an explicit host port, so Docker C
 
 ### Cleanup behavior
 
-Routes are automatically refreshed and pruned using a short TTL. By default,Ṣeto keeps registry entries for 30 seconds and removes stale entries when services disappear or are brought down. This prevents dead routes from lingering in Traefik after a remote Compose service is stopped.
+The `seto-provider` service owns route expiry, so a dead route never lingers in Traefik even when no further `seto deploy` runs:
+
+- **Unreachable target.** Every 2 seconds, the provider probes the backend URL of each published route (`http://<node-ip>:<published-port>`). A route is removed as soon as its target stops answering, which is what happens when the container is stopped or the node goes down. The route disappears from the Traefik configuration within 5 seconds.
+- **Unrenewed route.** A route that nobody renews is removed once it has been registered for longer than the TTL, 5 seconds by default. `seto deploy` renews the routes of the stack it deploys, and `seto down` removes them immediately. Routes of the other stacks are republished unchanged on every deployment so they never expire by accident.
+- **TTL override.** Set the `SETO_TRAEFIK_ROUTE_TTL` environment variable to change the TTL in seconds; it is read when `seto deploy` (re)creates the provider service. Malformed or non-positive values fall back to 5 seconds.
+
+Both rules are evaluated inside the provider, which keeps its own timer: no extra process, cron job or monitoring agent is needed on the Traefik node.
 
 ### When this matters
 
@@ -432,6 +438,8 @@ These options apply globally to the `seto` CLI tool and must be specified before
 | `SETO_IMAGE_PREFIX`              | Default image namespace prefix to be added to internal images.                   | None                                   |
 | `SETO_DEFAULT_VOLUME_MOUNT_MODE` | Default volume mount mode used when mode is omitted in `volumes-nfs` entries.    | `rw`                                   |
 | `SETO_DEFAULT_NFS_OPTIONS`       | Default `volumes-nfs` mount options when options are omitted in compose entries. | `rw,hard,noatime,nodiratime,nfsvers=4` |
+| `SETO_TRAEFIK_HTTP_ENDPOINT`     | HTTP provider endpoint the Compose routes are published to.                      | `http://seto-provider:8080/traefik`    |
+| `SETO_TRAEFIK_ROUTE_TTL`         | Seconds a Compose route stays published without being renewed or answering.      | `5`                                    |
 
 ### Variable Interpolation
 

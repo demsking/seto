@@ -15,14 +15,18 @@
 import json
 import os
 import time
+from collections.abc import Callable
 from typing import Any
 from urllib import error as urllib_error
+from urllib import parse as urllib_parse
 from urllib import request as urllib_request
 from urllib.parse import urlsplit
 from urllib.parse import urlunsplit
 
 DEFAULT_TRAEFIK_HTTP_ENDPOINT = 'http://seto-provider:8080/traefik'
-DEFAULT_TRAEFIK_ROUTE_TTL_SECONDS = 30
+DEFAULT_TRAEFIK_ROUTE_TTL_SECONDS = 5
+TRAEFIK_ROUTE_TTL_ENV = 'SETO_TRAEFIK_ROUTE_TTL'
+ROUTE_CONTROL_KEYS = ('last_seen', 'route_id', 'probe')
 
 
 def candidate_traefik_http_endpoints(endpoint: str) -> list[str]:
@@ -300,21 +304,6 @@ def extract_traefik_route(
   return dynamic
 
 
-def prune_stale_traefik_routes(
-  routes: dict[str, dict[str, Any]], *, ttl_seconds: int = DEFAULT_TRAEFIK_ROUTE_TTL_SECONDS
-) -> dict[str, dict[str, Any]]:
-  now = int(time.time())
-  cleaned: dict[str, dict[str, Any]] = {}
-
-  for route_id, route in routes.items():
-    last_seen = int(route.get('last_seen', 0))
-
-    if now - last_seen <= ttl_seconds:
-      cleaned[route_id] = route
-
-  return cleaned
-
-
 def build_traefik_http_provider_state(routes: dict[str, dict[str, Any]]) -> dict[str, Any]:
   http_def: dict[str, Any] = {'routers': {}, 'services': {}}
 
@@ -417,3 +406,293 @@ def remove_traefik_http_registry_route(route_id: str, *, endpoint: str | None = 
       continue
 
   return False
+
+
+def resolve_traefik_route_ttl(value: Any = None) -> int:
+  """Return the route TTL in seconds.
+
+  ``value`` (or the ``SETO_TRAEFIK_ROUTE_TTL`` environment variable when omitted)
+  overrides the default. Non-numeric and non-positive values are ignored so a
+  malformed environment variable can never disable or invert the expiry.
+  """
+  raw = os.getenv(TRAEFIK_ROUTE_TTL_ENV) if value is None else value
+
+  if raw is None or isinstance(raw, bool):
+    return DEFAULT_TRAEFIK_ROUTE_TTL_SECONDS
+
+  try:
+    ttl = int(str(raw).strip())
+  except (TypeError, ValueError):
+    return DEFAULT_TRAEFIK_ROUTE_TTL_SECONDS
+
+  if ttl <= 0:
+    return DEFAULT_TRAEFIK_ROUTE_TTL_SECONDS
+
+  return ttl
+
+
+def traefik_route_ttl_seconds() -> int:
+  """Return the effective Compose route TTL in seconds."""
+  return resolve_traefik_route_ttl()
+
+
+def route_server_urls(route: dict[str, Any]) -> list[str]:
+  """Return the backend server URLs a route load balances to."""
+  urls: list[str] = []
+
+  for config in route.get('http', {}).get('services', {}).values():
+    if not isinstance(config, dict):
+      continue
+
+    load_balancer = config.get('loadBalancer', {})
+    if not isinstance(load_balancer, dict):
+      continue
+
+    for server in load_balancer.get('servers', []):
+      url = server.get('url') if isinstance(server, dict) else None
+
+      if isinstance(url, str) and url.strip():
+        urls.append(url.strip())
+
+  return urls
+
+
+def traefik_route_is_alive(route: dict[str, Any], *, timeout: int = 2) -> bool:
+  """Return ``True`` when at least one backend of ``route`` answers over HTTP.
+
+  Any HTTP status counts: the only question answered here is whether the target
+  host and port still accept connections. A route without any backend URL is
+  considered dead, since it can never be served.
+  """
+  for url in route_server_urls(route):
+    request = urllib_request.Request(url, method='HEAD')
+
+    try:
+      with urllib_request.urlopen(request, timeout=timeout) as response:  # type: ignore[arg-type]
+        if 100 <= response.getcode() < 600:
+          return True
+    except urllib_error.HTTPError:
+      # The service answered, only not on the probed method/path.
+      return True
+    except (urllib_error.URLError, OSError, ValueError):
+      continue
+
+  return False
+
+
+def expire_stale_traefik_routes(
+  routes: dict[str, dict[str, Any]],
+  *,
+  registered_at: dict[str, float],
+  now: float | None = None,
+  ttl_seconds: int | None = None,
+  probe: Callable[[dict[str, Any]], bool] | None = None,
+) -> dict[str, dict[str, Any]]:
+  """Drop the routes that outlived their TTL or no longer answer.
+
+  A route expires as soon as it is older than ``ttl_seconds`` measured from its
+  registration in ``registered_at``. Routes that are still within the TTL stay,
+  but a route whose backend stopped answering (for example because the target
+  container was stopped) is dropped immediately.
+  """
+  ttl = resolve_traefik_route_ttl(ttl_seconds)
+  reference = time.monotonic() if now is None else now
+  check = traefik_route_is_alive if probe is None else probe
+  alive: dict[str, dict[str, Any]] = {}
+
+  for route_id, route in routes.items():
+    registered = registered_at.get(route_id)
+
+    if registered is not None and reference - registered > ttl:
+      continue
+
+    if not check(route):
+      continue
+
+    alive[route_id] = route
+
+  return alive
+
+
+def route_provider_record(
+  route_id: str, route: dict[str, Any], *, probe_route: bool = True
+) -> dict[str, Any]:
+  """Build the provider registry record of a route.
+
+  The record keeps the Traefik dynamic configuration of the route and adds the
+  Ṣeto bookkeeping keys the provider uses to expire it: ``route_id`` identifies
+  the route inside its Traefik configuration and ``probe`` asks the provider to
+  drop the route as soon as its backend stops answering.
+  """
+  record: dict[str, Any] = {
+    key: value for key, value in route.items() if key not in ROUTE_CONTROL_KEYS
+  }
+  record['route_id'] = route.get('route_id', route_id)
+
+  if probe_route:
+    record['probe'] = True
+
+  return record
+
+
+def register_traefik_http_route(
+  route_id: str,
+  route: dict[str, Any],
+  *,
+  probe_route: bool = True,
+  endpoint: str | None = None,
+) -> tuple[bool, dict[str, Any]]:
+  """Publish a single route to the provider registry.
+
+  The route is published under the full registry id ``route_id`` so the provider
+  can attach its own expiry bookkeeping to it. Routes registered with
+  ``probe_route`` are also monitored by the provider, which drops them as soon as
+  their backend stops answering.
+
+  Returns ``(published, record)``, where ``record`` is the provider record of the
+  route; ``record['http']`` is the payload that reaches Traefik.
+  """
+  record = route_provider_record(route_id, route, probe_route=probe_route)
+  payload = build_traefik_http_provider_state({route_id: record})
+  target = endpoint or os.getenv('SETO_TRAEFIK_HTTP_ENDPOINT', DEFAULT_TRAEFIK_HTTP_ENDPOINT)
+
+  if not target:
+    return False, record
+
+  body = json.dumps(payload).encode('utf-8')
+
+  for candidate in candidate_traefik_http_endpoints(target):
+    request = urllib_request.Request(
+      f'{candidate.rstrip("/")}/{urllib_parse.quote(route_id, safe="")}',
+      data=body,
+      headers={'Content-Type': 'application/json'},
+      method='PUT',
+    )
+
+    try:
+      with urllib_request.urlopen(request, timeout=5) as response:  # type: ignore[arg-type]
+        if 200 <= response.getcode() < 300:
+          return True, record
+    except (urllib_error.URLError, OSError, ValueError):
+      continue
+
+  return False, record
+
+
+def build_traefik_route_records(
+  routes: dict[str, dict[str, Any]], *, probe_route: bool = True
+) -> dict[str, Any]:
+  """Build the ``_seto_registry`` payload holding the provider route records."""
+  records = {
+    str(route_id): route_provider_record(route_id, route, probe_route=probe_route)
+    for route_id, route in routes.items()
+  }
+
+  return {'_seto_registry': {'routes': records}}
+
+
+def group_provider_routes(state: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
+  """Extract the route records of a provider state payload.
+
+  This is the inverse of :func:`build_traefik_route_records`: it turns a state
+  fetched from the provider back into the ``{route_id: record}`` mapping understood
+  by :func:`expire_stale_traefik_routes`.
+  """
+  if not isinstance(state, dict):
+    return {}
+
+  registry = state.get('_seto_registry', {})
+  records = registry.get('routes', {}) if isinstance(registry, dict) else {}
+  routes: dict[str, dict[str, Any]] = {}
+
+  if isinstance(records, dict):
+    for route_id, record in records.items():
+      if isinstance(record, dict):
+        routes[str(route_id)] = record
+
+  return routes
+
+
+def fetch_traefik_http_provider_state(
+  *, endpoint: str | None = None, timeout: int = 5
+) -> dict[str, Any] | None:
+  """Read the current provider state, including its route registry.
+
+  Returns ``None`` when no candidate endpoint answers, so callers can tell
+  "nothing published yet" apart from "the provider is unreachable".
+  """
+  target = endpoint or os.getenv('SETO_TRAEFIK_HTTP_ENDPOINT', DEFAULT_TRAEFIK_HTTP_ENDPOINT)
+
+  if not target:
+    return None
+
+  for candidate in candidate_traefik_http_endpoints(target):
+    request = urllib_request.Request(candidate, method='GET')
+
+    try:
+      with urllib_request.urlopen(request, timeout=timeout) as response:  # type: ignore[arg-type]
+        if 200 <= response.getcode() < 300:
+          payload = json.loads(response.read().decode('utf-8'))
+          return payload if isinstance(payload, dict) else None
+    except (urllib_error.URLError, OSError, ValueError):
+      continue
+
+  return None
+
+
+def reset_traefik_http_registry(payload: dict[str, Any], *, endpoint: str | None = None) -> bool:
+  """Replace the whole provider state with ``payload``.
+
+  Unlike :func:`sync_traefik_http_registry`, which merges its routes into the
+  current state, this replaces the state so the routes absent from ``payload``
+  stop being served immediately.
+  """
+  target = endpoint or os.getenv('SETO_TRAEFIK_HTTP_ENDPOINT', DEFAULT_TRAEFIK_HTTP_ENDPOINT)
+
+  if not target:
+    return False
+
+  body = json.dumps(payload).encode('utf-8')
+
+  for candidate in candidate_traefik_http_endpoints(target):
+    request = urllib_request.Request(
+      candidate,
+      data=body,
+      headers={'Content-Type': 'application/json'},
+      method='PUT',
+    )
+
+    try:
+      with urllib_request.urlopen(request, timeout=5) as response:  # type: ignore[arg-type]
+        if 200 <= response.getcode() < 300:
+          return True
+    except (urllib_error.URLError, OSError, ValueError):
+      continue
+
+  return False
+
+
+def build_provider_reset_payload(
+  state: dict[str, Any] | None, *, stack_id: str
+) -> dict[str, Any]:
+  """Build the provider payload holding every route except ``stack_id``'s own.
+
+  Republishing the other stacks' routes is what keeps them alive while the
+  deploying stack renews its own: a route that nobody renews is expired by the
+  provider once its TTL runs out.
+  """
+  foreign = {
+    route_id: record
+    for route_id, record in group_provider_routes(state).items()
+    if not route_id.startswith(f'{stack_id}-')
+  }
+
+  payload = build_traefik_http_provider_state(
+    {
+      route_id: route_provider_record(route_id, record, probe_route=bool(record.get('probe')))
+      for route_id, record in foreign.items()
+    }
+  )
+  payload.update(build_traefik_route_records(foreign))
+
+  return payload

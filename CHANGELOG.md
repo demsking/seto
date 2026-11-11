@@ -10,6 +10,7 @@ All notable changes to this project are documented in this file.
 
 ### Improvements
 
+- A Compose HTTP provider route is now removed automatically when it stops being reachable. The `seto-provider` service probes the backend URL of every published route and drops the ones whose target no longer answers, so stopping a target container makes its route disappear from Traefik within 5 seconds instead of leaving a dead route registered. The provider also expires any route that is not renewed within the TTL, which is now 5 seconds (was 30) and configurable with `SETO_TRAEFIK_ROUTE_TTL`.
 - `seto deploy` now runs the image build pass only when a Swarm or Compose service declares a `build` entry. Stacks made exclusively of `image` services (and services whose `build` entry was already removed by `--pull`) skip `compose build` and `compose push` instead of running a no-op build of the whole configuration.
 - `seto deploy` now reserves the random host port Docker assigns to a Compose Traefik target port in `.seto/ports.json` and reuses it on later deployments, so redeploying a service keeps the same published binding and the Traefik route stays valid. A reserved binding is applied before the first `docker compose up`, which also removes the extra container recreation previously needed to pin a freshly assigned random port.
 
@@ -17,6 +18,7 @@ All notable changes to this project are documented in this file.
 
 - The machine running Ṣeto now resolves through Docker's built-in `default` context, so `x-mode: compose` placements such as `host.name == <current-hostname>` work without registering a node or Docker context for it.
 - `seto setup` now persists Docker's built-in `default` context for the current node (the machine running Ṣeto) as `"docker_context": "default"` instead of creating a redundant `seto-<hostname>` context for it. The `default` context is verified but never rewritten.
+- `seto down` now removes this stack's Compose routes from the `seto-provider` registry under their full `seto-<stack_id>-<route_id>` id. It previously deleted them under the bare router name, so the routes were never actually removed and relied on a TTL to disappear.
 
 ## 5.0.0 - 2026-09-25
 

@@ -33,12 +33,15 @@ from .shell import Setting
 from .shell import Shell
 from .targets import ComposeTargetResolver
 from .targets import ComposeTargets
+from .traefik import build_provider_reset_payload
 from .traefik import DEFAULT_TRAEFIK_HTTP_ENDPOINT
 from .traefik import extract_traefik_route
+from .traefik import fetch_traefik_http_provider_state
 from .traefik import get_traefik_http_labels
-from .traefik import prune_stale_traefik_routes
+from .traefik import register_traefik_http_route
 from .traefik import remove_traefik_http_registry_route
-from .traefik import sync_traefik_http_registry
+from .traefik import reset_traefik_http_registry
+from .traefik import traefik_route_ttl_seconds
 
 # Define the regular expression pattern to match {{ .Node.Hostname }} with optional spaces
 NODE_HOSTNAME_RE = r'\{\{\s*\.Node\.Hostname\s*\}\}'
@@ -698,11 +701,39 @@ class DockerCompose(Docker):
 
     return changed
 
-  def _publish_traefik_routes(self, nodename: str) -> None:
-    routes: dict[str, dict[str, Any]] = {}
-    node_ip = self._resolve_node_ip(nodename)
+  def _traefik_route_ttl(self) -> int:
+    """Return the TTL after which the provider expires an unrenewed route."""
+    return traefik_route_ttl_seconds()
 
-    logger.info('Publishing compose Traefik routes from node %s (IPv4: %s).', nodename, node_ip)
+  def _reset_traefik_provider_state(self, endpoints: list[str]) -> None:
+    """Republish every route of the other stacks before renewing this one's.
+
+    The provider expires a route that is not renewed for a TTL, so this stack's
+    own routes must be pushed again on every deployment. Rebuilding the state
+    from the routes of the *other* stacks keeps them alive while making the
+    routes this stack no longer declares disappear immediately, instead of
+    lingering until their TTL runs out.
+    """
+    if not endpoints:
+      return
+
+    state = fetch_traefik_http_provider_state(endpoint=endpoints[0])
+
+    if state is None:
+      logger.debug('Current Traefik provider state unavailable; skipping the state reset.')
+      return
+
+    payload = build_provider_reset_payload(state, stack_id=self.driver.stack_id)
+
+    for endpoint in endpoints:
+      if reset_traefik_http_registry(payload, endpoint=endpoint):
+        return
+
+    logger.debug('Unable to reset the Traefik provider state; expired routes will self-clean.')
+
+  def _collect_traefik_routes(self, nodename: str, node_ip: str) -> dict[str, Any]:
+    """Build the provider routes of the Compose services deployed on ``nodename``."""
+    routes: dict[str, dict[str, Any]] = {}
 
     for service_name, spec in self._traefik_service_specs.items():
       labels = spec.get('labels', {})
@@ -767,24 +798,98 @@ class DockerCompose(Docker):
           'Compose service %s: route %s prepared for seto-provider.', service_name, route_id
         )
 
+    return routes
+
+  def _publish_traefik_routes(self, nodename: str) -> None:
+    node_ip = self._resolve_node_ip(nodename)
+
+    logger.info('Publishing compose Traefik routes from node %s (IPv4: %s).', nodename, node_ip)
+
+    routes = self._collect_traefik_routes(nodename, node_ip)
+    endpoints = self._traefik_provider_endpoints(nodename, node_ip)
+
+    self._reset_traefik_provider_state(endpoints)
+
     if not routes:
       logger.info('No compose Traefik routes to publish for node %s.', nodename)
       return
 
-    pruned = prune_stale_traefik_routes(routes)
-    endpoints = self._traefik_provider_endpoints(nodename, node_ip)
+    unreachable: dict[str, Any] = {}
 
-    for endpoint in endpoints:
-      if sync_traefik_http_registry(pruned, endpoint=endpoint):
-        return
+    # Publish from here first: the provider is reached through its published
+    # port, which does not depend on the overlay DNS that is unresolvable from
+    # outside the Docker networks.
+    for route_id, route in routes.items():
+      if not any(
+        register_traefik_http_route(route_id, route, endpoint=endpoint)[0]
+        for endpoint in endpoints
+      ):
+        unreachable[route_id] = route
 
-    if self._sync_traefik_routes_from_node(nodename, pruned, endpoints):
+    if unreachable:
+      self._start_traefik_route_watchdog(nodename, unreachable, endpoints)
+
+  def _start_traefik_route_watchdog(
+    self, nodename: str, routes: dict[str, Any], endpoints: list[str]
+  ) -> None:
+    """Keep renewing from the node the routes this host cannot publish.
+
+    A deployment run from outside the Docker overlay networks cannot always
+    reach the published provider port. In that case a detached watchdog runs on
+    the node itself and renews its routes well within the TTL, so they stay
+    registered while the deployment is alive and are expired by the provider
+    once the watchdog stops.
+    """
+    ttl = self._traefik_route_ttl()
+    interval = max(1.0, min(ttl / 4.0, 3.0))
+    payload = json.dumps(routes)
+    candidates = sorted({endpoint for endpoint in endpoints if endpoint})
+
+    script = (
+      'import json,sys,time\n'
+      'from urllib import request as r,error as e\n'
+      'routes=json.loads(sys.argv[1])\n'
+      'endpoints=json.loads(sys.argv[2])\n'
+      'interval=float(sys.argv[3])\n'
+      'def put(route_id,route):\n'
+      '  body=json.dumps(route).encode("utf-8")\n'
+      '  for endpoint in endpoints:\n'
+      '    req=r.Request(endpoint.rstrip("/")+"/"+route_id,data=body,'
+      'headers={"Content-Type":"application/json"},method="PUT")\n'
+      '    try:\n'
+      '      with r.urlopen(req,timeout=5) as res:  # type: ignore[arg-type]\n'
+      '        if 200 <= res.getcode() < 300:\n'
+      '          return True\n'
+      '    except (e.URLError,OSError,ValueError):\n'
+      '      pass\n'
+      '  return False\n'
+      'while True:\n'
+      '  for route_id,route in routes.items():\n'
+      '    put(route_id,route)\n'
+      '  time.sleep(interval)\n'
+    )
+
+    args = shlex.join((payload, json.dumps(candidates), str(interval)))
+    command = f'setsid nohup python3 -c {shlex.quote(script)} {args} >/dev/null 2>&1 &'
+
+    route_ids = ', '.join(sorted(routes))
+
+    try:
+      self._node_run(command, hostname=nodename, input='')
+    except Exception as error:  # pylint: disable=broad-except
+      logger.warning(
+        'Unable to start the Traefik route watchdog on %s for routes %s: %s',
+        nodename,
+        route_ids,
+        error,
+      )
       return
 
-    logger.warning(
-      'Unable to publish Traefik routes for stack %s via endpoints: %s',
-      self.driver.stack_id,
-      ', '.join(endpoints),
+    logger.info(
+      'Started Traefik route watchdog on %s for routes %s (renewal every %.1fs).',
+      nodename,
+      route_ids,
+      interval,
     )
 
   def _remove_traefik_routes(self) -> None:
@@ -809,20 +914,13 @@ class DockerCompose(Docker):
       if not isinstance(labels, dict):
         continue
 
-      route = extract_traefik_route(
-        service_name,
-        {'labels': labels},
-        hostname='localhost',
-        port=None,
-      )
+      route = extract_traefik_route(service_name, {'labels': labels}, hostname='localhost')
       if route:
         routes[f'{self.driver.stack_id}-{route.get("route_id", service_name)}'] = route
 
-    if not routes:
-      return
-
     for route_id in routes:
-      remove_traefik_http_registry_route(route_id)
+      if remove_traefik_http_registry_route(route_id):
+        logger.info('Removed Traefik route %s from seto-provider.', route_id)
 
   def ps(self) -> None:
     for nodename in self.nodenames:

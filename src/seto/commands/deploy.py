@@ -15,6 +15,7 @@
 import logging
 import re
 import subprocess
+from pathlib import Path
 from typing import Any
 
 from docker import DockerClient
@@ -28,114 +29,35 @@ from ..core.driver import Driver
 from ..core.network import namespace_networks
 from ..core.network import SETO_INTERNAL_NETWORKS
 from ..core.parser import resolve_compose_file
+from ..core.traefik import DEFAULT_TRAEFIK_ROUTE_TTL_SECONDS
 from .resolve import resolve
 
 logger = logging.getLogger(__name__)
 
 
-def seto_provider_command() -> list[str]:
-  script = (
-    'import json\n'
-    'from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\n'
-    '\n'
-    'state={"http":{"routers":{},"services":{}}}\n'
-    '\n'
-    'class H(BaseHTTPRequestHandler):\n'
-    '  def handle(self):\n'
-    '    try:\n'
-    '      super().handle()\n'
-    '    except (ConnectionResetError, BrokenPipeError, ConnectionAbortedError):\n'
-    '      pass\n'
-    '\n'
-    '  def _send(self,code,obj=None):\n'
-    '    self.send_response(code)\n'
-    '    if obj is None:\n'
-    '      self.send_header("Content-Length","0")\n'
-    '      self.end_headers()\n'
-    '      return\n'
-    '    body=json.dumps(obj).encode("utf-8")\n'
-    '    self.send_header("Content-Type","application/json")\n'
-    '    self.send_header("Content-Length",str(len(body)))\n'
-    '    self.end_headers()\n'
-    '    self.wfile.write(body)\n'
-    '\n'
-    '  def log_message(self, fmt, *args):\n'
-    '    return\n'
-    '\n'
-    '  def do_GET(self):\n'
-    '    if self.path.rstrip("/")=="/traefik":\n'
-    '      self._send(200,state)\n'
-    '      return\n'
-    '    self._send(404,{"error":"not found"})\n'
-    '\n'
-    '  def do_PUT(self):\n'
-    '    normalized_path=self.path.rstrip("/")\n'
-    '    if normalized_path!="/traefik":\n'
-    '      self._send(404,{"error":"not found"})\n'
-    '      return\n'
-    '\n'
-    '    try:\n'
-    '      length=int(self.headers.get("Content-Length","0"))\n'
-    '      raw=self.rfile.read(length) if length else b"{}"\n'
-    '      payload=json.loads(raw.decode("utf-8"))\n'
-    '      if not isinstance(payload,dict):\n'
-    '        raise ValueError("invalid payload")\n'
-    '    except (ValueError, TypeError, UnicodeDecodeError, json.JSONDecodeError):\n'
-    '      self._send(400,{"error":"invalid json"})\n'
-    '      return\n'
-    '\n'
-    '    if "http" not in payload and any(k in payload for k in ("routers","services")):\n'
-    '      payload={"http":payload}\n'
-    '\n'
-    '    if "http" in payload and isinstance(payload["http"],dict):\n'
-    '      nested_http=payload["http"].get("http")\n'
-    '      if isinstance(nested_http,dict):\n'
-    '        payload["http"]=nested_http\n'
-    '\n'
-    '    current=state if isinstance(state,dict) else {}\n'
-    '    merged=dict(current)\n'
-    '\n'
-    '    for key,value in payload.items():\n'
-    '      if key=="http" and isinstance(value,dict):\n'
-    '        existing=merged.get("http",{})\n'
-    '        if not isinstance(existing,dict):\n'
-    '          existing={}\n'
-    '        combined=dict(existing)\n'
-    '\n'
-    '        for nested_key,nested_value in value.items():\n'
-    '          if nested_key in {"routers","services"} and isinstance(nested_value,dict):\n'
-    '            section=dict(combined.get(nested_key,{}))\n'
-    '            section.update(nested_value)\n'
-    '            combined[nested_key]=section\n'
-    '          else:\n'
-    '            combined[nested_key]=nested_value\n'
-    '\n'
-    '        merged["http"]=combined\n'
-    '      else:\n'
-    '        merged[key]=value\n'
-    '\n'
-    '    state.clear()\n'
-    '    state.update(merged)\n'
-    '    self._send(204)\n'
-    '\n'
-    '  def do_DELETE(self):\n'
-    '    prefix="/traefik/"\n'
-    '    if not self.path.startswith(prefix):\n'
-    '      self._send(404,{"error":"not found"})\n'
-    '      return\n'
-    '\n'
-    '    route_id=self.path[len(prefix):].strip("/")\n'
-    '    http=state.setdefault("http",{})\n'
-    '    routers=http.setdefault("routers",{})\n'
-    '    services=http.setdefault("services",{})\n'
-    '    routers.pop(route_id,None)\n'
-    '    services.pop(route_id,None)\n'
-    '    self._send(204)\n'
-    '\n'
-    'ThreadingHTTPServer(("0.0.0.0",8080),H).serve_forever()\n'
-  )
+PROVIDER_SERVER_MODULE = 'core/provider_server.py'
 
-  return ['python', '-u', '-c', script]
+
+def seto_provider_script() -> str:
+  """Return the source of the Traefik HTTP provider run by ``seto-provider``.
+
+  The provider is a real module of the package (`seto/core/provider_server.py`),
+  so it is linted and tested like any other code; only its source text is shipped
+  to the container, which runs it with a bare ``python:3.12-alpine`` image.
+  """
+  module_path = Path(__file__).resolve().parent.parent / PROVIDER_SERVER_MODULE
+  return module_path.read_text(encoding='utf-8')
+
+
+def seto_provider_command(*, ttl_seconds: int = DEFAULT_TRAEFIK_ROUTE_TTL_SECONDS) -> list[str]:
+  """Return the command running the in-cluster Traefik HTTP provider.
+
+  The provider keeps the published routes in memory and expires them on its own:
+  a route whose target container was stopped (so its backend URL no longer
+  answers) disappears from the Traefik configuration within ``ttl_seconds``,
+  without any further ``seto deploy`` run.
+  """
+  return ['python', '-u', '-c', seto_provider_script(), str(ttl_seconds)]
 
 
 def parse_service_vars(entries: dict[str, Any], hostname: str) -> None:
